@@ -19,12 +19,19 @@ package imagestreaming
 
 import (
 	"context"
+	"errors"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
 
-// AuthConfig contains registry authentication credentials that may be required
-// by streaming providers to fetch layer chunks on demand from private registries.
+// ErrNotStreamable reports that a provider declined to stream an image, for
+// example because the image has no streaming index or its registry isn't
+// supported. Callers should pull the image without streaming instead.
+var ErrNotStreamable = errors.New("image not streamable")
+
+// AuthConfig contains registry credentials for one image request. Drivers use
+// them only to resolve the image manifest and config. They are never sent to
+// the streaming provider, which fetches layer data with node identity.
 type AuthConfig struct {
 	Username      string `json:"username,omitempty"`
 	Password      string `json:"password,omitempty"`
@@ -39,8 +46,8 @@ type StreamRequest struct {
 	// ImageRef is the fully-qualified OCI image reference (with digest).
 	ImageRef string
 
-	// AuthConfig holds optional credentials for pulling from private registries.
-	// When nil, the provider may rely on ambient node credentials (such as GKE Workload Identity).
+	// AuthConfig holds optional credentials for resolving the image manifest
+	// and config. When nil, the driver uses its node-level keychain.
 	AuthConfig *AuthConfig
 }
 
@@ -85,7 +92,8 @@ type ImageStreamer interface {
 	CanStream(ctx context.Context, req *StreamRequest) (bool, error)
 
 	// PrepareLayers prepares and mounts the virtual layer directories on the node
-	// and returns their absolute paths.
+	// and returns their absolute paths. It returns an error wrapping
+	// ErrNotStreamable if the provider declines the image.
 	PrepareLayers(ctx context.Context, req *StreamRequest) (*StreamResult, error)
 
 	// ReleaseLayers releases or decrements the reference count for the layers
