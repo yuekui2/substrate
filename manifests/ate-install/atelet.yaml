@@ -146,6 +146,7 @@ spec:
         - --drain-delay=0s
         - --drain-timeout=5m
         - --image-streamer=auto
+        - --log-level=debug
         # atelet does no mounts, netlink, device, or namespace operations (those
         # live in the ateom worker pod) — it only reads/writes the
         # /var/lib/ateom-gvisor hostPath as root, so it needs no Linux
@@ -229,8 +230,18 @@ spec:
           mountPath: /run/containerd-gcfs-grpc
         - name: run-gcfsd
           mountPath: /run/gcfsd
+          mountPropagation: HostToContainer
+          readOnly: true
         - name: run-soci
           mountPath: /run/soci-snapshotter-grpc
+        - name: var-lib-containerd-gcfs
+          mountPath: /var/lib/containerd/io.containerd.snapshotter.v1.gcfs
+          mountPropagation: HostToContainer
+          readOnly: true
+        - name: var-lib-soci
+          mountPath: /var/lib/soci-snapshotter-grpc
+          mountPropagation: HostToContainer
+          readOnly: true
       volumes:
       - name: run-ateom
         hostPath:
@@ -246,6 +257,14 @@ spec:
       - name: run-soci
         hostPath:
           path: /run/soci-snapshotter-grpc
+          type: DirectoryOrCreate
+      - name: var-lib-containerd-gcfs
+        hostPath:
+          path: /var/lib/containerd/io.containerd.snapshotter.v1.gcfs
+          type: DirectoryOrCreate
+      - name: var-lib-soci
+        hostPath:
+          path: /var/lib/soci-snapshotter-grpc
           type: DirectoryOrCreate
       # Mount Kubelet plugins directory to access CSI driver Unix domain sockets.
       - name: kubelet-plugins
