@@ -1608,7 +1608,7 @@ func (s *AteomHerder) prepareOCIBundles(
 		if err := prepareOCIDirectory(
 			gCtx,
 			s.imageCache,
-			s.imageStreamer,
+			nil, // pause is prewarmed into imageCache and not tracked as a streamed lease.
 			s.instruments,
 			actorUID,
 			ocispec.PauseContainer,
