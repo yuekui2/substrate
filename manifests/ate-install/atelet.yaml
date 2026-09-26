@@ -145,6 +145,9 @@ spec:
         # terminationGracePeriodSeconds above.
         - --drain-delay=0s
         - --drain-timeout=5m
+        # auto streams through the first remote snapshotter socket it finds in
+        # the socket directories mounted below, and otherwise pulls without
+        # streaming.
         - --image-streamer=auto
         - --log-level=debug
         # atelet does no mounts, netlink, device, or namespace operations (those
