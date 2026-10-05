@@ -91,6 +91,15 @@ const (
 	// DefaultDeclineTTL is how long the driver remembers that the snapshotter
 	// declined an image (ErrNotStreamable) before trying again.
 	DefaultDeclineTTL = 10 * time.Minute
+
+	// DefaultLeaseIdleTTL is how long the driver keeps an image's layer views
+	// mounted after its reference count drops to zero.
+	DefaultLeaseIdleTTL = imagestreaming.DefaultLeaseIdleTTL
+
+	// riptideCredsPushCacheTTL bounds how long identical credentials for the
+	// same canonical image reference skip redundant UpdateCreds RPCs on warm
+	// lease hits.
+	riptideCredsPushCacheTTL = 5 * time.Minute
 )
 
 func init() {
@@ -158,6 +167,16 @@ func WithDeclineTTL(ttl time.Duration) Option {
 	}
 }
 
+// WithLeaseIdleTTL sets how long an idle image lease (refCount == 0) is kept
+// mounted before its snapshotter views and wrapper directory are removed.
+// Setting 0 disables idle retention and removes views immediately when refCount
+// reaches 0.
+func WithLeaseIdleTTL(ttl time.Duration) Option {
+	return func(d *Driver) {
+		d.leaseIdleTTL = ttl
+	}
+}
+
 // WithSnapshotsClient injects a SnapshotsClient (useful in tests).
 func WithSnapshotsClient(c snapshots.SnapshotsClient) Option {
 	return func(d *Driver) {
@@ -200,12 +219,15 @@ func WithKeychain(k authn.Keychain) Option {
 }
 
 type imageLease struct {
+	imageRef     string
 	digest       string
 	config       *v1.Config
 	snapshotKeys []string
 	layers       []string
 	workDir      string
 	refCount     int
+	idleTimer    *time.Timer
+	evicted      bool
 }
 
 type resolvedImageMeta struct {
@@ -220,6 +242,11 @@ type inflightPrep struct {
 	err  error
 }
 
+type pushedCredEntry struct {
+	digest   [32]byte
+	pushedAt time.Time
+}
+
 // Driver implements imagestreaming.ImageStreamer for CNCF remote snapshotters.
 type Driver struct {
 	name             string
@@ -231,6 +258,7 @@ type Driver struct {
 	listableTimeout  time.Duration
 	listableInterval time.Duration
 	declineTTL       time.Duration
+	leaseIdleTTL     time.Duration
 	keychain         authn.Keychain
 
 	snapshotsClient               snapshots.SnapshotsClient
@@ -240,6 +268,7 @@ type Driver struct {
 	imageResolver                 ImageResolverFunc
 
 	mu           sync.Mutex
+	closed       bool
 	conn         *grpc.ClientConn
 	keychainConn *grpc.ClientConn
 	leases       map[string]*imageLease
@@ -247,6 +276,7 @@ type Driver struct {
 	declined     map[string]time.Time
 	inflight     map[string]*inflightPrep
 	chainLocks   map[string]*sync.Mutex
+	pushedCreds  map[string]pushedCredEntry
 }
 
 // New creates a generic remote snapshotter driver.
@@ -259,11 +289,13 @@ func New(opts ...Option) (*Driver, error) {
 		listableTimeout:  DefaultListableTimeout,
 		listableInterval: DefaultListableInterval,
 		declineTTL:       DefaultDeclineTTL,
+		leaseIdleTTL:     DefaultLeaseIdleTTL,
 		leases:           make(map[string]*imageLease),
 		resolvedMeta:     make(map[string]*resolvedImageMeta),
 		declined:         make(map[string]time.Time),
 		inflight:         make(map[string]*inflightPrep),
 		chainLocks:       make(map[string]*sync.Mutex),
+		pushedCreds:      make(map[string]pushedCredEntry),
 	}
 	for _, opt := range opts {
 		opt(d)
@@ -286,11 +318,13 @@ func NewRiptide(opts ...Option) (*Driver, error) {
 		listableTimeout:  DefaultListableTimeout,
 		listableInterval: DefaultListableInterval,
 		declineTTL:       DefaultDeclineTTL,
+		leaseIdleTTL:     DefaultLeaseIdleTTL,
 		leases:           make(map[string]*imageLease),
 		resolvedMeta:     make(map[string]*resolvedImageMeta),
 		declined:         make(map[string]time.Time),
 		inflight:         make(map[string]*inflightPrep),
 		chainLocks:       make(map[string]*sync.Mutex),
+		pushedCreds:      make(map[string]pushedCredEntry),
 	}
 	for _, opt := range opts {
 		opt(d)
@@ -312,11 +346,13 @@ func NewSOCI(opts ...Option) (*Driver, error) {
 		listableTimeout:  DefaultListableTimeout,
 		listableInterval: DefaultListableInterval,
 		declineTTL:       DefaultDeclineTTL,
+		leaseIdleTTL:     DefaultLeaseIdleTTL,
 		leases:           make(map[string]*imageLease),
 		resolvedMeta:     make(map[string]*resolvedImageMeta),
 		declined:         make(map[string]time.Time),
 		inflight:         make(map[string]*inflightPrep),
 		chainLocks:       make(map[string]*sync.Mutex),
+		pushedCreds:      make(map[string]pushedCredEntry),
 	}
 	for _, opt := range opts {
 		opt(d)
@@ -360,6 +396,16 @@ func NewFromConfig(ctx context.Context, provider string, cfg imagestreaming.Conf
 		if dur, err := time.ParseDuration(inv); err == nil {
 			opts = append(opts, WithListableInterval(dur))
 		}
+	}
+	if ttl := cfg[imagestreaming.LeaseIdleTTLKey]; ttl != "" {
+		dur, err := time.ParseDuration(ttl)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s %q: %w", imagestreaming.LeaseIdleTTLKey, ttl, err)
+		}
+		if dur < 0 {
+			return nil, fmt.Errorf("%s %v must be >= 0", imagestreaming.LeaseIdleTTLKey, dur)
+		}
+		opts = append(opts, WithLeaseIdleTTL(dur))
 	}
 
 	switch provider {
@@ -442,15 +488,23 @@ func (d *Driver) isDeclinedLocked(ref string, now time.Time) bool {
 }
 
 // CanStream checks whether the image was recently declined and whether the
-// remote snapshotter daemon answers a bounded Probe RPC.
+// remote snapshotter daemon answers a bounded Probe RPC. If the image already
+// has a warm active or idle lease whose layers exist on disk, CanStream
+// returns true immediately without a Probe RPC.
 func (d *Driver) CanStream(ctx context.Context, req *imagestreaming.StreamRequest) (bool, error) {
 	d.mu.Lock()
 	if req != nil && req.ImageRef != "" {
-		if lease, ok := d.leases[req.ImageRef]; !ok || lease.refCount <= 0 {
-			if d.isDeclinedLocked(req.ImageRef, time.Now()) {
-				d.mu.Unlock()
-				return false, nil
+		if lease, ok := d.leases[req.ImageRef]; ok && !lease.evicted && lease.refCount >= 0 && len(lease.layers) > 0 {
+			layers := append([]string(nil), lease.layers...)
+			d.mu.Unlock()
+			if layersExist(layers) {
+				return true, nil
 			}
+			d.mu.Lock()
+		}
+		if d.isDeclinedLocked(req.ImageRef, time.Now()) {
+			d.mu.Unlock()
+			return false, nil
 		}
 	}
 	injected := d.clientInjected
@@ -521,26 +575,6 @@ func (d *Driver) PrepareLayers(ctx context.Context, req *imagestreaming.StreamRe
 	var flight *inflightPrep
 	d.mu.Lock()
 	for {
-		if lease, ok := d.leases[req.ImageRef]; ok && lease.refCount > 0 && lease.config != nil {
-			if layersExist(lease.layers) {
-				lease.refCount++
-				res := &imagestreaming.StreamResult{
-					ImageDigest: lease.digest,
-					Config:      lease.config,
-					LayerDirs:   append([]string(nil), lease.layers...),
-				}
-				d.mu.Unlock()
-				d.pushRiptideKeychainCreds(ctx, canonicalImageRef(req.ImageRef, res.ImageDigest), req)
-				return res, nil
-			}
-			slog.WarnContext(ctx, "Cached streaming lease layers missing on disk; re-preparing layers",
-				slog.String("streamer", d.name),
-				slog.String("image", req.ImageRef))
-		}
-		if d.isDeclinedLocked(req.ImageRef, time.Now()) {
-			d.mu.Unlock()
-			return nil, fmt.Errorf("previously declined by snapshotter: %w", imagestreaming.ErrNotStreamable)
-		}
 		if existingFlight, ok := d.inflight[req.ImageRef]; ok {
 			d.mu.Unlock()
 			select {
@@ -553,6 +587,34 @@ func (d *Driver) PrepareLayers(ctx context.Context, req *imagestreaming.StreamRe
 			}
 			d.mu.Lock()
 			continue
+		}
+		if lease, ok := d.leases[req.ImageRef]; ok && !lease.evicted && lease.refCount >= 0 && lease.config != nil {
+			if layersExist(lease.layers) {
+				if lease.idleTimer != nil {
+					lease.idleTimer.Stop()
+					lease.idleTimer = nil
+				}
+				lease.refCount++
+				res := &imagestreaming.StreamResult{
+					ImageDigest: lease.digest,
+					Config:      lease.config,
+					LayerDirs:   append([]string(nil), lease.layers...),
+				}
+				d.mu.Unlock()
+				d.pushRiptideKeychainCreds(ctx, canonicalImageRef(req.ImageRef, res.ImageDigest), req, false)
+				return res, nil
+			}
+			if lease.idleTimer != nil {
+				lease.idleTimer.Stop()
+				lease.idleTimer = nil
+			}
+			slog.WarnContext(ctx, "Cached streaming lease layers missing on disk; re-preparing layers",
+				slog.String("streamer", d.name),
+				slog.String("image", req.ImageRef))
+		}
+		if d.isDeclinedLocked(req.ImageRef, time.Now()) {
+			d.mu.Unlock()
+			return nil, fmt.Errorf("previously declined by snapshotter: %w", imagestreaming.ErrNotStreamable)
 		}
 		flight = &inflightPrep{done: make(chan struct{})}
 		d.inflight[req.ImageRef] = flight
@@ -630,11 +692,15 @@ func (d *Driver) prepareLayersCold(ctx context.Context, req *imagestreaming.Stre
 	}
 
 	criImageRef := canonicalImageRef(req.ImageRef, digest)
-	d.pushRiptideKeychainCreds(ctx, criImageRef, req)
+	d.pushRiptideKeychainCreds(ctx, criImageRef, req, true)
 
 	// Fast path for reconciled leases whose layers are already mounted on host:
 	d.mu.Lock()
-	if lease, ok := d.leases[req.ImageRef]; ok && len(lease.layers) > 0 && layersExist(lease.layers) {
+	if lease, ok := d.leases[req.ImageRef]; ok && !lease.evicted && len(lease.layers) > 0 && layersExist(lease.layers) {
+		if lease.idleTimer != nil {
+			lease.idleTimer.Stop()
+			lease.idleTimer = nil
+		}
 		lease.config = cfg
 		if lease.digest == "" {
 			lease.digest = digest
@@ -786,12 +852,18 @@ func (d *Driver) prepareLayersCold(ctx context.Context, req *imagestreaming.Stre
 	var staleSnapshotKeys []string
 	newRefCount := 1
 	if prev, ok := d.leases[req.ImageRef]; ok && prev != nil {
+		if prev.idleTimer != nil {
+			prev.idleTimer.Stop()
+			prev.idleTimer = nil
+		}
+		prev.evicted = true
 		if prev.refCount > 0 {
 			newRefCount = prev.refCount + 1
 		}
 		staleSnapshotKeys = append(staleSnapshotKeys, prev.snapshotKeys...)
 	}
 	d.leases[req.ImageRef] = &imageLease{
+		imageRef:     req.ImageRef,
 		digest:       digest,
 		config:       cfg,
 		snapshotKeys: snapshotKeys,
@@ -1009,7 +1081,11 @@ func (d *Driver) probeListable(ctx context.Context, mountDir string) error {
 	}
 }
 
-// ReleaseLayers decrements the reference count or cleans up the snapshots and wrapper directories.
+// ReleaseLayers decrements the reference count for the image lease. When
+// refCount reaches 0, if d.leaseIdleTTL > 0 the lease and its mounted views are
+// kept warm for d.leaseIdleTTL and evicted asynchronously in the background if
+// still idle; if d.leaseIdleTTL <= 0, the views and wrapper directory are
+// removed immediately.
 func (d *Driver) ReleaseLayers(ctx context.Context, req *imagestreaming.StreamRequest) error {
 	if req == nil || req.ImageRef == "" {
 		return nil
@@ -1023,7 +1099,7 @@ func (d *Driver) ReleaseLayers(ctx context.Context, req *imagestreaming.StreamRe
 	for {
 		var ok bool
 		lease, ok = d.leases[req.ImageRef]
-		if !ok {
+		if !ok || lease.evicted {
 			d.mu.Unlock()
 			return nil
 		}
@@ -1037,27 +1113,68 @@ func (d *Driver) ReleaseLayers(ctx context.Context, req *imagestreaming.StreamRe
 			d.mu.Lock()
 			continue
 		}
+		if lease.refCount <= 0 {
+			d.mu.Unlock()
+			return nil
+		}
 		lease.refCount--
 		if lease.refCount > 0 {
 			d.mu.Unlock()
 			return nil
 		}
-		delete(d.leases, req.ImageRef)
-		if lease.digest != "" && d.leases[lease.digest] == lease {
-			delete(d.leases, lease.digest)
+		if d.leaseIdleTTL > 0 && !d.closed {
+			if lease.idleTimer != nil {
+				lease.idleTimer.Stop()
+			}
+			targetLease := lease
+			imageRef := req.ImageRef
+			if lease.imageRef != "" {
+				imageRef = lease.imageRef
+			}
+			lease.idleTimer = time.AfterFunc(d.leaseIdleTTL, func() {
+				d.evictIdleLease(imageRef, targetLease)
+			})
+			d.mu.Unlock()
+			return nil
 		}
-		if d.inflight == nil {
-			d.inflight = make(map[string]*inflightPrep)
-		}
-		flight = &inflightPrep{done: make(chan struct{})}
-		d.inflight[req.ImageRef] = flight
+		flight = d.beginLeaseTeardownLocked(req.ImageRef, lease)
 		d.mu.Unlock()
 		break
 	}
 
+	d.finishLeaseTeardown(ctx, req.ImageRef, lease, flight)
+	return nil
+}
+
+func (d *Driver) beginLeaseTeardownLocked(imageRef string, lease *imageLease) *inflightPrep {
+	lease.evicted = true
+	if lease.idleTimer != nil {
+		lease.idleTimer.Stop()
+		lease.idleTimer = nil
+	}
+	if d.leases[imageRef] == lease {
+		delete(d.leases, imageRef)
+	}
+	if lease.imageRef != "" && d.leases[lease.imageRef] == lease {
+		delete(d.leases, lease.imageRef)
+	}
+	if lease.digest != "" && d.leases[lease.digest] == lease {
+		delete(d.leases, lease.digest)
+	}
+	if d.inflight == nil {
+		d.inflight = make(map[string]*inflightPrep)
+	}
+	flight := &inflightPrep{done: make(chan struct{})}
+	d.inflight[imageRef] = flight
+	return flight
+}
+
+func (d *Driver) finishLeaseTeardown(ctx context.Context, imageRef string, lease *imageLease, flight *inflightPrep) {
 	defer func() {
 		d.mu.Lock()
-		delete(d.inflight, req.ImageRef)
+		if d.inflight[imageRef] == flight {
+			delete(d.inflight, imageRef)
+		}
 		close(flight.done)
 		d.mu.Unlock()
 	}()
@@ -1082,7 +1199,26 @@ func (d *Driver) ReleaseLayers(ctx context.Context, req *imagestreaming.StreamRe
 	if lease.workDir != "" {
 		_ = os.RemoveAll(lease.workDir)
 	}
-	return nil
+}
+
+func (d *Driver) evictIdleLease(imageRef string, targetLease *imageLease) {
+	d.mu.Lock()
+	for {
+		if d.closed || targetLease.evicted || targetLease.refCount > 0 || d.leases[imageRef] != targetLease {
+			d.mu.Unlock()
+			return
+		}
+		if existingFlight, inflight := d.inflight[imageRef]; inflight {
+			d.mu.Unlock()
+			<-existingFlight.done
+			d.mu.Lock()
+			continue
+		}
+		flight := d.beginLeaseTeardownLocked(imageRef, targetLease)
+		d.mu.Unlock()
+		d.finishLeaseTeardown(context.Background(), imageRef, targetLease, flight)
+		return
+	}
 }
 
 // ReconcileLeases restores active lease tracking and reference counts for
@@ -1114,8 +1250,15 @@ func (d *Driver) ReconcileLeases(ctx context.Context, active []*imagestreaming.A
 		}
 
 		existing, ok := d.leases[key]
-		if ok {
+		if ok && !existing.evicted {
+			if existing.idleTimer != nil {
+				existing.idleTimer.Stop()
+				existing.idleTimer = nil
+			}
 			existing.refCount += al.RefCount
+			if existing.imageRef == "" {
+				existing.imageRef = key
+			}
 			if len(existing.layers) == 0 && len(al.LayerDirs) > 0 {
 				existing.layers = append([]string(nil), al.LayerDirs...)
 			}
@@ -1127,6 +1270,7 @@ func (d *Driver) ReconcileLeases(ctx context.Context, active []*imagestreaming.A
 			}
 		} else {
 			existing = &imageLease{
+				imageRef: key,
 				refCount: al.RefCount,
 				digest:   al.ImageDigest,
 				layers:   append([]string(nil), al.LayerDirs...),
@@ -1168,7 +1312,7 @@ func (d *Driver) ReconcileLeases(ctx context.Context, active []*imagestreaming.A
 			slog.Int("refCount", existing.refCount))
 	}
 	for _, l := range d.leases {
-		if l != nil && l.refCount > 0 && l.workDir != "" {
+		if l != nil && !l.evicted && l.workDir != "" {
 			activeWorkDirs[l.workDir] = true
 		}
 	}
@@ -1216,10 +1360,17 @@ func (d *Driver) sweepOrphanWorkDirs(ctx context.Context, activeWorkDirs map[str
 	}
 }
 
-// Close closes gRPC connection.
+// Close stops any pending idle lease timers and closes gRPC connections.
 func (d *Driver) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.closed = true
+	for _, l := range d.leases {
+		if l != nil && l.idleTimer != nil {
+			l.idleTimer.Stop()
+			l.idleTimer = nil
+		}
+	}
 	if d.conn != nil {
 		_ = d.conn.Close()
 		d.conn = nil
@@ -1320,13 +1471,24 @@ func (d *Driver) resolveRiptideAuthConfig(refStr string, reqAuth *imagestreaming
 	}
 }
 
+func hashRiptideAuthConfig(auth *riptidekeychain.AuthConfig) [32]byte {
+	return sha256.Sum256([]byte(strings.Join([]string{
+		auth.GetUsername(),
+		auth.GetPassword(),
+		auth.GetAuth(),
+		auth.GetServerAddress(),
+		auth.GetIdentityToken(),
+		auth.GetRegistryToken(),
+	}, "\x00")))
+}
+
 // pushRiptideKeychainCreds forwards explicit registry credentials to Riptide
 // V2's gcfsd daemon over its local Keychain gRPC socket (/run/gcfsd/keychain.sock)
 // before Snapshots.Stat or Snapshots.Prepare is called. In Riptide V2,
 // snapshot/v2 does not read Kubernetes imagePullSecrets itself; instead, gcfsd
 // looks up credentials pushed via Keychain.UpdateCreds keyed by the canonical
 // image reference (<repo>@sha256:<digest>) passed in containerd.io/snapshot/cri.image-ref.
-func (d *Driver) pushRiptideKeychainCreds(ctx context.Context, criImageRef string, req *imagestreaming.StreamRequest) {
+func (d *Driver) pushRiptideKeychainCreds(ctx context.Context, criImageRef string, req *imagestreaming.StreamRequest, force bool) {
 	if d == nil || req == nil || criImageRef == "" {
 		return
 	}
@@ -1336,6 +1498,16 @@ func (d *Driver) pushRiptideKeychainCreds(ctx context.Context, criImageRef strin
 	auth := d.resolveRiptideAuthConfig(req.ImageRef, req.AuthConfig)
 	if auth == nil {
 		return
+	}
+	authDigest := hashRiptideAuthConfig(auth)
+	now := time.Now()
+	if !force {
+		d.mu.Lock()
+		prev, ok := d.pushedCreds[criImageRef]
+		d.mu.Unlock()
+		if ok && prev.digest == authDigest && now.Sub(prev.pushedAt) < riptideCredsPushCacheTTL {
+			return
+		}
 	}
 	if !d.riptideKeychainClientInjected && d.keychainSocket != "" {
 		if _, err := os.Stat(d.keychainSocket); err != nil {
@@ -1364,6 +1536,15 @@ func (d *Driver) pushRiptideKeychainCreds(ctx context.Context, criImageRef strin
 			slog.Any("error", err))
 		return
 	}
+	d.mu.Lock()
+	if d.pushedCreds == nil {
+		d.pushedCreds = make(map[string]pushedCredEntry)
+	}
+	d.pushedCreds[criImageRef] = pushedCredEntry{
+		digest:   authDigest,
+		pushedAt: now,
+	}
+	d.mu.Unlock()
 	slog.InfoContext(ctx, "Pushed credentials to Riptide gcfsd keychain",
 		slog.String("socket", d.keychainSocket),
 		slog.String("image", criImageRef),

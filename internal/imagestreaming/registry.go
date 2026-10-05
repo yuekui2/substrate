@@ -19,10 +19,19 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+	"time"
 )
 
 // SocketPathKey is the standard configuration key for passing a daemon socket path.
 const SocketPathKey = "socket"
+
+// LeaseIdleTTLKey is the configuration key for how long a driver keeps idle
+// layer views mounted after their reference count drops to zero.
+const LeaseIdleTTLKey = "lease_idle_ttl"
+
+// DefaultLeaseIdleTTL is the default duration to retain idle streamed image
+// leases before unmounting their layer views.
+const DefaultLeaseIdleTTL = 2 * time.Minute
 
 // Config carries provider-specific options such as socket paths or timeouts.
 type Config map[string]string

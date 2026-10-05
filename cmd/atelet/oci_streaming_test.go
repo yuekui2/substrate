@@ -24,6 +24,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agent-substrate/substrate/internal/ateattr"
 	"github.com/agent-substrate/substrate/internal/ateompath"
@@ -805,5 +806,47 @@ func TestTerminate_MissingSandboxRecordAfterFailedRestore(t *testing.T) {
 	}
 	if len(m.ReleaseLayersCalls) != 1 || m.ReleaseLayersCalls[0].ImageRef != imageRef {
 		t.Errorf("ReleaseLayersCalls = %+v, want 1 call for %q", m.ReleaseLayersCalls, imageRef)
+	}
+}
+
+func TestInitImageStreamer_LeaseIdleTTLFlag(t *testing.T) {
+	ctx := context.Background()
+	sock := filepath.Join(t.TempDir(), "ttl.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatalf("net.Listen(%q): %v", sock, err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+
+	var gotTTL string
+	imagestreaming.Register("ttl-flag-test", func(_ context.Context, cfg imagestreaming.Config) (imagestreaming.ImageStreamer, error) {
+		gotTTL = cfg[imagestreaming.LeaseIdleTTLKey]
+		s := mock.New()
+		s.NameVal = "ttl-flag-test"
+		return s, nil
+	})
+
+	origTTL := *imageStreamerLeaseTTL
+	t.Cleanup(func() { *imageStreamerLeaseTTL = origTTL })
+
+	*imageStreamerLeaseTTL = 90 * time.Second
+	if _, err := initImageStreamer(ctx, "ttl-flag-test", sock); err != nil {
+		t.Fatalf("initImageStreamer(90s): %v", err)
+	}
+	if gotTTL != (90 * time.Second).String() {
+		t.Errorf("cfg[%s] = %q, want %q", imagestreaming.LeaseIdleTTLKey, gotTTL, (90 * time.Second).String())
+	}
+
+	*imageStreamerLeaseTTL = 0
+	if _, err := initImageStreamer(ctx, "ttl-flag-test", sock); err != nil {
+		t.Fatalf("initImageStreamer(0s): %v", err)
+	}
+	if gotTTL != "0s" {
+		t.Errorf("cfg[%s] = %q, want 0s", imagestreaming.LeaseIdleTTLKey, gotTTL)
+	}
+
+	*imageStreamerLeaseTTL = -1 * time.Second
+	if _, err := initImageStreamer(ctx, "ttl-flag-test", sock); err == nil {
+		t.Error("expected error when --image-streamer-lease-ttl is negative")
 	}
 }

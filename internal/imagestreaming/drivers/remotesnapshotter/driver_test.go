@@ -169,6 +169,7 @@ func setupTestRemoteSnapshotter(t *testing.T, provider string) (*mockSnapshotsSe
 			WithWorkDir(workDir),
 			WithListableTimeout(500*time.Millisecond),
 			WithListableInterval(10*time.Millisecond),
+			WithLeaseIdleTTL(0),
 		)
 	case ProviderSOCI:
 		driver, err = NewSOCI(
@@ -176,6 +177,7 @@ func setupTestRemoteSnapshotter(t *testing.T, provider string) (*mockSnapshotsSe
 			WithWorkDir(workDir),
 			WithListableTimeout(500*time.Millisecond),
 			WithListableInterval(10*time.Millisecond),
+			WithLeaseIdleTTL(0),
 		)
 	default:
 		driver, err = New(
@@ -183,6 +185,7 @@ func setupTestRemoteSnapshotter(t *testing.T, provider string) (*mockSnapshotsSe
 			WithWorkDir(workDir),
 			WithListableTimeout(500*time.Millisecond),
 			WithListableInterval(10*time.Millisecond),
+			WithLeaseIdleTTL(0),
 		)
 	}
 	if err != nil {
@@ -680,6 +683,7 @@ func TestReconcileLeases_RestoresMetadataAndSweepsOrphans(t *testing.T) {
 	restarted, err := NewRiptide(
 		WithSocketPath(driver.socket),
 		WithWorkDir(driver.workDir),
+		WithLeaseIdleTTL(0),
 		WithImageResolver(func(context.Context, string, *imagestreaming.AuthConfig) (string, *v1.Config, []string, []string, error) {
 			return "", nil, nil, nil, errors.New("imageResolver must not be called for warm reconciled lease")
 		}),
@@ -1415,5 +1419,246 @@ func TestReleaseAndPrepareLayers_ConcurrentZeroTransitionNoRace(t *testing.T) {
 	}
 	if target != mount0 {
 		t.Errorf("new lease layer-0/fs = %q, want %q", target, mount0)
+	}
+}
+
+func TestPrepareAndReleaseLayers_IdleTTL(t *testing.T) {
+	ctx := context.Background()
+	srv, driver := setupTestRemoteSnapshotter(t, ProviderRiptide)
+	kcSrv, kcSock := setupMockRiptideKeychainServer(t)
+	driver.keychainSocket = kcSock
+	driver.leaseIdleTTL = 60 * time.Millisecond
+
+	diff0 := "sha256:7777777777777777777777777777777777777777777777777777777777777777"
+	mount0 := t.TempDir()
+	srv.remoteMounts = map[string][]*snapshots.Mount{
+		diff0: {{Type: "bind", Source: mount0}},
+	}
+	var resolverCalls int
+	driver.imageResolver = func(context.Context, string, *imagestreaming.AuthConfig) (string, *v1.Config, []string, []string, error) {
+		resolverCalls++
+		return "sha256:ttldigest", &v1.Config{Cmd: []string{"/ttl-app"}}, []string{diff0}, []string{"sha256:blob0"}, nil
+	}
+
+	req := &imagestreaming.StreamRequest{
+		ImageRef: "us-docker.pkg.dev/proj/repo/ttl-app:v1",
+		AuthConfig: &imagestreaming.AuthConfig{
+			Username: "oauth2accesstoken",
+			Password: "same-token",
+		},
+	}
+
+	// 1. Cold PrepareLayers (0 -> 1).
+	res1, err := driver.PrepareLayers(ctx, req)
+	if err != nil {
+		t.Fatalf("cold PrepareLayers error: %v", err)
+	}
+	workDir := filepath.Dir(res1.LayerDirs[0])
+	if resolverCalls != 1 {
+		t.Fatalf("resolverCalls = %d, want 1", resolverCalls)
+	}
+
+	// 2. ReleaseLayers (1 -> 0) with ttl > 0 must NOT call Remove or delete workDir immediately.
+	if err := driver.ReleaseLayers(ctx, req); err != nil {
+		t.Fatalf("first ReleaseLayers error: %v", err)
+	}
+	srv.mu.Lock()
+	removedAfterRelease := len(srv.removedKeys)
+	viewedBeforeWarm := len(srv.viewedKeys)
+	srv.mu.Unlock()
+	if removedAfterRelease != 0 {
+		t.Fatalf("removedKeys immediately after ReleaseLayers = %d, want 0 (idle TTL active)", removedAfterRelease)
+	}
+	if _, err := os.Stat(workDir); err != nil {
+		t.Fatalf("workDir %s missing while idle lease is within TTL: %v", workDir, err)
+	}
+
+	// 3. Before TTL expires, CanStream skips Probe() and PrepareLayers (0 -> 1) reuses the warm idle lease
+	// with 0 new View RPCs and 0 redundant Keychain.UpdateCreds RPCs for unchanged credentials.
+	var statCalls int
+	srv.mu.Lock()
+	srv.statFunc = func(context.Context, *snapshots.StatSnapshotRequest) (*snapshots.StatSnapshotResponse, error) {
+		statCalls++
+		return nil, status.Error(codes.Unavailable, "probe should not be called on warm lease hit")
+	}
+	srv.mu.Unlock()
+
+	can, err := driver.CanStream(ctx, req)
+	if err != nil || !can {
+		t.Fatalf("CanStream on warm idle lease = (%v, %v), want (true, nil)", can, err)
+	}
+	if statCalls != 0 {
+		t.Errorf("Stat calls during warm CanStream = %d, want 0", statCalls)
+	}
+
+	res2, err := driver.PrepareLayers(ctx, req)
+	if err != nil {
+		t.Fatalf("warm PrepareLayers before TTL expiry error: %v", err)
+	}
+	if !slices.Equal(res2.LayerDirs, res1.LayerDirs) {
+		t.Errorf("warm PrepareLayers LayerDirs = %v, want %v", res2.LayerDirs, res1.LayerDirs)
+	}
+	srv.mu.Lock()
+	viewedAfterWarm := len(srv.viewedKeys)
+	srv.mu.Unlock()
+	if viewedAfterWarm != viewedBeforeWarm {
+		t.Errorf("View calls after warm hit = %d, want %d (no new View RPCs)", viewedAfterWarm, viewedBeforeWarm)
+	}
+	kcSrv.mu.Lock()
+	kcCallsAfterSameCreds := len(kcSrv.updates)
+	kcSrv.mu.Unlock()
+	if kcCallsAfterSameCreds != 1 {
+		t.Errorf("Keychain.UpdateCreds calls for identical token = %d, want 1", kcCallsAfterSameCreds)
+	}
+
+	// Wait past the original TTL while refCount == 1 to verify the timer was stopped on re-acquire.
+	time.Sleep(80 * time.Millisecond)
+	if _, err := os.Stat(workDir); err != nil {
+		t.Fatalf("workDir %s evicted while lease was active (refCount=1): %v", workDir, err)
+	}
+
+	// 4. Release again (1 -> 0) and wait for the idle TTL to expire in the background.
+	if err := driver.ReleaseLayers(ctx, req); err != nil {
+		t.Fatalf("second ReleaseLayers error: %v", err)
+	}
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(workDir); errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if _, err := os.Stat(workDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("workDir %s still exists after idle TTL expired: err=%v", workDir, err)
+	}
+	srv.mu.Lock()
+	removedAfterExpiry := len(srv.removedKeys)
+	srv.mu.Unlock()
+	if removedAfterExpiry != 1 {
+		t.Errorf("removedKeys after idle TTL expiry = %d, want 1", removedAfterExpiry)
+	}
+}
+
+func TestIdleLeaseEviction_ConcurrentPrepareNoRace(t *testing.T) {
+	ctx := context.Background()
+	srv, driver := setupTestRemoteSnapshotter(t, ProviderRiptide)
+	driver.leaseIdleTTL = 30 * time.Millisecond
+
+	diff0 := "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+	mount0 := t.TempDir()
+	srv.remoteMounts = map[string][]*snapshots.Mount{
+		diff0: {{Type: "bind", Source: mount0}},
+	}
+	driver.imageResolver = func(context.Context, string, *imagestreaming.AuthConfig) (string, *v1.Config, []string, []string, error) {
+		return "sha256:evictrace", &v1.Config{Cmd: []string{"/app"}}, []string{diff0}, []string{"sha256:blob0"}, nil
+	}
+
+	req := &imagestreaming.StreamRequest{ImageRef: "example.com/evict-race:v1"}
+	if _, err := driver.PrepareLayers(ctx, req); err != nil {
+		t.Fatalf("initial PrepareLayers error: %v", err)
+	}
+
+	removeEntered := make(chan struct{})
+	releaseRemove := make(chan struct{})
+	var once sync.Once
+	srv.mu.Lock()
+	srv.removeFunc = func(context.Context, *snapshots.RemoveSnapshotRequest) (*emptypb.Empty, error) {
+		once.Do(func() {
+			close(removeEntered)
+			srv.mu.Unlock()
+			<-releaseRemove
+			srv.mu.Lock()
+		})
+		return &emptypb.Empty{}, nil
+	}
+	srv.mu.Unlock()
+
+	if err := driver.ReleaseLayers(ctx, req); err != nil {
+		t.Fatalf("ReleaseLayers error: %v", err)
+	}
+
+	// Wait for the background idle timer to fire and enter client.Remove.
+	<-removeEntered
+
+	var (
+		wg      sync.WaitGroup
+		prepRes *imagestreaming.StreamResult
+		prepErr error
+	)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		prepRes, prepErr = driver.PrepareLayers(ctx, req)
+	}()
+
+	time.Sleep(15 * time.Millisecond)
+	close(releaseRemove)
+	wg.Wait()
+
+	if prepErr != nil {
+		t.Fatalf("concurrent PrepareLayers during idle eviction error: %v", prepErr)
+	}
+	if prepRes == nil || len(prepRes.LayerDirs) != 1 {
+		t.Fatalf("concurrent PrepareLayers result = %+v, want 1 LayerDir", prepRes)
+	}
+	target, err := os.Readlink(filepath.Join(prepRes.LayerDirs[0], "fs"))
+	if err != nil {
+		t.Fatalf("new lease layer-0/fs missing after concurrent eviction: %v", err)
+	}
+	if target != mount0 {
+		t.Errorf("new lease layer-0/fs = %q, want %q", target, mount0)
+	}
+}
+
+func TestNewFromConfig_LeaseIdleTTL(t *testing.T) {
+	ctx := context.Background()
+	workDir := t.TempDir()
+
+	// Default TTL when lease_idle_ttl is omitted.
+	sDefault, err := NewFromConfig(ctx, ProviderRiptide, imagestreaming.Config{
+		"work_dir": workDir,
+	})
+	if err != nil {
+		t.Fatalf("NewFromConfig(default): %v", err)
+	}
+	t.Cleanup(func() { _ = sDefault.Close() })
+	if got := sDefault.leaseIdleTTL; got != DefaultLeaseIdleTTL {
+		t.Errorf("default leaseIdleTTL = %v, want %v", got, DefaultLeaseIdleTTL)
+	}
+
+	// Explicit positive TTL.
+	sCustom, err := NewFromConfig(ctx, ProviderRiptide, imagestreaming.Config{
+		"work_dir":                     workDir,
+		imagestreaming.LeaseIdleTTLKey: "45s",
+	})
+	if err != nil {
+		t.Fatalf("NewFromConfig(45s): %v", err)
+	}
+	t.Cleanup(func() { _ = sCustom.Close() })
+	if got := sCustom.leaseIdleTTL; got != 45*time.Second {
+		t.Errorf("custom leaseIdleTTL = %v, want 45s", got)
+	}
+
+	// Explicit zero TTL (immediate teardown).
+	sZero, err := NewFromConfig(ctx, ProviderRiptide, imagestreaming.Config{
+		"work_dir":                     workDir,
+		imagestreaming.LeaseIdleTTLKey: "0s",
+	})
+	if err != nil {
+		t.Fatalf("NewFromConfig(0s): %v", err)
+	}
+	t.Cleanup(func() { _ = sZero.Close() })
+	if got := sZero.leaseIdleTTL; got != 0 {
+		t.Errorf("zero leaseIdleTTL = %v, want 0", got)
+	}
+
+	// Negative or invalid duration fails.
+	for _, bad := range []string{"-5s", "not-a-duration"} {
+		if _, err := NewFromConfig(ctx, ProviderRiptide, imagestreaming.Config{
+			"work_dir":                     workDir,
+			imagestreaming.LeaseIdleTTLKey: bad,
+		}); err == nil {
+			t.Errorf("NewFromConfig(%q) succeeded, want error", bad)
+		}
 	}
 }

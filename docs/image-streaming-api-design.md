@@ -306,14 +306,13 @@ func ensureContainerImage(ctx context.Context, imageCache *imagecache.Store, str
 Mounts and open file descriptors consume host kernel resources (VFS dentries, mount table slots, file descriptors). In a high-density actor multiplexing environment where actors may remain idle/sleeping for extended periods, releasing mounts eagerly prevents resource exhaustion while preserving rapid wake-up latency.
 
 #### 5.3.1. Reference Counting & Garbage Collection
-The generic driver implements reference counting across actors sharing the same base images:
-- **Active-Only Leases in Prototype:** Our prototype's `leases` map tracks `refCount` for each image:
+The generic driver implements reference counting with configurable idle lease retention across actors sharing the same base images:
+- **Reference-Counted Leases with Idle TTL (`--image-streamer-lease-ttl`, default `2m`):** The driver's `leases` map tracks `refCount` for each image:
   - **PrepareLayers on Run/Wake:** When an actor starts or resumes from sleep, `PrepareLayers` ensures layer mounts are active and increments the reference count (`refCount++`) for both container rootfs images and mounted OCI image volumes.
   - **Concurrent Cold-Start Deduplication:** Concurrent `PrepareLayers` calls for the same cold image reference are coalesced via an in-flight map (`d.inflight`). A single leader goroutine resolves the manifest and prepares the snapshot views, while concurrent callers wait for completion and increment `refCount++` on the shared `imageLease`.
   - **Negative Decline Cache (`DefaultDeclineTTL`):** When the snapshotter declines a layer (`imagestreaming.ErrNotStreamable`), the driver caches the decline in memory for `DefaultDeclineTTL` (10 minutes) so subsequent starts of the same unstreamable image reference immediately skip registry resolution and snapshotter RPCs.
-  - **Release on Checkpoint / Sleep / Terminate:** When an actor transitions to Sleep/Paused state via `atelet.Checkpoint`, or when an actor terminates (`atelet.Terminate`), `atelet` releases its image leases (`ReleaseLayers`), decrementing `refCount` for each container image and mounted OCI image volume. See Appendix [Future Optimizations for Snapshot Garbage Collection](#103-future-optimizations-for-snapshot-garbage-collection) for potential optimization in the future.
-  - **Unmount on Zero RefCount:** Only when `refCount == 0` (no other running actor on the worker references the image) does the driver issue `RemoveSnapshot` on the `-view` keys and unmount the virtual directories from the host.
-  - **Microsecond Warm Re-attachment:** Benchmarks confirm that warm layer re-attachment takes only **~1.8µs to 2ms** (the snapshotter daemon retains compressed chunks and metadata in local cache). Thus, waking actors incur negligible overhead while host mount tables remain clean.
+  - **Non-Blocking Release on Checkpoint / Sleep / Terminate:** When an actor transitions to Sleep/Paused state via `atelet.Checkpoint`, or when an actor terminates (`atelet.Terminate`), `atelet` releases its image leases (`ReleaseLayers`), decrementing `refCount` for each container image and mounted OCI image volume.
+  - **Idle Lease Retention & Background Eviction (`DefaultLeaseIdleTTL = 2m`):** When `refCount` drops to `0` and `--image-streamer-lease-ttl > 0` (default `2m`), `ReleaseLayers` retains the `-view` snapshots and wrapper directory in memory (`refCount == 0`), starts an asynchronous per-image idle timer, and returns immediately (`0 ms` snapshotter RPC overhead on `Checkpoint`/`Terminate`). If an actor wakes or starts within the TTL window, `CanStream` and `PrepareLayers` cancel the timer and promote `refCount: 0 -> 1` in `<1 ms` with zero snapshotter `Stat`/`Prepare`/`View` RPCs (and skip redundant Riptide `Keychain.UpdateCreds` RPCs when credentials are unchanged). Only if the lease remains at `refCount == 0` when the TTL expires (or immediately when `--image-streamer-lease-ttl=0`) does the driver issue `RemoveSnapshot` on the `-view` keys and delete the wrapper directory.
 
 #### 5.3.2. Parallel Layer Preparation vs. OCI Parent Dependency
 - **Can layers be prepared concurrently?**
@@ -455,13 +454,15 @@ A clear contract specifies when `atelet` falls back to traditional download mode
 
 ### 5.7. Provider Selection
 
-Two `atelet` flags select the provider:
+Three `atelet` flags configure the streaming provider:
 
 | `--image-streamer` | `--image-streamer-socket` | Behavior |
 | :--- | :--- | :--- |
 | `none` (default) | Ignored, with a warning if set | Streaming is off. Every image uses `imagecache.EnsureImage`. |
 | `auto` (set by `manifests/ate-install/atelet.yaml`) | Ignored, with a warning if set | `atelet` uses the first socket below that exists as a Unix socket. If none does, streaming is off. |
 | A registered provider: `riptide`, `soci`, or `remotesnapshotter` | Required | `atelet` fails to start unless the path exists and is a Unix socket. |
+
+`--image-streamer-lease-ttl` (default `2m`) controls how long an idle image streaming lease (`refCount == 0` after `Checkpoint` or `Terminate`) is retained before its snapshotter `-view` keys and wrapper directory are removed (`0` disables idle retention and tears down immediately when `refCount` reaches `0`).
 
 A named provider is an explicit choice, so a missing socket is a configuration error. `auto` is the zero-configuration path.
 
@@ -474,7 +475,7 @@ A named provider is an explicit choice, so a missing socket is a configuration e
 
 `atelet` logs one line at startup:
 
-- `Image streaming enabled`, with `mode`, `provider`, `socket`, and `reachable`.
+- `Image streaming enabled`, with `mode`, `provider`, `socket`, `lease_ttl`, and `reachable`.
 - `Image streaming disabled`, with `mode` and `reason`.
 
 A socket file doesn't prove that the snapshotter is running, because the file can outlive the daemon. To set `reachable`, `atelet` calls `Stat` once on a key that doesn't exist and expects `NotFound`. The check is informational. If the snapshotter doesn't answer, `atelet` logs the line at Warn and keeps streaming enabled, and images fall back to `imagecache.EnsureImage` until the snapshotter answers.

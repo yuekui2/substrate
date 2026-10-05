@@ -108,6 +108,7 @@ var (
 	imageCacheDir                = pflag.String("image-cache-dir", ateompath.ImageCacheDir, "Directory for the node-local OCI image layer cache. Must be on the volume shared with the ateom pods (the cached layers are their overlay lowerdirs), and on a disk sized for both capacity and IOPS: unpack throughput is gated by the volume's IOPS.")
 	imageStreamer                = pflag.String("image-streamer", "none", "Image streaming provider: none; auto, which uses the first remote snapshotter socket found (Riptide Snapshotter, then SOCI); or a registered provider name such as riptide, soci, or remotesnapshotter.")
 	imageStreamerSocket          = pflag.String("image-streamer-socket", "", "Unix socket of the remote snapshotter. Required when --image-streamer names a provider, and must exist at startup; ignored for none and auto.")
+	imageStreamerLeaseTTL        = pflag.Duration("image-streamer-lease-ttl", imagestreaming.DefaultLeaseIdleTTL, "How long to keep a streamed image's layer views mounted after the last referencing actor checkpoints or terminates. 0 releases views immediately when the reference count reaches 0.")
 
 	showVersion  = pflag.Bool("version", false, "Print version and exit.")
 	logLevelFlag = pflag.String("log-level", "info", "Minimum log level: debug, info, warn, or error.")
@@ -486,10 +487,21 @@ var autoStreamerSockets = []streamerSocket{
 // answers.
 const streamerProbeTimeout = 2 * time.Second
 
+// streamerConfig builds the configuration map passed to imagestreaming.Get.
+func streamerConfig(socket string) imagestreaming.Config {
+	return imagestreaming.Config{
+		imagestreaming.SocketPathKey:   socket,
+		imagestreaming.LeaseIdleTTLKey: (*imageStreamerLeaseTTL).String(),
+	}
+}
+
 // initImageStreamer returns the ImageStreamer selected by --image-streamer
 // (mode) and --image-streamer-socket, or nil if streaming is off. It logs
 // the result.
 func initImageStreamer(ctx context.Context, mode, socket string) (imagestreaming.ImageStreamer, error) {
+	if *imageStreamerLeaseTTL < 0 {
+		return nil, fmt.Errorf("--image-streamer-lease-ttl %v must be >= 0", *imageStreamerLeaseTTL)
+	}
 	if mode == "" {
 		mode = "none"
 	}
@@ -522,7 +534,7 @@ func initImageStreamer(ctx context.Context, mode, socket string) (imagestreaming
 			slog.WarnContext(ctx, "Failed to detach host containerd from gcfs", slog.Any("err", err))
 		}
 	}
-	streamer, err := imagestreaming.Get(ctx, mode, imagestreaming.Config{imagestreaming.SocketPathKey: socket})
+	streamer, err := imagestreaming.Get(ctx, mode, streamerConfig(socket))
 	if err != nil {
 		return nil, fmt.Errorf("initializing image streamer %q: %w", mode, err)
 	}
@@ -544,7 +556,7 @@ func detectImageStreamer(ctx context.Context, sockets []streamerSocket) imagestr
 				slog.WarnContext(ctx, "Failed to detach host containerd from gcfs", slog.Any("err", err))
 			}
 		}
-		streamer, err := imagestreaming.Get(ctx, s.provider, imagestreaming.Config{imagestreaming.SocketPathKey: s.path})
+		streamer, err := imagestreaming.Get(ctx, s.provider, streamerConfig(s.path))
 		if err != nil {
 			slog.WarnContext(ctx, "Failed to initialize auto-detected image streamer",
 				slog.String("provider", s.provider),
@@ -589,6 +601,7 @@ func logImageStreamerEnabled(ctx context.Context, mode string, streamer imagestr
 		slog.String("mode", mode),
 		slog.String("provider", streamer.Name()),
 		slog.String("socket", socket),
+		slog.Duration("lease_ttl", *imageStreamerLeaseTTL),
 	}
 	level := slog.LevelInfo
 	if p, ok := streamer.(streamerProber); ok {
@@ -881,7 +894,8 @@ func (s *AteomHerder) Checkpoint(ctx context.Context, req *ateletpb.CheckpointRe
 		return nil, ateerrors.NewGRPCError(ctx, codes.DataLoss, ateerrors.ReasonTerminalFileSystemError, ateerrors.ActorCrashedMetadata(), fmt.Errorf("while unmounting external volumes: %w", err))
 	}
 
-	// Release streamed image layers when actor sleeps/pauses (Approach 1: active-only leases)
+	// Release this actor's reference on streamed image layers; the driver keeps
+	// the views mounted for --image-streamer-lease-ttl after refCount reaches 0.
 	s.releaseStreamedLayersForActor(ctx, actorUID, actorRef, req.GetSpec())
 
 	// Note: we do not crash the actor if resetting the directory fails.
