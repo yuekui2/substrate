@@ -26,10 +26,12 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/compression"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/registry"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -37,6 +39,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
+	"github.com/google/go-containerregistry/pkg/v1/types"
 )
 
 // newTestRegistry starts an in-memory OCI registry and returns its host
@@ -378,5 +381,161 @@ func TestRewriteLocalRegistry(t *testing.T) {
 				t.Errorf("rewriteLocalRegistry(%q) = %q; want %q", tt.ref, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestEnsureImage_ZstdAndMultiChunkLayers(t *testing.T) {
+	_, host := newTestRegistry(t)
+	ref := host + "/test/zstd-multichunk:latest"
+
+	// Build a multi-chunk payload (> 1 MiB) so both stage1 and stage2
+	// cycle through multiple 256 KiB pooled stream chunks.
+	bigBody := strings.Repeat("0123456789abcdef", 80*1024) // 1.28 MiB
+	gzipLayer := layerFromEntries(t, []tarEntry{
+		{name: "big/gzip.bin", typeflag: tar.TypeReg, mode: 0o644, body: bigBody},
+	})
+
+	zstdTar := buildTar(t, []tarEntry{
+		{name: "big/zstd.bin", typeflag: tar.TypeReg, mode: 0o644, body: bigBody},
+	})
+	zstdLayer, err := tarball.LayerFromOpener(
+		func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(zstdTar)), nil
+		},
+		tarball.WithCompression(compression.ZStd),
+		tarball.WithMediaType(types.OCILayerZStd),
+	)
+	if err != nil {
+		t.Fatalf("tarball.LayerFromOpener(zstd): %v", err)
+	}
+
+	pushImage(t, ref, v1.Config{}, gzipLayer, zstdLayer)
+
+	store := newTestStore(t)
+	img, err := store.EnsureImage(context.Background(), ref)
+	if err != nil {
+		t.Fatalf("EnsureImage(zstd+gzip): %v", err)
+	}
+	if len(img.LayerDirs) != 2 {
+		t.Fatalf("LayerDirs = %d, want 2", len(img.LayerDirs))
+	}
+	for i, rel := range []string{"big/gzip.bin", "big/zstd.bin"} {
+		got, err := os.ReadFile(filepath.Join(img.LayerDirs[i], layerFSDirName, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		if string(got) != bigBody {
+			t.Errorf("%s length = %d, want %d", rel, len(got), len(bigBody))
+		}
+	}
+}
+
+type rawCompressedLayer struct {
+	v1.Layer
+	data []byte
+}
+
+func (l *rawCompressedLayer) Compressed() (io.ReadCloser, error) {
+	return io.NopCloser(bytes.NewReader(l.data)), nil
+}
+
+func TestOpenLayerStream_UncompressedAndCorruptTrailer(t *testing.T) {
+	tarBytes := buildTar(t, []tarEntry{
+		{name: "hello.txt", typeflag: tar.TypeReg, mode: 0o644, body: "hello uncompressed"},
+	})
+	uncompressedLayer := &rawCompressedLayer{data: tarBytes}
+
+	store := newTestStore(t)
+	uncompressedDiffID := v1.Hash{Algorithm: "sha256", Hex: strings.Repeat("aa", 32)}
+	if err := store.unpackLayerToPool(context.Background(), uncompressedDiffID, uncompressedLayer); err != nil {
+		t.Fatalf("unpackLayerToPool(uncompressed): %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(store.layerDir(uncompressedDiffID), layerFSDirName, "hello.txt"))
+	if err != nil || string(got) != "hello uncompressed" {
+		t.Errorf("uncompressed hello.txt = %q, %v; want %q", got, err, "hello uncompressed")
+	}
+
+	// Corrupt the final byte (inside the 8-byte gzip CRC32/ISIZE trailer,
+	// which sits after the tar EOF marker). Draining the stream to EOF
+	// before committing the layer must catch the trailer mismatch.
+	validGzipLayer := layerFromEntries(t, []tarEntry{
+		{name: "payload.txt", typeflag: tar.TypeReg, mode: 0o644, body: "payload"},
+	})
+	rc, err := validGzipLayer.Compressed()
+	if err != nil {
+		t.Fatalf("validGzipLayer.Compressed: %v", err)
+	}
+	compressedBytes, err := io.ReadAll(rc)
+	rc.Close()
+	if err != nil {
+		t.Fatalf("ReadAll(compressed): %v", err)
+	}
+	compressedBytes[len(compressedBytes)-1] ^= 0xff
+
+	corruptLayer := &rawCompressedLayer{data: compressedBytes}
+	corruptDiffID := v1.Hash{Algorithm: "sha256", Hex: strings.Repeat("cc", 32)}
+	if err := store.unpackLayerToPool(context.Background(), corruptDiffID, corruptLayer); err == nil {
+		t.Fatalf("unpackLayerToPool succeeded on corrupt gzip trailer; want checksum error")
+	}
+	if _, err := os.Stat(store.layerDir(corruptDiffID)); !os.IsNotExist(err) {
+		t.Errorf("corrupt layer directory was committed to pool: err=%v", err)
+	}
+}
+
+type oneByteReader struct {
+	data []byte
+}
+
+func (r *oneByteReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, io.EOF
+	}
+	p[0] = r.data[0]
+	r.data = r.data[1:]
+	return 1, nil
+}
+
+func TestAsyncReadCloser_SingleByteChunksAndEarlyClose(t *testing.T) {
+	payload := []byte("0123456789abcdefghijklmnopqrstuvwxyz")
+	var closed atomic.Bool
+	ar := newAsyncReadCloser(&oneByteReader{data: payload}, 2, nil, func() error {
+		closed.Store(true)
+		return nil
+	})
+
+	hdr, err := ar.peek(4)
+	if err != nil {
+		t.Fatalf("peek(4): %v", err)
+	}
+	if string(hdr) != "0123" {
+		t.Fatalf("peek(4) = %q, want %q", hdr, "0123")
+	}
+
+	b0, err := ar.ReadByte()
+	if err != nil || b0 != '0' {
+		t.Fatalf("ReadByte() = %q, %v; want '0'", b0, err)
+	}
+
+	rest, err := io.ReadAll(ar)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if string(rest) != string(payload[1:]) {
+		t.Errorf("ReadAll = %q, want %q", rest, payload[1:])
+	}
+	if err := ar.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if !closed.Load() {
+		t.Errorf("closeFn was not invoked")
+	}
+
+	// Verify early Close unblocks a producer blocked on a full channel.
+	infinite := newAsyncReadCloser(strings.NewReader(strings.Repeat("x", 64*1024)), 1, nil, nil)
+	if _, err := infinite.peek(4); err != nil {
+		t.Fatalf("infinite.peek(4): %v", err)
+	}
+	if err := infinite.Close(); err != nil {
+		t.Fatalf("infinite.Close: %v", err)
 	}
 }

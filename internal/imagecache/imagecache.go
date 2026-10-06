@@ -51,6 +51,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -65,6 +66,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	kgzip "github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zstd"
 	"go.opentelemetry.io/otel/metric"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
@@ -94,6 +97,14 @@ const (
 	// image pull. Memory use is O(stream buffers) per slot, independent of
 	// layer size.
 	layerPullConcurrency = 4
+
+	// Stream pipeline buffer parameters per unpacking layer:
+	// Stage 1 buffers up to 16 MiB (64 * 256 KiB) of compressed bytes so the
+	// network reader goroutine drains the 4 MiB HTTP/2 stream flow window
+	// continuously while Stage 2 decompresses and Stage 3 extracts tar entries.
+	streamChunkSize              = 256 * 1024
+	compressedStreamQueueDepth   = 64
+	uncompressedStreamQueueDepth = 32
 
 	// defaultPullTimeout is the default per-pull bound (see WithPullTimeout).
 	// Generous enough for multi-GiB images on a busy node.
@@ -724,7 +735,7 @@ func (s *Store) unpackLayerToPool(ctx context.Context, diffID v1.Hash, layer v1.
 		return fmt.Errorf("while creating layer fs dir: %w", err)
 	}
 
-	rc, err := layer.Uncompressed()
+	rc, err := openLayerStream(layer)
 	if err != nil {
 		return fmt.Errorf("while opening layer stream: %w", err)
 	}
@@ -742,6 +753,15 @@ func (s *Store) unpackLayerToPool(ctx context.Context, diffID v1.Hash, layer v1.
 	wh, err := unpackLayer(ctx, cr, root)
 	if err != nil {
 		return err
+	}
+	// Drain any trailing tar zero-padding to EOF so the decompression and
+	// compressed-digest verifiers validate the complete stream before we
+	// commit the layer directory to the pool.
+	if _, err := io.Copy(io.Discard, cr); err != nil {
+		return fmt.Errorf("while verifying layer stream trailer: %w", err)
+	}
+	if err := rc.Close(); err != nil {
+		return fmt.Errorf("while closing layer stream: %w", err)
 	}
 	// Non-fatal: a missing size file is recovered by layerSize's backfill,
 	// so a metadata write must not discard a successful unpack.
@@ -767,6 +787,272 @@ func (s *Store) unpackLayerToPool(ctx context.Context, diffID v1.Hash, layer v1.
 		return fmt.Errorf("while moving layer into pool: %w", err)
 	}
 	return nil
+}
+
+var streamChunkPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, streamChunkSize)
+		return &b
+	},
+}
+
+type streamChunk struct {
+	buf *[]byte
+	b   []byte
+	err error
+}
+
+// asyncReadCloser decouples an upstream io.Reader onto a dedicated background
+// goroutine that fills pooled streamChunkSize buffers into a bounded channel.
+// It also implements io.ByteReader (flate.Reader) so decompression readers
+// such as klauspost/compress/gzip read directly from the chunk slices without
+// allocating an intermediate 4 KiB bufio.Reader.
+type asyncReadCloser struct {
+	ch       chan streamChunk
+	done     chan struct{}
+	stopOnce sync.Once
+	onStop   func()
+	closeFn  func() error
+
+	cur    []byte
+	curBuf *[]byte
+	err    error
+}
+
+func newAsyncReadCloser(r io.Reader, queueDepth int, onStop func(), closeFn func() error) *asyncReadCloser {
+	a := &asyncReadCloser{
+		ch:      make(chan streamChunk, queueDepth),
+		done:    make(chan struct{}),
+		onStop:  onStop,
+		closeFn: closeFn,
+	}
+	go a.produce(r)
+	return a
+}
+
+func (a *asyncReadCloser) produce(r io.Reader) {
+	defer close(a.ch)
+	for {
+		bufPtr := streamChunkPool.Get().(*[]byte)
+		buf := *bufPtr
+		n, err := r.Read(buf)
+		if n > 0 {
+			select {
+			case a.ch <- streamChunk{buf: bufPtr, b: buf[:n]}:
+			case <-a.done:
+				streamChunkPool.Put(bufPtr)
+				return
+			}
+		} else {
+			streamChunkPool.Put(bufPtr)
+		}
+		if err != nil {
+			select {
+			case a.ch <- streamChunk{err: err}:
+			case <-a.done:
+			}
+			return
+		}
+	}
+}
+
+func (a *asyncReadCloser) releaseCur() {
+	if a.curBuf != nil {
+		streamChunkPool.Put(a.curBuf)
+		a.curBuf = nil
+		a.cur = nil
+	}
+}
+
+func (a *asyncReadCloser) fill() bool {
+	select {
+	case <-a.done:
+		a.releaseCur()
+		a.err = io.ErrClosedPipe
+		return false
+	default:
+	}
+	for len(a.cur) == 0 {
+		a.releaseCur()
+		if a.err != nil {
+			return false
+		}
+		select {
+		case <-a.done:
+			a.err = io.ErrClosedPipe
+			return false
+		case c, ok := <-a.ch:
+			if !ok {
+				if a.err == nil {
+					a.err = io.ErrClosedPipe
+				}
+				return false
+			}
+			a.curBuf = c.buf
+			a.cur = c.b
+			if c.err != nil {
+				a.err = c.err
+			}
+		}
+	}
+	return true
+}
+
+func (a *asyncReadCloser) peek(n int) ([]byte, error) {
+	if !a.fill() {
+		if errors.Is(a.err, io.EOF) {
+			return nil, nil
+		}
+		return nil, a.err
+	}
+	for len(a.cur) < n && a.err == nil {
+		c, ok := <-a.ch
+		if !ok {
+			a.err = io.ErrClosedPipe
+			break
+		}
+		if len(c.b) > 0 {
+			combined := make([]byte, len(a.cur)+len(c.b))
+			copy(combined, a.cur)
+			copy(combined[len(a.cur):], c.b)
+			a.releaseCur()
+			if c.buf != nil {
+				streamChunkPool.Put(c.buf)
+			}
+			a.cur = combined
+		}
+		if c.err != nil {
+			a.err = c.err
+		}
+	}
+	if a.err != nil && !errors.Is(a.err, io.EOF) {
+		return nil, a.err
+	}
+	if len(a.cur) < n {
+		return a.cur, nil
+	}
+	return a.cur[:n], nil
+}
+
+func (a *asyncReadCloser) Read(p []byte) (int, error) {
+	if !a.fill() {
+		return 0, a.err
+	}
+	if len(p) == 0 {
+		return 0, nil
+	}
+	n := copy(p, a.cur)
+	a.cur = a.cur[n:]
+	if len(a.cur) == 0 {
+		a.releaseCur()
+	}
+	return n, nil
+}
+
+func (a *asyncReadCloser) ReadByte() (byte, error) {
+	if !a.fill() {
+		return 0, a.err
+	}
+	b := a.cur[0]
+	a.cur = a.cur[1:]
+	if len(a.cur) == 0 {
+		a.releaseCur()
+	}
+	return b, nil
+}
+
+func (a *asyncReadCloser) abort() {
+	a.stopOnce.Do(func() {
+		close(a.done)
+		if a.onStop != nil {
+			a.onStop()
+		}
+	})
+}
+
+func (a *asyncReadCloser) Close() error {
+	a.abort()
+	a.releaseCur()
+	for c := range a.ch {
+		if c.buf != nil {
+			streamChunkPool.Put(c.buf)
+		}
+	}
+	if a.closeFn != nil {
+		return a.closeFn()
+	}
+	return nil
+}
+
+type zstdReadCloser struct {
+	*zstd.Decoder
+	stage1 *asyncReadCloser
+}
+
+func (z *zstdReadCloser) Close() error {
+	z.stage1.abort()
+	z.Decoder.Close()
+	return z.stage1.Close()
+}
+
+// openLayerStream builds a 3-stage pipeline for reading and decompressing a
+// layer:
+//  1. A network reader goroutine drains layer.Compressed() (including its
+//     compressed SHA-256 verifier) into 256 KiB buffers so HTTP/2 stream flow
+//     control windows stay open while downstream stages are busy.
+//  2. A decompression stage uses klauspost/compress (gzip or zstd) on a
+//     separate goroutine so gunzip+CRC32 does not serialize with network
+//     reads or disk syscalls.
+//  3. The returned io.ReadCloser feeds unpackLayer on the caller goroutine.
+func openLayerStream(layer v1.Layer) (io.ReadCloser, error) {
+	compressedRC, err := layer.Compressed()
+	if err != nil {
+		return nil, err
+	}
+	var closeOnce sync.Once
+	var closeErr error
+	closeCompressed := func() error {
+		closeOnce.Do(func() {
+			closeErr = compressedRC.Close()
+		})
+		return closeErr
+	}
+
+	stage1 := newAsyncReadCloser(compressedRC, compressedStreamQueueDepth, func() {
+		_ = closeCompressed()
+	}, closeCompressed)
+
+	hdr, err := stage1.peek(4)
+	if err != nil {
+		_ = stage1.Close()
+		return nil, err
+	}
+
+	switch {
+	case len(hdr) >= 2 && hdr[0] == 0x1f && hdr[1] == 0x8b:
+		gz, err := kgzip.NewReader(stage1)
+		if err != nil {
+			_ = stage1.Close()
+			return nil, err
+		}
+		stage2 := newAsyncReadCloser(gz, uncompressedStreamQueueDepth, stage1.abort, func() error {
+			gzErr := gz.Close()
+			s1Err := stage1.Close()
+			return errors.Join(gzErr, s1Err)
+		})
+		return stage2, nil
+
+	case len(hdr) >= 4 && hdr[0] == 0x28 && hdr[1] == 0xb5 && hdr[2] == 0x2f && hdr[3] == 0xfd:
+		zr, err := zstd.NewReader(stage1)
+		if err != nil {
+			_ = stage1.Close()
+			return nil, err
+		}
+		return &zstdReadCloser{Decoder: zr, stage1: stage1}, nil
+
+	default:
+		return stage1, nil
+	}
 }
 
 func (s *Store) writeRecord(digest v1.Hash, rec imageRecord) error {

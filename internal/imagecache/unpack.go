@@ -89,6 +89,24 @@ func validateTarName(name string) (cleaned string, skip bool, err error) {
 	return cleaned, false, nil
 }
 
+func removeExistingEntry(root *os.Root, name string, existingDirs map[string]bool, dirModes map[string]os.FileMode) error {
+	if err := root.RemoveAll(name); err != nil {
+		return err
+	}
+	if existingDirs[name] {
+		delete(existingDirs, name)
+		delete(dirModes, name)
+		prefix := name + "/"
+		for k := range existingDirs {
+			if strings.HasPrefix(k, prefix) {
+				delete(existingDirs, k)
+				delete(dirModes, k)
+			}
+		}
+	}
+	return nil
+}
+
 // unpackLayer extracts one uncompressed OCI layer tar into root. Whiteout
 // entries (.wh.*) are not written to the tree; they are returned so the
 // caller can persist them for later materialization by a privileged process.
@@ -107,6 +125,23 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 	// CAP_DAC_OVERRIDE. Keyed by name so a repeated dir entry's last mode wins.
 	dirModes := map[string]os.FileMode{}
 
+	// existingDirs tracks directories already created in root during this
+	// layer unpack so repeated files in the same parent directory skip
+	// redundant root.MkdirAll syscalls.
+	existingDirs := map[string]bool{}
+	ensureDir := func(dir string) error {
+		if dir == "." || existingDirs[dir] {
+			return nil
+		}
+		if err := root.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+		for p := dir; p != "." && !existingDirs[p]; p = filepath.Dir(p) {
+			existingDirs[p] = true
+		}
+		return nil
+	}
+
 	// Ancestors an entry needed vs. directories the tar declared: the
 	// difference is recorded as ImplicitDirs (attrs fabricated, see the
 	// whiteoutSet field doc). Whiteout/opaque markers count too — their
@@ -122,6 +157,7 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 		}
 	}
 
+	copyBuf := make([]byte, 64*1024)
 	tarReader := tar.NewReader(tarData)
 	for {
 		hdr, err := tarReader.Next()
@@ -164,37 +200,38 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 		// lower layers' directories at compose time.
 		markAncestors(name)
 		if parent := filepath.Dir(name); parent != "." {
-			if err := root.MkdirAll(parent, 0o755); err != nil {
+			if err := ensureDir(parent); err != nil {
 				return nil, fmt.Errorf("while creating parent directories for %q: %w", name, err)
 			}
 		}
 
 		switch hdr.Typeflag {
 		case tar.TypeReg: // Regular file
-			// "Later entry wins" within the layer: if any entry exists at the target
-			// path, remove it first. This ensures that:
-			// 1. If it's a symlink, we don't write through it (security vulnerability / incorrectness).
-			// 2. If it's a hardlink, we unlink it instead of truncating the shared inode.
-			// 3. If it's a directory, we recursively remove it so we can write the file.
-			if _, err := root.Lstat(name); err == nil {
-				if err := root.RemoveAll(name); err != nil {
+			// Optimistically create the file with O_EXCL to avoid a separate
+			// Lstat syscall on every new file. "Later entry wins" within the
+			// layer: if an entry already exists at name (O_EXCL returns
+			// ErrExist even for a dangling symlink), remove it first so we
+			// never write through a symlink, truncate a shared hardlink inode,
+			// or fail on an existing directory.
+			outFile, err := root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+			if errors.Is(err, os.ErrExist) {
+				if err := removeExistingEntry(root, name, existingDirs, dirModes); err != nil {
 					return nil, fmt.Errorf("while replacing existing path at %q before regular file: %w", name, err)
 				}
-			} else if !errors.Is(err, os.ErrNotExist) {
-				return nil, fmt.Errorf("while checking existing path at %q before regular file: %w", name, err)
+				outFile, err = root.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 			}
-
-			// Stream directly from tarReader to target file to avoid buffering in memory.
-			outFile, err := root.OpenFile(name, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode)
 			if err != nil {
 				return nil, fmt.Errorf("while creating file %q: %w", name, err)
 			}
 
-			_, err = io.Copy(outFile, tarReader)
+			var copyErr error
+			if hdr.Size > 0 {
+				_, copyErr = io.CopyBuffer(outFile, tarReader, copyBuf)
+			}
 			closeErr := outFile.Close()
 
-			if err != nil {
-				return nil, fmt.Errorf("while writing contents of %q from tar stream: %w", name, err)
+			if copyErr != nil {
+				return nil, fmt.Errorf("while writing contents of %q from tar stream: %w", name, copyErr)
 			}
 			if closeErr != nil {
 				return nil, fmt.Errorf("while closing file %q: %w", name, closeErr)
@@ -204,13 +241,22 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 			// Create owner-writable so children can be written even when the image
 			// marks the dir read-only; the real mode is restored after extraction
 			// (see dirModes / the restore pass below).
-			err := root.Mkdir(name, mode|0o700)
-			if errors.Is(err, os.ErrExist) {
-				// OCI layers can repeat a directory entry (real ko images do); the
-				// existing dir is already owner-writable, so let the later entry's
-				// mode win at restore time.
-			} else if err != nil {
-				return nil, fmt.Errorf("while creating directory=%q, mode=%v: %w", name, mode, err)
+			if !existingDirs[name] {
+				err := root.Mkdir(name, mode|0o700)
+				if errors.Is(err, os.ErrExist) {
+					if fi, lerr := root.Lstat(name); lerr == nil && !fi.IsDir() {
+						if rerr := removeExistingEntry(root, name, existingDirs, dirModes); rerr != nil {
+							return nil, fmt.Errorf("while replacing existing non-directory at %q before directory: %w", name, rerr)
+						}
+						err = root.Mkdir(name, mode|0o700)
+					} else {
+						err = nil
+					}
+				}
+				if err != nil {
+					return nil, fmt.Errorf("while creating directory=%q, mode=%v: %w", name, mode, err)
+				}
+				existingDirs[name] = true
 			}
 			dirModes[name] = mode
 			declared[name] = true
@@ -219,25 +265,21 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 		case tar.TypeSymlink:
 			// A layer may re-define the same path (e.g. declare /var/run as a dir
 			// then re-declare it as a symlink). Standard tar-extract semantics are
-			// "later entry wins": replace any existing entry.
-			if existing, err := root.Lstat(name); err == nil {
-				// If it's already the same symlink, skip the unlink+symlink pair.
-				if existing.Mode()&os.ModeSymlink != 0 {
+			// "later entry wins": optimistically create the symlink first, and
+			// replace any existing entry on ErrExist.
+			if err := root.Symlink(hdr.Linkname, name); errors.Is(err, os.ErrExist) {
+				if existing, lerr := root.Lstat(name); lerr == nil && existing.Mode()&os.ModeSymlink != 0 {
 					if cur, rerr := root.Readlink(name); rerr == nil && cur == hdr.Linkname {
 						continue
 					}
 				}
-				// Root.RemoveAll removes the symlink entry itself; it does NOT
-				// traverse and remove the directory the symlink points to.
-				// That's the desired semantic here — replace this path's
-				// entry without touching whatever the prior symlink targeted.
-				if err := root.RemoveAll(name); err != nil {
+				if err := removeExistingEntry(root, name, existingDirs, dirModes); err != nil {
 					return nil, fmt.Errorf("while replacing existing path at %q before symlink: %w", name, err)
 				}
-			} else if !errors.Is(err, os.ErrNotExist) {
-				return nil, fmt.Errorf("while checking existing path at %q before symlink: %w", name, err)
-			}
-			if err := root.Symlink(hdr.Linkname, name); err != nil {
+				if err := root.Symlink(hdr.Linkname, name); err != nil {
+					return nil, fmt.Errorf("while creating symlink src=%q target=%q: %w", name, hdr.Linkname, err)
+				}
+			} else if err != nil {
 				return nil, fmt.Errorf("while creating symlink src=%q target=%q: %w", name, hdr.Linkname, err)
 			}
 
@@ -249,15 +291,15 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 			if linkSkip {
 				return nil, fmt.Errorf("invalid hardlink target for %q: empty", name)
 			}
-			// Same "later entry wins" handling as TypeSymlink: replace existing entry.
-			if _, err := root.Lstat(name); err == nil {
-				if err := root.RemoveAll(name); err != nil {
+			// Same "later entry wins" handling as TypeSymlink: replace existing entry on ErrExist.
+			if err := root.Link(linkname, name); errors.Is(err, os.ErrExist) {
+				if err := removeExistingEntry(root, name, existingDirs, dirModes); err != nil {
 					return nil, fmt.Errorf("while replacing existing path at %q before hardlink: %w", name, err)
 				}
-			} else if !errors.Is(err, os.ErrNotExist) {
-				return nil, fmt.Errorf("while checking existing path at %q before hardlink: %w", name, err)
-			}
-			if err := root.Link(linkname, name); err != nil {
+				if err := root.Link(linkname, name); err != nil {
+					return nil, fmt.Errorf("while creating hardlink src=%q target=%q: %w", name, linkname, err)
+				}
+			} else if err != nil {
 				return nil, fmt.Errorf("while creating hardlink src=%q target=%q: %w", name, linkname, err)
 			}
 

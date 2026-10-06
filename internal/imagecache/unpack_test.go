@@ -449,6 +449,45 @@ func TestUnpackLayer_LaterEntryWins(t *testing.T) {
 			t.Errorf("bin/sh content was overwritten to %q (hardlink was not unlinked)", gotSh)
 		}
 	})
+
+	t.Run("file overwritten by dir", func(t *testing.T) {
+		entries := []tarEntry{
+			{name: "etc/item", typeflag: tar.TypeReg, body: "was-a-file"},
+			{name: "etc/item/", typeflag: tar.TypeDir, mode: 0o750},
+			{name: "etc/item/child", typeflag: tar.TypeReg, body: "child-body"},
+		}
+		dir, _, err := runUnpack(t, entries)
+		if err != nil {
+			t.Fatalf("unpackLayer: %v", err)
+		}
+		got, err := os.ReadFile(filepath.Join(dir, "etc/item/child"))
+		if err != nil {
+			t.Fatalf("read etc/item/child: %v", err)
+		}
+		if string(got) != "child-body" {
+			t.Errorf("etc/item/child = %q, want %q", got, "child-body")
+		}
+	})
+
+	t.Run("dir subtree replaced by file then recreated as dir", func(t *testing.T) {
+		entries := []tarEntry{
+			{name: "tree/sub/leaf", typeflag: tar.TypeReg, body: "v1"},
+			{name: "tree", typeflag: tar.TypeReg, body: "flat"},
+			{name: "tree/", typeflag: tar.TypeDir},
+			{name: "tree/sub/leaf", typeflag: tar.TypeReg, body: "v2"},
+		}
+		dir, _, err := runUnpack(t, entries)
+		if err != nil {
+			t.Fatalf("unpackLayer: %v", err)
+		}
+		got, err := os.ReadFile(filepath.Join(dir, "tree/sub/leaf"))
+		if err != nil {
+			t.Fatalf("read tree/sub/leaf: %v", err)
+		}
+		if string(got) != "v2" {
+			t.Errorf("tree/sub/leaf = %q, want %q", got, "v2")
+		}
+	})
 }
 
 // A read-only directory in the image (e.g. ko ships /ko-app as 0555) must still
