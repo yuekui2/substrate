@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const (
@@ -35,7 +36,49 @@ const (
 	// opaqueMarkerName marks its directory as opaque: lower-layer contents of
 	// that directory are hidden entirely.
 	opaqueMarkerName = ".wh..wh..opq"
+
+	// unpackFileWorkers is the number of concurrent file-creation workers per
+	// unpacking layer. Regular files up to maxAsyncFileSize are buffered in
+	// memory from the sequential tar stream and written to root concurrently
+	// so openat2/write/close syscalls on 100k+-file layers do not serialize
+	// on the tar reader goroutine.
+	unpackFileWorkers = 8
+	// maxAsyncFileSize caps the size of a regular file buffered into the
+	// async file-writer pool; larger files stream directly from tarReader.
+	maxAsyncFileSize = 256 * 1024
 )
+
+var unpackFileBufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, maxAsyncFileSize)
+		return &b
+	},
+}
+
+type fileWriteJob struct {
+	name   string
+	mode   os.FileMode
+	bufPtr *[]byte
+	size   int
+}
+
+// onlyWriter hides os.File's io.ReaderFrom implementation from io.CopyBuffer.
+// Without this wrapper, io.CopyBuffer calls (*os.File).ReadFrom(tarReader),
+// which fails copy_file_range/splice on a tar.Reader and falls back to
+// io.Copy(onlyWriter, tarReader) with a nil buffer — allocating a fresh 32 KiB
+// slice on every file instead of reusing the caller's copyBuf.
+type onlyWriter struct {
+	io.Writer
+}
+
+// parentDir returns the parent directory of an already-cleaned relative path
+// without re-running filepath.Clean.
+func parentDir(cleanName string) string {
+	if i := strings.LastIndexByte(cleanName, '/'); i >= 0 {
+		return cleanName[:i]
+	}
+	return "."
+}
 
 // whiteoutSet records per-layer metadata captured at unpack time that the
 // (privileged) consumer needs at compose time: whiteout state materialized
@@ -129,14 +172,78 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 	// layer unpack so repeated files in the same parent directory skip
 	// redundant root.MkdirAll syscalls.
 	existingDirs := map[string]bool{}
+	// seenNonDirs tracks paths created as regular files, symlinks, or
+	// hardlinks during this unpack so any later entry touching the same path
+	// (or converting a file path into a directory) drains in-flight async
+	// file writers first to preserve strict "later entry wins" ordering.
+	seenNonDirs := map[string]bool{}
+
+	var (
+		jobs       = make(chan fileWriteJob, unpackFileWorkers*8)
+		workersWG  sync.WaitGroup
+		pendingWG  sync.WaitGroup
+		errOnce    sync.Once
+		workerErr  error
+		setWorkErr = func(err error) {
+			errOnce.Do(func() { workerErr = err })
+		}
+	)
+	for range unpackFileWorkers {
+		workersWG.Add(1)
+		go func() {
+			defer workersWG.Done()
+			for job := range jobs {
+				outFile, err := root.OpenFile(job.name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, job.mode)
+				if err != nil {
+					if job.bufPtr != nil {
+						unpackFileBufPool.Put(job.bufPtr)
+					}
+					setWorkErr(fmt.Errorf("while creating file %q: %w", job.name, err))
+					pendingWG.Done()
+					continue
+				}
+				var writeErr error
+				if job.size > 0 {
+					_, writeErr = outFile.Write((*job.bufPtr)[:job.size])
+					unpackFileBufPool.Put(job.bufPtr)
+				}
+				closeErr := outFile.Close()
+				if writeErr != nil {
+					setWorkErr(fmt.Errorf("while writing contents of %q from tar stream: %w", job.name, writeErr))
+				} else if closeErr != nil {
+					setWorkErr(fmt.Errorf("while closing file %q: %w", job.name, closeErr))
+				}
+				pendingWG.Done()
+			}
+		}()
+	}
+	defer func() {
+		pendingWG.Wait()
+		close(jobs)
+		workersWG.Wait()
+	}()
+
+	flushWorkers := func() error {
+		pendingWG.Wait()
+		return workerErr
+	}
+
 	ensureDir := func(dir string) error {
 		if dir == "." || existingDirs[dir] {
 			return nil
 		}
+		for p := dir; p != "." && !existingDirs[p]; p = parentDir(p) {
+			if seenNonDirs[p] {
+				if err := flushWorkers(); err != nil {
+					return err
+				}
+				break
+			}
+		}
 		if err := root.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		for p := dir; p != "." && !existingDirs[p]; p = filepath.Dir(p) {
+		for p := dir; p != "." && !existingDirs[p]; p = parentDir(p) {
 			existingDirs[p] = true
 		}
 		return nil
@@ -146,18 +253,20 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 	// difference is recorded as ImplicitDirs (attrs fabricated, see the
 	// whiteoutSet field doc). Whiteout/opaque markers count too — their
 	// parents are created by FinalizeLayer's MkdirAll with the same
-	// fabricated attrs.
+	// fabricated attrs. Once an ancestor is in declared or implicit, all of
+	// its own ancestors have already been marked.
 	declared := map[string]bool{}
 	implicit := map[string]bool{}
-	markAncestors := func(name string) {
-		for p := filepath.Dir(name); p != "."; p = filepath.Dir(p) {
-			if !declared[p] {
-				implicit[p] = true
+	markAncestors := func(parent string) {
+		for p := parent; p != "."; p = parentDir(p) {
+			if declared[p] || implicit[p] {
+				break
 			}
+			implicit[p] = true
 		}
 	}
 
-	copyBuf := make([]byte, 64*1024)
+	copyBuf := make([]byte, 256*1024)
 	tarReader := tar.NewReader(tarData)
 	for {
 		hdr, err := tarReader.Next()
@@ -175,19 +284,25 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 			continue
 		}
 
-		if base := filepath.Base(name); base == opaqueMarkerName {
-			if dir := filepath.Dir(name); dir != "." {
-				wh.Opaques = append(wh.Opaques, dir)
+		parent := parentDir(name)
+		base := name
+		if parent != "." {
+			base = name[len(parent)+1:]
+		}
+
+		if base == opaqueMarkerName {
+			if parent != "." {
+				wh.Opaques = append(wh.Opaques, parent)
 			}
-			markAncestors(name)
+			markAncestors(parent)
 			continue
 		} else if strings.HasPrefix(base, whiteoutPrefix+whiteoutPrefix) {
 			// AUFS bookkeeping entries (.wh..wh.plnk, .wh..wh.aufs, ...);
 			// nothing to represent in an overlayfs lowerdir.
 			continue
 		} else if deleted, ok := strings.CutPrefix(base, whiteoutPrefix); ok {
-			wh.Whiteouts = append(wh.Whiteouts, filepath.Join(filepath.Dir(name), deleted))
-			markAncestors(name)
+			wh.Whiteouts = append(wh.Whiteouts, filepath.Join(parent, deleted))
+			markAncestors(parent)
 			continue
 		}
 
@@ -198,8 +313,8 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 		// declared only in the base layer). Unpacking per layer, those
 		// parents must be created here; overlayfs merges them with the
 		// lower layers' directories at compose time.
-		markAncestors(name)
-		if parent := filepath.Dir(name); parent != "." {
+		markAncestors(parent)
+		if parent != "." {
 			if err := ensureDir(parent); err != nil {
 				return nil, fmt.Errorf("while creating parent directories for %q: %w", name, err)
 			}
@@ -207,6 +322,32 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 
 		switch hdr.Typeflag {
 		case tar.TypeReg: // Regular file
+			if !seenNonDirs[name] && !existingDirs[name] && hdr.Size >= 0 && hdr.Size <= maxAsyncFileSize {
+				var bufPtr *[]byte
+				if hdr.Size > 0 {
+					bufPtr = unpackFileBufPool.Get().(*[]byte)
+					if _, err := io.ReadFull(tarReader, (*bufPtr)[:hdr.Size]); err != nil {
+						unpackFileBufPool.Put(bufPtr)
+						_ = flushWorkers()
+						return nil, fmt.Errorf("while writing contents of %q from tar stream: %w", name, err)
+					}
+				}
+				seenNonDirs[name] = true
+				pendingWG.Add(1)
+				jobs <- fileWriteJob{
+					name:   name,
+					mode:   mode,
+					bufPtr: bufPtr,
+					size:   int(hdr.Size),
+				}
+				continue
+			}
+
+			if err := flushWorkers(); err != nil {
+				return nil, err
+			}
+			seenNonDirs[name] = true
+
 			// Optimistically create the file with O_EXCL to avoid a separate
 			// Lstat syscall on every new file. "Later entry wins" within the
 			// layer: if an entry already exists at name (O_EXCL returns
@@ -226,7 +367,7 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 
 			var copyErr error
 			if hdr.Size > 0 {
-				_, copyErr = io.CopyBuffer(outFile, tarReader, copyBuf)
+				_, copyErr = io.CopyBuffer(onlyWriter{outFile}, tarReader, copyBuf)
 			}
 			closeErr := outFile.Close()
 
@@ -238,6 +379,12 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 			}
 
 		case tar.TypeDir:
+			if seenNonDirs[name] {
+				if err := flushWorkers(); err != nil {
+					return nil, err
+				}
+				delete(seenNonDirs, name)
+			}
 			// Create owner-writable so children can be written even when the image
 			// marks the dir read-only; the real mode is restored after extraction
 			// (see dirModes / the restore pass below).
@@ -263,6 +410,12 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 			delete(implicit, name)
 
 		case tar.TypeSymlink:
+			if seenNonDirs[name] || existingDirs[name] {
+				if err := flushWorkers(); err != nil {
+					return nil, err
+				}
+			}
+			seenNonDirs[name] = true
 			// A layer may re-define the same path (e.g. declare /var/run as a dir
 			// then re-declare it as a symlink). Standard tar-extract semantics are
 			// "later entry wins": optimistically create the symlink first, and
@@ -291,6 +444,10 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 			if linkSkip {
 				return nil, fmt.Errorf("invalid hardlink target for %q: empty", name)
 			}
+			if err := flushWorkers(); err != nil {
+				return nil, err
+			}
+			seenNonDirs[name] = true
 			// Same "later entry wins" handling as TypeSymlink: replace existing entry on ErrExist.
 			if err := root.Link(linkname, name); errors.Is(err, os.ErrExist) {
 				if err := removeExistingEntry(root, name, existingDirs, dirModes); err != nil {
@@ -308,6 +465,10 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 			slog.ErrorContext(ctx, "Unhandled tar entry typeflag", slog.String("typeflag", tfStr), slog.Any("hdr", hdr))
 			return nil, fmt.Errorf("unhandled tar entry typeflag %q", tfStr)
 		}
+	}
+
+	if err := flushWorkers(); err != nil {
+		return nil, err
 	}
 
 	// Restore the image's intended directory modes now that every child exists.
@@ -332,12 +493,12 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 	// (they may not exist yet). Sorted for deterministic metadata.
 	finalizeDirs := map[string]bool{}
 	for _, w := range wh.Whiteouts {
-		for p := filepath.Dir(w); p != "."; p = filepath.Dir(p) {
+		for p := parentDir(w); p != "."; p = parentDir(p) {
 			finalizeDirs[p] = true
 		}
 	}
 	for _, o := range wh.Opaques {
-		for p := o; p != "."; p = filepath.Dir(p) {
+		for p := o; p != "."; p = parentDir(p) {
 			finalizeDirs[p] = true
 		}
 	}
@@ -345,7 +506,9 @@ func unpackLayer(ctx context.Context, tarData io.Reader, root *os.Root) (*whiteo
 		if declared[p] {
 			continue
 		}
-		if fi, err := root.Lstat(p); err == nil && fi.IsDir() {
+		if existingDirs[p] {
+			wh.ImplicitDirs = append(wh.ImplicitDirs, p)
+		} else if fi, err := root.Lstat(p); err == nil && fi.IsDir() {
 			wh.ImplicitDirs = append(wh.ImplicitDirs, p)
 		} else if finalizeDirs[p] {
 			wh.ImplicitDirs = append(wh.ImplicitDirs, p)

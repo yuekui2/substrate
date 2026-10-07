@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -637,5 +638,55 @@ func TestUnpackLayer_TruncatedArchive(t *testing.T) {
 	if !strings.Contains(err.Error(), "in tarReader.Next") &&
 		!strings.Contains(err.Error(), "unexpected EOF") {
 		t.Errorf("error = %v, want it to surface the underlying tar/copy error", err)
+	}
+}
+
+func TestUnpackLayer_ParallelSmallAndLargeFiles(t *testing.T) {
+	const numSmall = 200
+	entries := make([]tarEntry, 0, numSmall+5)
+	for i := range numSmall {
+		entries = append(entries, tarEntry{
+			name:     "pkg/sub" + strconv.Itoa(i%10) + "/file_" + strconv.Itoa(i) + ".py",
+			typeflag: tar.TypeReg,
+			mode:     0o644,
+			body:     "content-" + strconv.Itoa(i),
+		})
+	}
+	// Include a file larger than maxAsyncFileSize (256 KiB) to exercise the
+	// synchronous streaming path alongside the async worker pool.
+	largeBody := strings.Repeat("ABCD", 80*1024) // 320 KiB
+	entries = append(entries,
+		tarEntry{name: "pkg/large.bin", typeflag: tar.TypeReg, mode: 0o600, body: largeBody},
+		// Overwrite one of the async-dispatched small files and hardlink another.
+		tarEntry{name: "pkg/sub0/file_0.py", typeflag: tar.TypeReg, mode: 0o644, body: "overwritten-0"},
+		tarEntry{name: "pkg/sub1/link_1.py", typeflag: tar.TypeLink, linkname: "pkg/sub1/file_1.py"},
+	)
+
+	dir, wh, err := runUnpack(t, entries)
+	if err != nil {
+		t.Fatalf("unpackLayer: %v", err)
+	}
+	if !slices.Contains(wh.ImplicitDirs, "pkg") || !slices.Contains(wh.ImplicitDirs, "pkg/sub0") {
+		t.Errorf("ImplicitDirs = %v, want pkg and pkg/sub0 present", wh.ImplicitDirs)
+	}
+	for i := range numSmall {
+		p := filepath.Join(dir, "pkg/sub"+strconv.Itoa(i%10)+"/file_"+strconv.Itoa(i)+".py")
+		got, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("read %s: %v", p, err)
+		}
+		want := "content-" + strconv.Itoa(i)
+		if i == 0 {
+			want = "overwritten-0"
+		}
+		if string(got) != want {
+			t.Errorf("%s = %q, want %q", p, got, want)
+		}
+	}
+	if got, err := os.ReadFile(filepath.Join(dir, "pkg/large.bin")); err != nil || string(got) != largeBody {
+		t.Errorf("pkg/large.bin len=%d err=%v, want len=%d", len(got), err, len(largeBody))
+	}
+	if got, err := os.ReadFile(filepath.Join(dir, "pkg/sub1/link_1.py")); err != nil || string(got) != "content-1" {
+		t.Errorf("pkg/sub1/link_1.py = %q, %v; want %q", got, err, "content-1")
 	}
 }

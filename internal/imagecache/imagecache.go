@@ -48,15 +48,18 @@ package imagecache
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -96,20 +99,41 @@ const (
 	// layerPullConcurrency bounds concurrent layer download+unpack streams per
 	// image pull. Memory use is O(stream buffers) per slot, independent of
 	// layer size.
-	layerPullConcurrency = 4
+	layerPullConcurrency = 8
 
 	// Stream pipeline buffer parameters per unpacking layer:
-	// Stage 1 buffers up to 16 MiB (64 * 256 KiB) of compressed bytes so the
-	// network reader goroutine drains the 4 MiB HTTP/2 stream flow window
-	// continuously while Stage 2 decompresses and Stage 3 extracts tar entries.
+	// Stage 1 buffers up to 32 MiB (128 * 256 KiB) of compressed bytes so the
+	// network reader goroutine drains socket buffers continuously while
+	// Stage 2 decompresses and Stage 3 extracts tar entries.
 	streamChunkSize              = 256 * 1024
-	compressedStreamQueueDepth   = 64
-	uncompressedStreamQueueDepth = 32
+	compressedStreamQueueDepth   = 128
+	uncompressedStreamQueueDepth = 64
 
 	// defaultPullTimeout is the default per-pull bound (see WithPullTimeout).
 	// Generous enough for multi-GiB images on a busy node.
 	defaultPullTimeout = 10 * time.Minute
 )
+
+// pullTransport is a shared HTTP/1.1 transport with enlarged read buffers so
+// concurrent layer blob downloads open independent TCP connections and TLS
+// reader goroutines instead of multiplexing all blobs over a single HTTP/2
+// connection and 4 MiB per-stream flow-control window.
+var pullTransport = func() http.RoundTripper {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.MaxIdleConns = 128
+	tr.MaxIdleConnsPerHost = 32
+	tr.ReadBufferSize = 256 * 1024
+	tr.WriteBufferSize = 64 * 1024
+	tr.ForceAttemptHTTP2 = false
+	tr.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
+	if tr.TLSClientConfig == nil {
+		tr.TLSClientConfig = &tls.Config{}
+	} else {
+		tr.TLSClientConfig = tr.TLSClientConfig.Clone()
+	}
+	tr.TLSClientConfig.NextProtos = []string{"http/1.1"}
+	return tr
+}()
 
 // Pull retry backoffs, chosen per registry by retryBackoffFor. Both replace
 // go-containerregistry's default (3 attempts over ~4s, jitter 0.1), which is
@@ -627,10 +651,26 @@ func (s *Store) pull(ctx context.Context, parsedRef name.Reference, digest v1.Ha
 		}
 	}
 
+	// Schedule largest layers first (LPT ordering) so multi-hundred-MiB layers
+	// start downloading and unpacking immediately on the first concurrency slot
+	// rather than queuing behind smaller base layers.
+	order := make([]int, len(layers))
+	sizes := make([]int64, len(layers))
+	for i, l := range layers {
+		order[i] = i
+		if sz, err := l.Size(); err == nil {
+			sizes[i] = sz
+		}
+	}
+	sort.SliceStable(order, func(a, b int) bool {
+		return sizes[order[a]] > sizes[order[b]]
+	})
+
 	layerDirs := make([]string, len(layers))
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(layerPullConcurrency)
-	for i, layer := range layers {
+	for _, i := range order {
+		layer := layers[i]
 		g.Go(func() error {
 			diffID, err := layer.DiffID()
 			if err != nil {
@@ -865,13 +905,6 @@ func (a *asyncReadCloser) releaseCur() {
 }
 
 func (a *asyncReadCloser) fill() bool {
-	select {
-	case <-a.done:
-		a.releaseCur()
-		a.err = io.ErrClosedPipe
-		return false
-	default:
-	}
 	for len(a.cur) == 0 {
 		a.releaseCur()
 		if a.err != nil {
@@ -899,7 +932,7 @@ func (a *asyncReadCloser) fill() bool {
 }
 
 func (a *asyncReadCloser) peek(n int) ([]byte, error) {
-	if !a.fill() {
+	if len(a.cur) == 0 && !a.fill() {
 		if errors.Is(a.err, io.EOF) {
 			return nil, nil
 		}
@@ -935,7 +968,7 @@ func (a *asyncReadCloser) peek(n int) ([]byte, error) {
 }
 
 func (a *asyncReadCloser) Read(p []byte) (int, error) {
-	if !a.fill() {
+	if len(a.cur) == 0 && !a.fill() {
 		return 0, a.err
 	}
 	if len(p) == 0 {
@@ -950,7 +983,7 @@ func (a *asyncReadCloser) Read(p []byte) (int, error) {
 }
 
 func (a *asyncReadCloser) ReadByte() (byte, error) {
-	if !a.fill() {
+	if len(a.cur) == 0 && !a.fill() {
 		return 0, a.err
 	}
 	b := a.cur[0]
@@ -984,24 +1017,13 @@ func (a *asyncReadCloser) Close() error {
 	return nil
 }
 
-type zstdReadCloser struct {
-	*zstd.Decoder
-	stage1 *asyncReadCloser
-}
-
-func (z *zstdReadCloser) Close() error {
-	z.stage1.abort()
-	z.Decoder.Close()
-	return z.stage1.Close()
-}
-
 // openLayerStream builds a 3-stage pipeline for reading and decompressing a
 // layer:
 //  1. A network reader goroutine drains layer.Compressed() (including its
-//     compressed SHA-256 verifier) into 256 KiB buffers so HTTP/2 stream flow
-//     control windows stay open while downstream stages are busy.
+//     compressed SHA-256 verifier) into 256 KiB buffers so socket receive
+//     buffers stay drained while downstream stages are busy.
 //  2. A decompression stage uses klauspost/compress (gzip or zstd) on a
-//     separate goroutine so gunzip+CRC32 does not serialize with network
+//     separate goroutine so decompression does not serialize with network
 //     reads or disk syscalls.
 //  3. The returned io.ReadCloser feeds unpackLayer on the caller goroutine.
 func openLayerStream(layer v1.Layer) (io.ReadCloser, error) {
@@ -1048,7 +1070,11 @@ func openLayerStream(layer v1.Layer) (io.ReadCloser, error) {
 			_ = stage1.Close()
 			return nil, err
 		}
-		return &zstdReadCloser{Decoder: zr, stage1: stage1}, nil
+		stage2 := newAsyncReadCloser(zr, uncompressedStreamQueueDepth, stage1.abort, func() error {
+			zr.Close()
+			return stage1.Close()
+		})
+		return stage2, nil
 
 	default:
 		return stage1, nil
@@ -1096,6 +1122,7 @@ func (s *Store) remoteOpts(ctx context.Context, parsedRef name.Reference) []remo
 		// to completion in background goroutines.
 		remote.WithContext(ctx),
 		remote.WithPlatform(platform),
+		remote.WithTransport(pullTransport),
 		remote.WithRetryBackoff(retryBackoffFor(registry)),
 	}
 	if s.keychain != nil {

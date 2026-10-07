@@ -102,10 +102,10 @@ func TestRemoteOptsAttachesKeychain(t *testing.T) {
 	kc := &staticKeychain{auth: authn.Anonymous}
 
 	// remote.Option values are opaque, so assert on how many the store
-	// attaches: three unconditional ones (context, platform, backoff) plus the keychain
+	// attaches: four unconditional ones (context, platform, transport, backoff) plus the keychain
 	// when one is set. The keychain is registry-agnostic -- it decides for
 	// itself which registries it can authenticate.
-	const base = 3
+	const base = 4
 	for _, tc := range []struct {
 		name string
 		opts []Option
