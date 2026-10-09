@@ -330,7 +330,7 @@ def atelet_streaming(records, digests=None):
     trace ID.
 
     The path is read from which lines appear:
-      breakdown, prepare_ms > 0   cold: snapshots prepared through Riptide
+      breakdown, prepare_ms > 0   cold: snapshots prepared through Google's Image Streaming
       breakdown, prepare_ms == 0  stat hit: committed layers already on the node
       breakdown, resolve_ms == 0  resolve cached: image metadata reused, no registry call
       "Image streamed" only       lease reuse: the driver's fast paths log no breakdown
@@ -410,7 +410,12 @@ def ateapi_facts(records, method):
         m = msg_of(r)
         if m == "Handle RPC" and r.get("method", "").endswith(method):
             facts["ateapi_rpc_total"] = parse_go_duration(r.get("elapsed-time"))
+            # Logged after the handler returns, so its start is ts - elapsed.
+            if facts["ateapi_rpc_total"] is not None and r["_ts"] is not None:
+                facts["_rpc_start"] = r["_ts"] - facts["ateapi_rpc_total"]
         elif m == "Picked worker":
+            if r["_ts"] is not None:
+                facts.setdefault("_picked_at", r["_ts"])  # first attempt, as in profile_coldboot
             w = str(r.get("worker", ""))
             pod = re.search(r'worker_pod:"([^"]+)"', w)
             node = re.search(r'node_name:"([^"]+)"', w)
@@ -428,6 +433,29 @@ def ateapi_facts(records, method):
                 if k in r:
                     facts[f"finalize_suspended.{k}"] = ns_to_s(r[k])
     return facts, notes
+
+
+def workload(records, actor, t_zero, origin):
+    """Time from t_zero to the actor's first "workload start" and "workload end".
+
+    The profiling/workloads scripts print those records from inside the
+    container, tagged with the trigger (boot or resume); ateom stamps them with
+    the worker's clock. origin names t_zero in the row labels. The in-sandbox
+    elapsed_us, when present, is reported alongside.
+    """
+    out = {}
+    for r in records:
+        m = msg_of(r)
+        if m not in ("workload start", "workload end") or actor_name_of(r) != actor or r["_ts"] is None:
+            continue
+        trigger = r.get("trigger", "?")
+        key = f"{origin} -> {m} ({trigger})"
+        if key in out:
+            continue
+        out[key] = r["_ts"] - t_zero if t_zero is not None else None
+        if m == "workload end" and isinstance(r.get("elapsed_us"), (int, float)):
+            out[f"workload elapsed in sandbox ({trigger})"] = r["elapsed_us"] / 1e6
+    return out
 
 
 def collect(args, step, method, window, trace_id, since, actor, span):
@@ -462,6 +490,8 @@ def collect(args, step, method, window, trace_id, since, actor, span):
         "atelet_restore": atelet_restore(let),
         "ateom": phases,
         "ateom_meta": meta,
+        "workload": {**workload(wrk, actor, facts.get("_picked_at"), "picked worker"),
+                     **workload(wrk, actor, facts.get("_rpc_start"), "rpc start")},
     }
 
 
@@ -504,6 +534,7 @@ def report(result, placement):
     table("atelet image streaming", result["streaming"])
     table("atelet restore phases (concurrent: download || assets+oci_unpack)", result["atelet_restore"])
     table("ateom worker steps", {**result["ateom"], "ateom_total": result["ateom_meta"].get("ateom_total")})
+    table("workload (from picked worker and ate-api-server RPC start)", result.get("workload", {}))
 
 
 def main():

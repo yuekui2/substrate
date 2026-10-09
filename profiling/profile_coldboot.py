@@ -50,6 +50,7 @@ from profile_lifecycle import (
     run,
     short_ref,
     table,
+    workload,
 )
 
 # Golden actors live in a reserved atespace, because the suspend workflow
@@ -232,6 +233,7 @@ def boot_path(records):
             node = re.search(r'node_name:"([^"]+)"', w)
             if pod:
                 facts["_worker_pod"] = pod.group(1)
+            facts.setdefault("_picked_at", r["_ts"])
             notes.append(f"worker {pod.group(1) if pod else '?'} on {node.group(1) if node else '?'}")
     return facts, notes
 
@@ -285,6 +287,9 @@ def main():
     pull_notes += stream_notes + ([level_note] if level_note else [])
     phases, meta = ateom_timeline(wrk, "boot", uid)
     ckpt, ckpt_meta = ateom_timeline(wrk, "suspend", uid)
+    # From placement, so the image fetch is included: on a fresh node this is
+    # time to command execution from an empty cache.
+    work = workload(wrk, uid, facts.get("_picked_at"), "picked worker")
 
     print("\n" + "=" * 68)
     print(f" GOLDEN ACTOR COLD BOOT   {args.atespace}/{name}")
@@ -317,6 +322,7 @@ def main():
     table("ateom worker steps (boot from spec)", {**phases, "ateom_total": meta.get("ateom_total")})
     table("ateom worker steps (checkpoint to golden)",
           {**ckpt, "ateom_total": ckpt_meta.get("ateom_total")})
+    table("workload (from golden actor placement)", work)
 
     if not phases:
         print("\n  no ateom boot window found for this actor. The worker logs name")
@@ -337,6 +343,7 @@ def main():
                 "atelet_flags": flags, "streaming": streaming,
                 "ateom_boot": phases, "ateom_boot_meta": meta,
                 "ateom_checkpoint": ckpt, "ateom_checkpoint_meta": ckpt_meta,
+                "workload": work,
             }, f, indent=2)
         print(f"\nwrote {args.json}")
 
