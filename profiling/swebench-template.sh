@@ -42,6 +42,16 @@ READY_TIMEOUT="${READY_TIMEOUT:-300}"
 # Templates are immutable: the server has no update verb. Re-running with a
 # changed image is a no-op unless the old template is removed first.
 RECREATE="${RECREATE:-0}"
+# Local script to run in the container with bash -c; unset means sleep forever.
+ACTOR_SCRIPT="${ACTOR_SCRIPT:-}"
+if [[ -n "${ACTOR_SCRIPT}" ]]; then
+  CONTAINER_COMMAND='["/bin/bash", "-c"]'
+  # jq emits a JSON string, which is also a valid YAML double-quoted scalar.
+  CONTAINER_ARGS="[$(jq -Rs . < "${ACTOR_SCRIPT}")]"
+else
+  CONTAINER_COMMAND='["/bin/sleep"]'
+  CONTAINER_ARGS='["infinity"]'
+fi
 
 for tool in crane jq kubectl; do
   command -v "$tool" >/dev/null || { echo "error: $tool is required" >&2; exit 1; }
@@ -79,13 +89,13 @@ workerSelector:
     workload: ${WORKLOAD}
 containers:
 # The image declares CMD ["/bin/bash"], which exits at once without a tty.
-# Idling keeps the actor alive; the point here is the pull, not the workload.
+# Idling (or ACTOR_SCRIPT, which should idle when done) keeps the actor alive.
 # No readyz probe, so the reconciler treats the actor as ready as soon as it
 # runs rather than waiting on an HTTP endpoint that does not exist.
 - name: testbed
   image: ${REPO}@${DIGEST}
-  command: ["/bin/sleep"]
-  args: ["infinity"]
+  command: ${CONTAINER_COMMAND}
+  args: ${CONTAINER_ARGS}
 resources:
   limits:
   - name: cpu

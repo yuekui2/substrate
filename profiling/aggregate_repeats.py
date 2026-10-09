@@ -155,7 +155,7 @@ DESCRIPTIONS = {
     "pull took (s)": "✅ atelet registry pull + unpack of the image into the node layer cache",
     "prepare_layers.resolve": "✅ resolve image digest, config and layers from the registry; 0 when atelet's metadata cache hits",
     "prepare_layers.stat": "✅ per-layer check for a committed snapshot, summed over layers",
-    "prepare_layers.prepare": "✅ snapshotter Prepare for missing layers (Riptide provides them); 0 on a stat hit",
+    "prepare_layers.prepare": "✅ snapshotter Prepare for missing layers (Image streaming provides them); 0 on a stat hit",
     "prepare_layers.view": "✅ snapshotter View per layer (mountable read-only view)",
     "prepare_layers.listable": "✅ wait until each layer mount can be listed",
     "prepare_layers.wrapper": "✅ per-layer wrapper dir, symlink and marker, plus lease metadata write",

@@ -17,15 +17,21 @@
 # Run from the substrate repo root after the v3_runbook.md step-0 shell setup
 # (CLUSTER, ZONE, NODE_VERSION, IM, SLUG_M, DS, VER must be set).
 #
-#   N=15 GAP=90 profiling/repeat_matplotlib.sh
+#   N=15 ACTOR_WORKLOAD=file-read profiling/repeat_matplotlib.sh
 #
 # Each rep: recreate both node pools (cold node caches) -> WorkerPools ->
-# coldboot + lifecycle per arm, arm order alternating per rep.
+# coldboot + lifecycle per arm, arm order alternating per rep. The actor runs
+# profiling/workloads/$ACTOR_WORKLOAD.sh, which logs workload start/end at boot
+# and after each restore.
 set -uo pipefail
 
 N="${N:-15}"
-GAP="${GAP:-90}"                 # seconds; >= observed ~51 s matplotlib background download
-OUT="${OUT:-profiling/results/v3/repeat}"
+GAP="${GAP:-0}"                  # seconds between steps; 0 leaves no idle time for background downloads
+SETTLE="${SETTLE:-3}"            # seconds before scraping each step; must cover the workload's run time
+ACTOR_WORKLOAD="${ACTOR_WORKLOAD:-file-read}"  # file-read | compile
+ACTOR_SCRIPT="$PWD/profiling/workloads/$ACTOR_WORKLOAD.sh"
+[[ -f "$ACTOR_SCRIPT" ]] || { echo "no such workload: $ACTOR_SCRIPT" >&2; exit 1; }
+OUT="${OUT:-profiling/results/workload/$ACTOR_WORKLOAD}"
 IM="${IM:-matplotlib__matplotlib-23476}"
 SLUG_M="${SLUG_M:-swebench-$(echo "$IM" | tr '_' '-' | tr -s '-')}"
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null)}"
@@ -47,8 +53,10 @@ cat > "$OUT/config.json" <<EOF
   "disk_type": "$DISK_TYPE",
   "disk_size_gb": $DISK_SIZE,
   "instance": "$IM",
+  "workload": "$ACTOR_WORKLOAD",
   "n": $N,
-  "gap_s": $GAP
+  "gap_s": $GAP,
+  "settle_s": $SETTLE
 }
 EOF
 
@@ -67,44 +75,18 @@ mkpool() {  # $1 = WorkerPool, $2 = node pool
       -e "s|^\(      ate.dev/substrate-version: .*\)$|\1\n      cloud.google.com/gke-nodepool: $2|" \
       profiling/profiling-pool.yaml.tmpl
 }
-nodecmd() {  # $1 = node, $2 = shell command run on the host; prints its stdout
-  local p
-  p=$(kubectl debug "node/$1" --image=busybox --profile=sysadmin -- chroot /host sh -c "$2" 2>&1 \
-      | grep -o 'node-debugger-[a-z0-9-]*' | head -1)
-  until [[ "$(kubectl get pod "$p" -o jsonpath='{.status.phase}' 2>/dev/null)" =~ Succeeded|Failed ]]; do sleep 2; done
-  kubectl logs "$p"; kubectl delete pod "$p" --wait=false >/dev/null
-}
-wait_gcfsd_idle() {  # $1 = since "YYYY-MM-DD HH:MM:SS" UTC; waits until every pool-stream node has
-                     # as many "download/untar done" lines as "download started" lines
-  local since="$1" deadline=$((SECONDS + 600)) busy n s d
-  while :; do
-    busy=0
-    for n in $(kubectl get nodes -l cloud.google.com/gke-nodepool=pool-stream -o name | cut -d/ -f2); do
-      read -r s d < <(nodecmd "$n" "j=\$(journalctl -u gcfsd --since '$since' --no-pager); \
-        echo \$(echo \"\$j\" | grep -c 'Async layer download started') \
-             \$(echo \"\$j\" | grep -c 'Layer download/untar done (succeeded=true)')")
-      echo "  gcfsd $n: started=$s done=$d"
-      (( s > d )) && busy=1
-    done
-    (( busy == 0 )) && return 0
-    (( SECONDS > deadline )) && { echo "  WARNING: gcfsd still busy after 600 s"; return 1; }
-    sleep 10
-  done
-}
 run_arm() {  # $1 = stream|pull, $2 = rep dir
-  local arm=$1 dir=$2 start
+  local arm=$1 dir=$2
   for a in $(kubectl-ate get actor -a ate-golden 2>/dev/null | awk -v t="ate-prof-$arm/$SLUG_M" '$3 == t {print $2}'); do
     kubectl-ate delete actor "$a" -a ate-golden --any-state || true
   done
-  start=$(date -u '+%F %T')
   profiling/profile_coldboot.py --instance "$IM" --atespace "ate-prof-$arm" \
     --worker-namespace ate-profiling --worker-pool "profiling-$arm" \
-    --env "WORKLOAD=profiling-$arm" --json "$dir/$arm-coldboot-$IM.json"
+    --env "WORKLOAD=profiling-$arm ACTOR_SCRIPT=$ACTOR_SCRIPT" --json "$dir/$arm-coldboot-$IM.json"
   sleep "$GAP"                                   # same spacing on both arms
-  [[ $arm == stream ]] && wait_gcfsd_idle "$start" # TODO: will need to remove this when running workload benchmarks
   profiling/profile_lifecycle.py --atespace "ate-prof-$arm" --template "ate-prof-$arm/$SLUG_M" \
     --worker-namespace ate-profiling --worker-pool "profiling-$arm" \
-    --step-gap "$GAP" --json "$dir/$arm-lifecycle-$IM.json"
+    --step-gap "$GAP" --settle "$SETTLE" --json "$dir/$arm-lifecycle-$IM.json"
 }
 
 for i in $(seq 1 "$N"); do

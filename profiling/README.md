@@ -1,7 +1,7 @@
 # Actor lifecycle & image-streaming profiling
 
 Scripts that measure where time goes in an actor's cold boot, suspend, and
-resume—comparing GKE Image Streaming (`gcfsd` + Riptide snapshotter) against
+resume—comparing GKE Image Streaming (`gcfsd` + Image Streaming snapshotter) against
 `atelet`'s baseline registry pull (`internal/imagecache`) using structured logs
 from `ate-api-server`, `atelet`, and `ateom` worker pods.
 
@@ -11,11 +11,13 @@ from `ate-api-server`, `atelet`, and `ateom` worker pods.
 |---|---|
 | `deploy-pool.sh` | Creates the `ate-profiling` namespace, WorkerPool, and atespace for single-pool runs |
 | `profiling-pool.yaml.tmpl` | The WorkerPool manifest template rendered by `deploy-pool.sh` and `repeat_matplotlib.sh` |
-| `swebench-template.sh` | Creates an ActorTemplate from a mirrored SWE-bench image, pinned by digest, and waits for its golden snapshot |
-| `profile_coldboot.py` | Profiles **template creation**: cold registry pull or streaming `PrepareLayers`, boot from spec, and golden checkpoint |
-| `profile_lifecycle.py` | Profiles **one actor**: create → initial activation → suspend → resume (supports `--step-gap` between steps) |
-| `repeat_matplotlib.sh` | Runs the N-rep paired `stream` vs. `pull` benchmark on freshly recreated node pools per repetition |
-| `aggregate_repeats.py` | Aggregates `repeat_matplotlib.sh` output directories (`rep-01..rep-N`) into median / min / max markdown tables |
+| `swebench-template.sh` | Creates an ActorTemplate from a mirrored SWE-bench image, pinned by digest, and waits for its golden snapshot. With `ACTOR_SCRIPT` set, the container runs that script instead of `sleep infinity` |
+| `profile_coldboot.py` | Profiles **template creation**: cold registry pull or streaming `PrepareLayers`, boot from spec, golden checkpoint, and workload TTCE from `Picked worker` |
+| `profile_lifecycle.py` | Profiles **one actor**: create → initial activation → suspend → resume, with workload TTCE per resume (supports `--step-gap` and `--settle`) |
+| `workloads/file-read.sh` | Actor workload: reads one file (`READ_FILE`, default `pyplot.py`) at boot and after every restore, logging `workload start` / `workload end` |
+| `workloads/compile.sh` | Actor workload: runs `compileall` on `COMPILE_DIR` (default `/testbed/lib/matplotlib`) at boot and after every restore, logging the same records |
+| `repeat_matplotlib.sh` | Runs the N-rep paired `stream` vs. `pull` benchmark on freshly recreated node pools per repetition, with the actor running `workloads/$ACTOR_WORKLOAD.sh` |
+| `aggregate_repeats.py` | Aggregates `repeat_matplotlib.sh` output directories (`rep-01..rep-N`) into median / min / max markdown tables (does not read the `workload` key yet) |
 
 ## What each script measures
 
@@ -52,12 +54,43 @@ image yet.
 Neither script exercises `onResume` / `ResumeSource`. The template uses `FULL`
 snapshots, and `from_data` applies only to `DATA`-scope snapshots.
 
+### Workloads and time to command execution (TTCE)
+
+With `ACTOR_SCRIPT=<path>`, `swebench-template.sh` runs that script as the
+container command (`/bin/bash -c`). The scripts in `workloads/` do their work
+once at boot, then idle in a polling loop.
+
+A `FULL` restore resumes the frozen process; it does not re-run the command, and
+a resumed process gets no new input. So the loop detects a restore itself: it
+reads bash's built-in `EPOCHREALTIME` every ~10 ms (`read -t 0.01` on an fd that
+never has data, so no process is started), and a wall-clock jump of more than
+1 s means the sandbox was checkpointed and restored. It then repeats the work.
+
+Each run prints two JSON lines to stdout, which ateom copies into the worker
+pod's log with its own `time` and the actor's labels:
+
+```json
+{"msg":"workload start","workload":"readfile","trigger":"boot|resume","file":"..."}
+{"msg":"workload end","workload":"readfile","trigger":"boot|resume","file":"...","bytes":112924,"elapsed_us":20779}
+```
+
+The profilers report each line's time relative to a start point:
+
+| script | step | start point | rows |
+|---|---|---|---|
+| `profile_coldboot.py` | golden actor boot | `Picked worker` | `picked worker -> workload start/end (boot)` |
+| `profile_lifecycle.py` | resume #1 and #2 | `Picked worker` | `picked worker -> workload start/end (resume)` |
+| `profile_lifecycle.py` | resume #1 and #2 | `Handle RPC` time − `elapsed-time` (handler start) | `rpc start -> workload start/end (resume)` |
+
+`workload elapsed in sandbox` is the script's own measurement of the work
+(`elapsed_us`), on the sandbox clock.
+
 ### Where each number comes from
 
 | component | log record | field |
 |---|---|---|
-| `ate-api-server` | `Handle RPC` | `elapsed-time` (Go duration string) |
-| `ate-api-server` | `Picked worker` | worker pod and node |
+| `ate-api-server` | `Handle RPC` | `elapsed-time` (Go duration string); its timestamp minus `elapsed-time` is the `rpc start` origin |
+| `ate-api-server` | `Picked worker` | worker pod and node; its timestamp is the `picked worker` origin |
 | `ate-api-server` | `FinalizeSuspended store call durations` | per-store-call durations (int64 ns) |
 | `atelet` (pull arm) | `Image cache hit` / `Image cache miss` | per image reference |
 | `atelet` (pull arm) | `Image pulled into layer cache` | `took` (int64 ns): registry download + gunzip + untar |
@@ -65,6 +98,7 @@ snapshots, and `from_data` applies only to `DATA`-scope snapshots.
 | `atelet` (restore) | `Restore timing breakdown` | `ate.actor.restore.duration.<phase>` (float **seconds**; emitted on `Restore`, not cold `Run`) |
 | `ateom` | `Actor starting/started`, `restoring/restored`, `checkpointing/checkpointed` | lifecycle envelope timestamps |
 | `ateom` | `About to run runsc <verb>` | per-container step markers |
+| actor stdout (via `ateom`) | `workload start` / `workload end` | `time` (stamped by ateom), `trigger`, `elapsed_us` |
 
 ## Machine and environment assumptions
 
@@ -109,7 +143,9 @@ go run ./tools/setup-gcp bootstrap --enable-image-streaming
 kubectl create namespace ate-profiling 
 ```
 
-**4. CLI.** Build `kubectl-ate` and copy it to your `PATH`:
+**4. CLI.** Build `kubectl-ate` and copy it to your `PATH`. Rebuild it after
+switching branches: an older binary rejects fields the template manifest uses
+(for example `unknown field "snapshotsConfig"`).
 
 ```bash
 make build-atectl && cp bin/kubectl-ate ~/go/bin/kubectl-ate
@@ -134,9 +170,18 @@ crane copy swebench/sweb.eval.x86_64.matplotlib__matplotlib-23476:latest \
 
 `repeat_matplotlib.sh` recreates both `pool-stream` and `pool-pull` before every
 repetition (evicting both `gcfsd` and `atelet` node caches), alternates arm execution
-order (`stream pull` on odd reps, `pull stream` on even reps), waits for background
-`gcfsd` layer downloads (`wait_gcfsd_idle` + `--step-gap 90`) between steps, and
-saves JSON telemetry + node pool configuration under `OUT`:
+order (`stream pull` on odd reps, `pull stream` on even reps), runs coldboot then
+lifecycle per arm with the actor executing `workloads/$ACTOR_WORKLOAD.sh`, and
+saves JSON telemetry + node pool configuration under `OUT`.
+
+| variable | default | meaning |
+|---|---|---|
+| `N` | `15` | repetitions |
+| `ACTOR_WORKLOAD` | `file-read` | `file-read` or `compile` (a script in `workloads/`) |
+| `GAP` | `0` | seconds between coldboot and lifecycle, and `--step-gap` between lifecycle steps. `0` gives `gcfsd` no idle time to finish background layer downloads, so stream reads see the real cost of streaming |
+| `SETTLE` | `3` | lifecycle `--settle`: seconds before each step's logs are scraped. Workload lines logged later than this are missed, so raise it for `compile` |
+| `OUT` | `profiling/results/workload/$ACTOR_WORKLOAD` | output directory |
+| `MACHINE_TYPE`, `DISK_TYPE`, `DISK_SIZE` | `c3-standard-4`, `pd-balanced`, `100` | node pool shape |
 
 ```bash
 export CLUSTER=<cluster-name>
@@ -147,20 +192,25 @@ export VER=$(kubectl get ds -n ate-system "$DS" -o jsonpath='{.metadata.labels.a
 export REPO=us-west1-docker.pkg.dev/${PROJECT_ID}/swebench-mirror/swebench-verified
 export BUCKET_NAME=snapshot-substrate-test-${PROJECT_ID}
 
-# Run 15 paired cold repetitions (defaults to c3-standard-4 + 100 GB pd-balanced):
-N=15 GAP=90 OUT=profiling/results/v3/repeat profiling/repeat_matplotlib.sh
+# 15 paired cold repetitions of the file-read workload:
+N=15 ACTOR_WORKLOAD=file-read profiling/repeat_matplotlib.sh
 
-# Aggregate across repetitions into a markdown report:
-profiling/aggregate_repeats.py profiling/results/v3/repeat > summary.md
+# The compile workload takes seconds, so give each step longer to log:
+N=15 ACTOR_WORKLOAD=compile SETTLE=10 profiling/repeat_matplotlib.sh
 ```
 
 To benchmark an alternate VM or disk shape (for example `e2-standard-32` + `pd-ssd`),
 override `MACHINE_TYPE`, `DISK_TYPE`, and `DISK_SIZE`:
 
 ```bash
-MACHINE_TYPE=e2-standard-32 DISK_TYPE=pd-ssd DISK_SIZE=100 \
-  N=15 GAP=90 OUT=profiling/results/v3-e2ssd/repeat profiling/repeat_matplotlib.sh
+MACHINE_TYPE=e2-standard-32 DISK_TYPE=pd-ssd DISK_SIZE=300 \
+  N=15 ACTOR_WORKLOAD=file-read profiling/repeat_matplotlib.sh
 ```
+
+The earlier `results/v3*` runs used an idle actor (`sleep infinity`), `GAP=90`,
+and an extra wait for `gcfsd` background downloads to finish before the
+lifecycle. That wait has been removed, so those runs can't be reproduced exactly
+with the current script. `aggregate_repeats.py` still summarizes their fields.
 
 ### Single-Arm / Interactive Profiling
 
@@ -170,18 +220,20 @@ Deploy the standalone profiling WorkerPool:
 profiling/deploy-pool.sh
 ```
 
-Run a single cold boot + lifecycle measurement:
+Run a single cold boot + lifecycle measurement. `--env` passes `ACTOR_SCRIPT`
+through to `swebench-template.sh`; leave it out for an idle actor:
 
 ```bash
 python3 profiling/profile_coldboot.py \
   --instance matplotlib__matplotlib-23476 \
+  --env "ACTOR_SCRIPT=$PWD/profiling/workloads/file-read.sh" \
   --json profiling/run-coldboot-matplotlib__matplotlib-23476.json
 
 python3 profiling/profile_lifecycle.py \
   --atespace ate-profiling \
   --template swebench-matplotlib-matplotlib-23476 \
   --worker-namespace ate-profiling --worker-pool profiling \
-  --step-gap 90 \
+  --settle 3 \
   --json profiling/run-lifecycle-matplotlib__matplotlib-23476.json
 ```
 
@@ -200,3 +252,15 @@ python3 profiling/profile_lifecycle.py \
   10 layers), GKE Image Streaming cuts cold `atelet` image preparation from ~`51 s`
   (`c3-standard-4`) / ~`70 s` (`e2-standard-32`) down to ~`2.3–2.5 s` (`PrepareLayers.total`),
   while warm resumes (`stat-hit` / layer cache `HIT`) complete in ~`225–245 ms` (`ateapi_rpc_total`).
+- **Classify each resume as cold or warm before comparing TTCE.** Placement is
+  the scheduler's choice, so a resume is cold only if it lands on a node that has
+  not fetched the image. Use `streaming["swebench-verified path"]` (`STREAMED cold`
+  vs. `stat hit`) on the stream arm and `images["swebench-verified"]` (`MISS` vs.
+  `HIT`) on the pull arm. With `GAP=0`, resume #2 usually lands on the other node.
+- **`workload start` trails the restore by up to ~10 ms** (one poll of the loop),
+  and its `time` is when ateom read the line, not when bash printed it.
+- **`workload end` includes the `stat` in `file-read.sh`'s end marker**, which
+  starts a process after the read. `workload elapsed in sandbox` excludes it.
+- **The TTCE start point and the workload lines use different clocks**
+  (ate-api-server node vs. worker node), so cross-node clock skew enters every
+  TTCE row.
