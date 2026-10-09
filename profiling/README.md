@@ -18,6 +18,8 @@ from `ate-api-server`, `atelet`, and `ateom` worker pods.
 | `workloads/compile.sh` | Actor workload: runs `compileall` on `COMPILE_DIR` (default `/testbed/lib/matplotlib`) at boot and after every restore, logging the same records |
 | `repeat_matplotlib.sh` | Runs the N-rep paired `stream` vs. `pull` benchmark on freshly recreated node pools per repetition, with the actor running `workloads/$ACTOR_WORKLOAD.sh` |
 | `aggregate_repeats.py` | Aggregates `repeat_matplotlib.sh` output directories (`rep-01..rep-N`) into median / min / max markdown tables (does not read the `workload` key yet) |
+| [`log-sources.md`](log-sources.md) | Which log record each reported number comes from, how it is tied to the actor, and how the TTCE rows are computed |
+| [`log-appendix.md`](log-appendix.md) | Example raw lines for every record in `log-sources.md`, plus findings from the live cluster samples |
 
 ## What each script measures
 
