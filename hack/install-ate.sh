@@ -75,6 +75,8 @@ function usage() {
   echo "  --deploy-ate-system                    Deploy core system (CRDs, atelet, apiserver)"
   echo "  --setup-csi[=DRIVER]                   Setup CSI driver: nfs, hostpath, both, none (default: none;"
   echo "                                         a bare --setup-csi means nfs; hostpath is Kind only)"
+  echo "  --setup-image-streaming[=ADAPTER]      Setup OCI layer streaming adapter (e.g. riptide, soci, disabled,"
+  echo "                                         none; default: none; a bare --setup-image-streaming means riptide)"
   echo "  --delete-ate-system                    Delete core system"
   echo "  --delete-all                           Delete core system and all registered demos"
   echo "  --atenet-router=envoy|agentgateway     Select the ingress and egress dataplane (default: envoy)"
@@ -287,6 +289,10 @@ ensure_substrate_version() {
 
 atelet_daemonset_name() {
   echo "atelet-${SUBSTRATE_VERSION_SUFFIX}"
+}
+
+ocilayer_daemonset_name() {
+  echo "ate-ocilayer-$1-${SUBSTRATE_VERSION_SUFFIX}"
 }
 
 # substitute_version fills the ${SUBSTRATE_VERSION}/${SUBSTRATE_VERSION_SUFFIX}
@@ -888,6 +894,64 @@ setup_csi() {
   esac
 }
 
+setup_image_streaming() {
+  local adapter="${SETUP_IMAGE_STREAMING:-none}"
+  case "${adapter}" in
+    ""|none|false)
+      return
+      ;;
+    disabled)
+      log_step "setup_image_streaming (disabled)"
+      run_kubectl label nodes --all "ate.dev/oci-layer-service=disabled" --overwrite
+      return
+      ;;
+  esac
+
+  log_step "setup_image_streaming (${adapter})"
+  ensure_substrate_version
+
+  # Resolve the adapter manifest in priority order:
+  # 1. Explicit manifest file or URL override (ATE_OCILAYER_ADAPTER_MANIFEST)
+  # 2. Local adapter repository checkout (ATE_OCILAYER_ADAPTER_PATH/manifests/ocilayer-${adapter}.yaml)
+  # 3. In-tree manifest (cmd/ocilayer-${adapter}/ocilayer-${adapter}.yaml)
+  local manifest="${ATE_OCILAYER_ADAPTER_MANIFEST:-}"
+  if [[ -z "${manifest}" ]]; then
+    if [[ -n "${ATE_OCILAYER_ADAPTER_PATH:-}" ]]; then
+      manifest="${ATE_OCILAYER_ADAPTER_PATH}/manifests/ocilayer-${adapter}.yaml"
+    else
+      manifest="${ROOT}/cmd/ocilayer-${adapter}/ocilayer-${adapter}.yaml"
+    fi
+  fi
+
+  if [[ "${manifest}" != http://* && "${manifest}" != https://* && ! -f "${manifest}" ]]; then
+    echo "Error: manifest not found for image streaming adapter \"${adapter}\": ${manifest}" >&2
+    exit 1
+  fi
+
+  run_kubectl apply -f manifests/ate-install/ate-system-namespace.yaml \
+    && run_kubectl wait --for=jsonpath='{.status.phase}'=Active namespace/ate-system --timeout=60s
+
+  label_nodes_substrate_version
+
+  local rendered=""
+  if [[ "${manifest}" == http://* || "${manifest}" == https://* ]]; then
+    rendered="$(curl -fsSL "${manifest}" | substitute_version)"
+  elif grep -q "ko://" "${manifest}"; then
+    rendered="$(run_ko resolve -f "${manifest}" | substitute_version)"
+  else
+    rendered="$(substitute_version < "${manifest}")"
+  fi
+  echo "${rendered}" | run_kubectl apply -f -
+
+  run_kubectl label nodes --all "ate.dev/oci-layer-service=${adapter}" --overwrite
+  local ds_name=""
+  ds_name="$(ocilayer_daemonset_name "${adapter}")"
+  if ! run_kubectl -n ate-system get "daemonset/${ds_name}" >/dev/null 2>&1; then
+    ds_name="ate-ocilayer-${adapter}"
+  fi
+  run_kubectl rollout status "daemonset/${ds_name}" -n ate-system --timeout="$(rollout_timeout)"
+}
+
 deploy_ate_system() {
   log_step "deploy_ate_system"
   # Fail fast on an unusable build version before touching the cluster.
@@ -974,6 +1038,8 @@ deploy_ate_system() {
   run_kubectl rollout status deployment/atenet-router -n ate-system --timeout="$(rollout_timeout)"
   run_kubectl rollout status deployment/atenet-egress -n ate-system --timeout="$(rollout_timeout)"
   run_kubectl rollout status "daemonset/$(atelet_daemonset_name)" -n ate-system --timeout="$(rollout_timeout)"
+
+  setup_image_streaming
 
   # After the bundle, which carries its own copy of ate-otel-config.
   apply_otel_endpoint_override
@@ -1342,11 +1408,13 @@ delete_ate_system() {
   fi
 
   run_kubectl delete --ignore-not-found -n ate-system daemonset -l app=atelet
+  run_kubectl delete --ignore-not-found -n ate-system daemonset -l app=ate-ocilayer-adapter
   run_kubectl delete --ignore-not-found \
     -f manifests/ate-install/components/agentgateway/configmap.yaml
   run_kubectl delete --ignore-not-found -f manifests/ate-install/postgres/postgres.yaml
   run_kubectl delete --ignore-not-found -f manifests/ate-install/generated
   run_kubectl label nodes -l ate.dev/substrate-version ate.dev/substrate-version-
+  run_kubectl label nodes -l ate.dev/oci-layer-service ate.dev/oci-layer-service-
 }
 
 delete_atenet() {
@@ -1425,6 +1493,7 @@ done
 # CSI driver is an opt-in extra, and NFS needs kernel modules a plain
 # workstation will not have loaded.
 SETUP_CSI="${SETUP_CSI:-none}"
+SETUP_IMAGE_STREAMING="${SETUP_IMAGE_STREAMING:-none}"
 BENCHMARK_WORKER_COUNT=1
 BENCHMARK_SANDBOX_CLASS=gvisor
 # Empty keeps the default in benchmarking/workloads/deploy.sh (256Mi).
@@ -1509,6 +1578,14 @@ for ((i = 0; i < ${#prescan_args[@]}; i++)); do
         SETUP_CSI="nfs"
       fi
       ;;
+    --setup-image-streaming=*) SETUP_IMAGE_STREAMING="${prescan_args[i]#*=}" ;;
+    --setup-image-streaming)
+      if (( i + 1 < ${#prescan_args[@]} )) && [[ "${prescan_args[$((i + 1))]}" != --* ]]; then
+        SETUP_IMAGE_STREAMING="${prescan_args[$((i + 1))]}"
+      else
+        SETUP_IMAGE_STREAMING="riptide"
+      fi
+      ;;
   esac
 done
 atenet_router >/dev/null
@@ -1588,6 +1665,19 @@ while [[ "$#" -gt 0 ]]; do
       fi
       ensure_crds
       setup_csi
+      ;;
+    --setup-image-streaming=*)
+      SETUP_IMAGE_STREAMING="${1#*=}"
+      setup_image_streaming
+      ;;
+    --setup-image-streaming)
+      if [[ "$#" -gt 1 && "$2" != --* ]]; then
+        shift
+        SETUP_IMAGE_STREAMING="$1"
+      else
+        SETUP_IMAGE_STREAMING="riptide"
+      fi
+      setup_image_streaming
       ;;
     --delete-ate-system) delete_ate_system ;;
     --delete-all) delete_all ;;
