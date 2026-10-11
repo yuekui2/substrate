@@ -150,6 +150,9 @@ spec:
         # terminationGracePeriodSeconds above.
         - --drain-delay=0s
         - --drain-timeout=5m
+        # Connect to the node's OCILayerService Adapter DaemonSet socket if
+        # present; falls back to local imagecache when absent or declined.
+        - --oci-layer-service-socket=/run/ate-image-streaming/ocilayer.sock
         # atelet does no mounts, netlink, device, or namespace operations (those
         # live in the ateom worker pod) — it only reads/writes the
         # /var/lib/ateom-gvisor hostPath as root, so it needs no Linux
@@ -217,6 +220,9 @@ spec:
         volumeMounts:
         - name: run-ateom
           mountPath: /var/lib/ateom-gvisor
+          mountPropagation: HostToContainer
+        - name: run-ate-image-streaming
+          mountPath: /run/ate-image-streaming
         - name: podidentity
           mountPath: /run/podidentity.podcert.ate.dev
         - name: servicedns-ca
@@ -239,6 +245,10 @@ spec:
       - name: run-ateom
         hostPath:
           path: /var/lib/ateom-gvisor
+          type: DirectoryOrCreate
+      - name: run-ate-image-streaming
+        hostPath:
+          path: /run/ate-image-streaming
           type: DirectoryOrCreate
       # Mount Kubelet plugins directory to access CSI driver Unix domain sockets.
       - name: kubelet-plugins
