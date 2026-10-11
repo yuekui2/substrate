@@ -16,18 +16,27 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/agent-substrate/substrate/internal/ateattr"
 	"github.com/agent-substrate/substrate/internal/ateerrors"
 	"github.com/agent-substrate/substrate/internal/ateompath"
 	"github.com/agent-substrate/substrate/internal/imagecache"
+	"github.com/agent-substrate/substrate/internal/ocilayer"
 	"github.com/agent-substrate/substrate/internal/ocispec"
 	"github.com/agent-substrate/substrate/internal/proto/ateletpb"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/google"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
@@ -76,7 +85,7 @@ func resolveCapabilities(caps *ateletpb.Capabilities) []string {
 	return out
 }
 
-func prepareOCIDirectory(ctx context.Context, imageCache *imagecache.Store, actorUID, containerName, ref string, command, args []string, env []string, netns string, volumes []*ateletpb.Volume, volumeMounts []*ateletpb.VolumeMount, capabilities []string, resources *ateletpb.ResourceLimits) error {
+func prepareOCIDirectory(ctx context.Context, imageCache *imagecache.Store, layerClient ocilayer.Client, keychain authn.Keychain, instruments *Instruments, actorUID, containerName, ref string, command, args []string, env []string, netns string, volumes []*ateletpb.Volume, volumeMounts []*ateletpb.VolumeMount, capabilities []string, resources *ateletpb.ResourceLimits) error {
 	tracer := otel.Tracer("prepareOCIDirectory")
 
 	ctx, span := tracer.Start(ctx, "prepareOCIDirectory")
@@ -107,20 +116,34 @@ func prepareOCIDirectory(ctx context.Context, imageCache *imagecache.Store, acto
 		img          *imagecache.Image
 		imageVolumes []imagecache.ImageVolumeOverlay
 	)
+	releasePrepared := func() {
+		if layerClient == nil {
+			return
+		}
+		if img != nil && img.Streamed {
+			_ = layerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: ref})
+		}
+		for _, v := range imageVolumes {
+			if v.Streamed && v.ImageRef != "" {
+				_ = layerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: v.ImageRef})
+			}
+		}
+	}
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		if img, err = imageCache.EnsureImage(gctx, ref); err != nil {
-			return fmt.Errorf("in imageCache.EnsureImage: %w", err)
+		if img, err = ensureContainerImage(gctx, imageCache, layerClient, keychain, instruments, ref); err != nil {
+			return fmt.Errorf("in ensureContainerImage: %w", err)
 		}
 		return nil
 	})
 	g.Go(func() error {
 		var err error
-		imageVolumes, err = resolveImageVolumes(gctx, imageCache, volumes, volumeMounts)
+		imageVolumes, err = resolveImageVolumes(gctx, imageCache, layerClient, keychain, instruments, volumes, volumeMounts)
 		return err
 	})
 	if err := g.Wait(); err != nil {
+		releasePrepared()
 		return err
 	}
 
@@ -128,6 +151,7 @@ func prepareOCIDirectory(ctx context.Context, imageCache *imagecache.Store, acto
 	// any spec so an invalid container config fails fast.
 	resolvedArgs, err := resolveProcessArgs(&img.Config, command, args)
 	if err != nil {
+		releasePrepared()
 		return fmt.Errorf("while resolving process args for container %q: %w", containerName, err)
 	}
 	resolvedEnv := resolveActorEnv(&img.Config, env)
@@ -141,10 +165,13 @@ func prepareOCIDirectory(ctx context.Context, imageCache *imagecache.Store, acto
 	}
 	if err := imagecache.WriteSpec(bundlePath, &imagecache.OverlaySpec{
 		ImageDigest:  img.Digest.String(),
+		ImageRef:     ref,
+		Streamed:     img.Streamed,
 		Layers:       img.LayerDirs,
 		ExtraDirs:    extraDirs,
 		ImageVolumes: imageVolumes,
 	}); err != nil {
+		releasePrepared()
 		return fmt.Errorf("while writing overlay spec: %w", err)
 	}
 
@@ -160,15 +187,15 @@ func prepareOCIDirectory(ctx context.Context, imageCache *imagecache.Store, acto
 		Capabilities:  capabilities,
 		Resources:     resources,
 	})); err != nil {
+		releasePrepared()
 		return fmt.Errorf("while writing OCI spec: %w", err)
 	}
 
 	return nil
 }
 
-// resolveImageVolumes pulls the image behind every image-typed volume this
-// container mounts and returns what the overlay spec needs to compose each.
-func resolveImageVolumes(ctx context.Context, imageCache *imagecache.Store, volumes []*ateletpb.Volume, volumeMounts []*ateletpb.VolumeMount) ([]imagecache.ImageVolumeOverlay, error) {
+// mountedImageVolumes returns the image volumes in volumes that are mounted by volumeMounts.
+func mountedImageVolumes(volumes []*ateletpb.Volume, volumeMounts []*ateletpb.VolumeMount) []*ateletpb.Volume {
 	mounted := make(map[string]bool, len(volumeMounts))
 	for _, vm := range volumeMounts {
 		mounted[vm.GetName()] = true
@@ -181,6 +208,13 @@ func resolveImageVolumes(ctx context.Context, imageCache *imagecache.Store, volu
 		}
 		wanted = append(wanted, vol)
 	}
+	return wanted
+}
+
+// resolveImageVolumes pulls the image behind every image-typed volume this
+// container mounts and returns what the overlay spec needs to compose each.
+func resolveImageVolumes(ctx context.Context, imageCache *imagecache.Store, layerClient ocilayer.Client, keychain authn.Keychain, instruments *Instruments, volumes []*ateletpb.Volume, volumeMounts []*ateletpb.VolumeMount) ([]imagecache.ImageVolumeOverlay, error) {
+	wanted := mountedImageVolumes(volumes, volumeMounts)
 
 	// Pull the volumes concurrently; each entry lands at its own index so the
 	// spec order stays the template order.
@@ -188,19 +222,29 @@ func resolveImageVolumes(ctx context.Context, imageCache *imagecache.Store, volu
 	g, gctx := errgroup.WithContext(ctx)
 	for i, vol := range wanted {
 		g.Go(func() error {
-			img, err := imageCache.EnsureImage(gctx, vol.GetImage().GetReference())
+			ref := vol.GetImage().GetReference()
+			img, err := ensureContainerImage(gctx, imageCache, layerClient, keychain, instruments, ref)
 			if err != nil {
-				return fmt.Errorf("in imageCache.EnsureImage for volume %q: %w", vol.GetName(), err)
+				return fmt.Errorf("in ensureContainerImage for volume %q: %w", vol.GetName(), err)
 			}
 			out[i] = imagecache.ImageVolumeOverlay{
 				Name:        vol.GetName(),
 				ImageDigest: img.Digest.String(),
+				ImageRef:    ref,
+				Streamed:    img.Streamed,
 				Layers:      img.LayerDirs,
 			}
 			return nil
 		})
 	}
 	if err := g.Wait(); err != nil {
+		if layerClient != nil {
+			for _, v := range out {
+				if v.Streamed && v.ImageRef != "" {
+					_ = layerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: v.ImageRef})
+				}
+			}
+		}
 		return nil, err
 	}
 	return out, nil
@@ -263,4 +307,165 @@ func resolveProcessArgs(imageCfg *v1.Config, command, args []string) ([]string, 
 		return nil, fmt.Errorf("%w: no command specified: image defines neither ENTRYPOINT nor CMD and the container sets neither command nor args", ateerrors.ReasonInvalidContainerConfig)
 	}
 	return argv, nil
+}
+
+// ensureContainerImage resolves and prepares layers for an image.
+// If the image is already unpacked on disk in imageCache, it returns the cached
+// image directly. Otherwise, if an OCILayerService client is configured, it
+// delegates layer preparation to the out-of-process adapter daemon, falling
+// back to imageCache.EnsureImage on ErrNotSupported or error.
+func ensureContainerImage(ctx context.Context, imageCache *imagecache.Store, layerClient ocilayer.Client, keychain authn.Keychain, instruments *Instruments, ref string) (*imagecache.Image, error) {
+	if imageCache != nil && layerClient != nil {
+		if img, err := imageCache.CachedImage(ctx, ref); err == nil && img != nil {
+			return img, nil
+		}
+	}
+	t0 := time.Now()
+	if layerClient != nil {
+		if keychain != nil {
+			ctx = ocilayer.WithKeychainContext(ctx, keychain)
+		}
+		req := &ocilayer.PrepareRequest{
+			ImageRef:   ref,
+			AuthConfig: resolveAuthConfigForRef(ref, keychain),
+		}
+		canProvide, err := layerClient.CanProvide(ctx, req)
+		if err != nil {
+			instruments.RecordImageStreaming(ctx, layerClient.Name(), ateattr.ImageStreamingOutcomeFallback, time.Since(t0))
+			slog.WarnContext(ctx, "Error evaluating OCILayerService eligibility; falling back to cache",
+				slog.String("image", ref),
+				slog.String("provider", layerClient.Name()),
+				slog.Any("err", err))
+		} else if !canProvide {
+			instruments.RecordImageStreaming(ctx, layerClient.Name(), ateattr.ImageStreamingOutcomeFallback, time.Since(t0))
+			slog.DebugContext(ctx, "OCILayerService declined image; falling back to cache",
+				slog.String("image", ref),
+				slog.String("provider", layerClient.Name()))
+		} else {
+			res, err := layerClient.PrepareLayers(ctx, req)
+			provider := layerClient.Name()
+			if res != nil && res.ProviderName != "" {
+				provider = res.ProviderName
+			}
+			if err != nil {
+				instruments.RecordImageStreaming(ctx, provider, ateattr.ImageStreamingOutcomeFallback, time.Since(t0))
+				level, msg := slog.LevelWarn, "OCILayerService layer preparation failed; falling back to cache"
+				if errors.Is(err, ocilayer.ErrNotSupported) {
+					level, msg = slog.LevelInfo, "Image not streamable via OCILayerService; falling back to cache"
+				}
+				slog.Log(ctx, level, msg,
+					slog.String("image", ref),
+					slog.String("provider", provider),
+					slog.Any("err", err))
+			} else if res != nil && len(res.LayerDirs) > 0 {
+				var (
+					digest v1.Hash
+					cfg    v1.Config
+				)
+				if res.ImageDigest != "" {
+					digest, _ = v1.NewHash(res.ImageDigest)
+				}
+				if res.Config != nil {
+					cfg = *res.Config
+				} else {
+					d, c, err := fetchImageConfig(ctx, ref, keychain)
+					if err != nil {
+						_ = layerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: ref})
+						instruments.RecordImageStreaming(ctx, provider, ateattr.ImageStreamingOutcomeFallback, time.Since(t0))
+						slog.WarnContext(ctx, "Failed to resolve image config for streamed image; falling back to cache",
+							slog.String("image", ref),
+							slog.Any("err", err))
+						goto fallback
+					}
+					if digest.String() == "" {
+						digest = d
+					}
+					cfg = c
+				}
+				instruments.RecordImageStreaming(ctx, provider, ateattr.ImageStreamingOutcomeSuccess, time.Since(t0))
+				slog.DebugContext(ctx, "Image streamed via OCILayerService",
+					slog.String("image", ref),
+					slog.String("provider", provider),
+					slog.Int("layers", len(res.LayerDirs)),
+					slog.Duration("duration", time.Since(t0)))
+				return &imagecache.Image{
+					Digest:    digest,
+					Config:    cfg,
+					LayerDirs: res.LayerDirs,
+					Streamed:  true,
+				}, nil
+			} else {
+				instruments.RecordImageStreaming(ctx, provider, ateattr.ImageStreamingOutcomeFallback, time.Since(t0))
+			}
+		}
+	}
+
+fallback:
+	if imageCache == nil {
+		if layerClient != nil {
+			instruments.RecordImageStreaming(ctx, layerClient.Name(), ateattr.ImageStreamingOutcomeError, time.Since(t0))
+		}
+		return nil, fmt.Errorf("imageCache is nil and OCILayerService is unavailable for %q", ref)
+	}
+	img, err := imageCache.EnsureImage(ctx, ref)
+	if err != nil && layerClient != nil {
+		instruments.RecordImageStreaming(ctx, layerClient.Name(), ateattr.ImageStreamingOutcomeError, time.Since(t0))
+	}
+	return img, err
+}
+
+func resolveAuthConfigForRef(ref string, keychain authn.Keychain) *ocilayer.AuthConfig {
+	if keychain == nil {
+		return nil
+	}
+	parsedRef, err := name.ParseReference(ref, name.Insecure)
+	if err != nil {
+		return nil
+	}
+	authenticator, err := keychain.Resolve(parsedRef.Context())
+	if err != nil || authenticator == nil || authenticator == authn.Anonymous {
+		return nil
+	}
+	authCfg, err := authenticator.Authorization()
+	if err != nil || authCfg == nil {
+		return nil
+	}
+	if authCfg.Username == "" && authCfg.Password == "" && authCfg.Auth == "" && authCfg.IdentityToken == "" && authCfg.RegistryToken == "" {
+		return nil
+	}
+	return &ocilayer.AuthConfig{
+		Username:      authCfg.Username,
+		Password:      authCfg.Password,
+		Auth:          authCfg.Auth,
+		ServerAddress: parsedRef.Context().RegistryStr(),
+		IdentityToken: authCfg.IdentityToken,
+		RegistryToken: authCfg.RegistryToken,
+	}
+}
+
+func fetchImageConfig(ctx context.Context, ref string, keychain authn.Keychain) (v1.Hash, v1.Config, error) {
+	opts := []name.Option{name.Insecure}
+	parsedRef, err := name.ParseReference(ref, opts...)
+	if err != nil {
+		return v1.Hash{}, v1.Config{}, fmt.Errorf("while parsing reference %q: %w", ref, err)
+	}
+	remoteOpts := []remote.Option{remote.WithContext(ctx)}
+	if keychain != nil {
+		remoteOpts = append(remoteOpts, remote.WithAuthFromKeychain(keychain))
+	} else {
+		remoteOpts = append(remoteOpts, remote.WithAuthFromKeychain(authn.NewMultiKeychain(authn.DefaultKeychain, google.Keychain)))
+	}
+	img, err := remote.Image(parsedRef, remoteOpts...)
+	if err != nil {
+		return v1.Hash{}, v1.Config{}, fmt.Errorf("while fetching image metadata %q: %w", ref, err)
+	}
+	digest, err := img.Digest()
+	if err != nil {
+		return v1.Hash{}, v1.Config{}, fmt.Errorf("while resolving image digest: %w", err)
+	}
+	cfgFile, err := img.ConfigFile()
+	if err != nil {
+		return v1.Hash{}, v1.Config{}, fmt.Errorf("while reading config file: %w", err)
+	}
+	return digest, cfgFile.Config, nil
 }

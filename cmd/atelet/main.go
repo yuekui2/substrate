@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"sync"
+	"sync/atomic"
 
 	"github.com/agent-substrate/substrate/cmd/atelet/internal/ategcs"
 	"github.com/agent-substrate/substrate/cmd/atelet/internal/sparsefile"
@@ -44,6 +45,7 @@ import (
 	"github.com/agent-substrate/substrate/internal/ateompath"
 	"github.com/agent-substrate/substrate/internal/credbundle"
 	"github.com/agent-substrate/substrate/internal/imagecache"
+	"github.com/agent-substrate/substrate/internal/ocilayer"
 	"github.com/agent-substrate/substrate/internal/ocispec"
 	"github.com/agent-substrate/substrate/internal/otlprelay"
 	"github.com/agent-substrate/substrate/internal/proto/ateletpb"
@@ -60,6 +62,7 @@ import (
 	"github.com/agent-substrate/substrate/pkg/proto/ateapipb"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
@@ -73,13 +76,25 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/lru"
+)
+
+const (
+	// ociLayerServiceNodeLabel is the Kubernetes Node label that controls
+	// dynamic node drain for image streaming. Setting
+	// ate.dev/oci-layer-service=disabled stops routing new Run and
+	// Restore calls to OCILayerService (falling back to local imagecache) and
+	// bypasses idle TTL when existing streamed actors checkpoint or terminate.
+	ociLayerServiceNodeLabel     = "ate.dev/oci-layer-service"
+	ociLayerServiceDisabledValue = "disabled"
 )
 
 var (
@@ -101,6 +116,7 @@ var (
 
 	localhostRegistryReplacement = pflag.String("localhost-registry-replacement", "", "The replacement registry endpoint for localhost and/or loopback IP addresses, useful for local development. for example kind-registry:5000")
 	imageCacheDir                = pflag.String("image-cache-dir", ateompath.ImageCacheDir, "Directory for the node-local OCI image layer cache. Must be on the volume shared with the ateom pods (the cached layers are their overlay lowerdirs), and on a disk sized for both capacity and IOPS: unpack throughput is gated by the volume's IOPS.")
+	ociLayerServiceSocket        = pflag.String("oci-layer-service-socket", "", "Unix socket of the out-of-process OCILayerService adapter daemon (e.g. /run/substrate/ocilayer.sock). Empty disables image streaming and falls back to the local image cache.")
 
 	showVersion  = pflag.Bool("version", false, "Print version and exit.")
 	logLevelFlag = pflag.String("log-level", "info", "Minimum log level: debug, info, warn, or error.")
@@ -218,6 +234,17 @@ func main() {
 		go newImageCacheGC(imageCache, *imageCacheDir).Run(ctx)
 	}
 
+	ociLayerClient, err := newOCILayerClient(ctx, *ociLayerServiceSocket)
+	if err != nil {
+		serverboot.Fatal(ctx, "Failed to initialize OCILayerService client", err)
+	}
+	if ociLayerClient != nil {
+		defer ociLayerClient.Close()
+		if err := reconcileStreamingLeases(ctx, ociLayerClient, ateompath.ActorsDir); err != nil {
+			slog.WarnContext(ctx, "Failed to reconcile streamed image leases on startup", slog.Any("err", err))
+		}
+	}
+
 	wrappedAnonGCS, err := ategcs.NewGCSClient(ctx, option.WithoutAuthentication())
 	if err != nil {
 		serverboot.Fatal(ctx, "Failed to create anonymous GCS client", err)
@@ -292,12 +319,18 @@ func main() {
 		wrappedAnonGCS,
 		wrappedGCS,
 		imageCache,
+		ociLayerClient,
+		imageCredsKeychain,
 		instruments,
 		volPlugins,
 		csiDriverConfigLister,
 		systemInfoVolumes,
 	)
 	go systemInfoVolumes.run(ctx)
+
+	if ociLayerClient != nil {
+		startOCILayerServiceDrainWatcher(ctx, k8sClient, os.Getenv("NODE_NAME"), wmService, stopCh)
+	}
 
 	// Pre-download sandbox assets as SandboxConfigs appear/change so the first
 	// Run/Restore on this node hits the cache. Best-effort: on failure the
@@ -395,6 +428,47 @@ func main() {
 	slog.InfoContext(ctx, "Shutdown complete")
 }
 
+func newOCILayerClient(ctx context.Context, socket string) (*ocilayer.GRPCClient, error) {
+	if socket == "" {
+		slog.InfoContext(ctx, "OCILayerService disabled")
+		return nil, nil
+	}
+	client, err := ocilayer.NewGRPCClient(socket)
+	if err != nil {
+		return nil, err
+	}
+	slog.InfoContext(ctx, "OCILayerService enabled", slog.String("socket", socket))
+	return client, nil
+}
+
+func startOCILayerServiceDrainWatcher(ctx context.Context, k8sClient kubernetes.Interface, nodeName string, herder *AteomHerder, stopCh <-chan struct{}) {
+	if k8sClient == nil || nodeName == "" || herder == nil {
+		return
+	}
+	factory := informers.NewSharedInformerFactoryWithOptions(k8sClient, 10*time.Minute,
+		informers.WithTweakListOptions(func(o *metav1.ListOptions) {
+			o.FieldSelector = fields.OneTermEqualSelector("metadata.name", nodeName).String()
+		}))
+	nodeInformer := factory.Core().V1().Nodes().Informer()
+	updateDrain := func(obj any) {
+		node, ok := obj.(*corev1.Node)
+		if !ok || node == nil {
+			return
+		}
+		draining := node.Labels[ociLayerServiceNodeLabel] == ociLayerServiceDisabledValue
+		if prev := herder.SetStreamingDraining(draining); prev != draining {
+			slog.InfoContext(ctx, "OCILayerService node drain state changed",
+				slog.String("node", nodeName),
+				slog.Bool("draining", draining))
+		}
+	}
+	_, _ = nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    updateDrain,
+		UpdateFunc: func(_, newObj any) { updateDrain(newObj) },
+	})
+	factory.Start(stopCh)
+}
+
 // drainOnShutdown drives graceful shutdown when ctx is cancelled (SIGTERM or
 // interrupt): it marks the process not-ready, waits drain-delay while still
 // accepting work, then GracefulStop()s the gRPC server so in-flight RPCs finish.
@@ -434,6 +508,9 @@ type AteomHerder struct {
 
 	ateomDialer           *AteomDialer
 	imageCache            *imagecache.Store
+	ociLayerClient        ocilayer.Client
+	imageKeychain         authn.Keychain
+	streamingDraining     atomic.Bool
 	anonGCSClient         ategcs.ObjectStorage
 	gcsClient             ategcs.ObjectStorage
 	instruments           *Instruments
@@ -445,6 +522,27 @@ type AteomHerder struct {
 
 var _ ateletpb.AteomHerderServer = (*AteomHerder)(nil)
 
+// SetStreamingDraining toggles whether new Run and Restore operations on this
+// node bypass OCILayerService (falling back to local imagecache) and whether
+// Checkpoint/Terminate operations bypass idle TTL when releasing streamed
+// layers. Returns the previous state.
+func (s *AteomHerder) SetStreamingDraining(draining bool) bool {
+	return s.streamingDraining.Swap(draining)
+}
+
+// IsStreamingDraining reports whether the node is currently draining streamed
+// layers.
+func (s *AteomHerder) IsStreamingDraining() bool {
+	return s.streamingDraining.Load()
+}
+
+func (s *AteomHerder) activeLayerClient() ocilayer.Client {
+	if s.streamingDraining.Load() {
+		return nil
+	}
+	return s.ociLayerClient
+}
+
 // NewService creates a new WorkersManagerService.
 func NewService(
 	ctx context.Context,
@@ -452,6 +550,8 @@ func NewService(
 	anonGCSClient ategcs.ObjectStorage,
 	gcsClient ategcs.ObjectStorage,
 	imageCache *imagecache.Store,
+	ociLayerClient ocilayer.Client,
+	imageKeychain authn.Keychain,
 	instruments *Instruments,
 	volumePlugins map[string]volume.VolumePluginWorkerPlane,
 	csiDriverConfigLister listersv1alpha1.CSIDriverConfigLister,
@@ -460,6 +560,8 @@ func NewService(
 	wms := &AteomHerder{
 		ateomDialer:           ateomDialer,
 		imageCache:            imageCache,
+		ociLayerClient:        ociLayerClient,
+		imageKeychain:         imageKeychain,
 		anonGCSClient:         anonGCSClient,
 		gcsClient:             gcsClient,
 		instruments:           instruments,
@@ -506,7 +608,10 @@ func (s *AteomHerder) Run(ctx context.Context, req *ateletpb.RunRequest) (resp *
 
 	defer func() {
 		if err != nil {
-			s.systemInfoVolumes.Deregister(actorUID)
+			if s.systemInfoVolumes != nil {
+				s.systemInfoVolumes.Deregister(actorUID)
+			}
+			s.releaseStreamedLayersForActor(ctx, actorUID, actorRef, req.GetSpec())
 		}
 	}()
 	if err := s.systemInfoVolumes.Register(actorUID, actorRef, systemInfoVolumesFor(actorUID, req.GetSpec())); err != nil {
@@ -717,12 +822,102 @@ func (s *AteomHerder) Checkpoint(ctx context.Context, req *ateletpb.CheckpointRe
 		return nil, ateerrors.NewGRPCError(ctx, codes.DataLoss, ateerrors.ReasonTerminalFileSystemError, ateerrors.ActorCrashedMetadata(), fmt.Errorf("while unmounting external volumes: %w", err))
 	}
 
+	// Release this actor's reference on streamed image layers. When the node
+	// is draining (ate.dev/oci-layer-service=disabled), BypassTTL is set so
+	// the adapter unmounts FUSE views immediately as soon as refCount hits 0.
+	s.releaseStreamedLayersForActor(ctx, actorUID, actorRef, req.GetSpec())
+
 	// Note: we do not crash the actor if resetting the directory fails.
 	if err := resetActorDirs(actorUID); err != nil {
 		return nil, fmt.Errorf("while resetting actor dirs: %w", err)
 	}
 
 	return &ateletpb.CheckpointResponse{}, nil
+}
+
+// releaseStreamedLayersForActor releases streamed image leases for containers
+// and mounted image volumes belonging to actorUID. When the actor's bundle
+// directories exist on disk, it inspects each bundle's rootfs-overlay.json so
+// only images that were actually streamed (not served from imageCache) are
+// released, and removes the overlay spec after releasing to make repeated
+// calls idempotent.
+func (s *AteomHerder) releaseStreamedLayersForActor(ctx context.Context, actorUID string, actorRef resources.ActorRef, spec *ateletpb.WorkloadSpec) {
+	if s.ociLayerClient == nil || spec == nil {
+		return
+	}
+	bypassTTL := s.IsStreamingDraining()
+	if actorUID == "" {
+		s.releaseStreamedLayers(ctx, actorRef, spec, bypassTTL)
+		return
+	}
+	bundlesDir := filepath.Join(ateompath.ActorsDir, actorUID, "bundles")
+	if _, err := os.Stat(bundlesDir); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return
+		}
+		s.releaseStreamedLayers(ctx, actorRef, spec, bypassTTL)
+		return
+	}
+	releaseRef := func(ref string) {
+		if ref == "" {
+			return
+		}
+		if err := s.ociLayerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{
+			ImageRef:  ref,
+			BypassTTL: bypassTTL,
+		}); err != nil {
+			slog.WarnContext(ctx, "Failed to release streamed layers",
+				slog.String("actor", actorRef.String()),
+				slog.String("image", ref),
+				slog.Any("err", err))
+		}
+	}
+	for _, ctr := range spec.GetContainers() {
+		bundlePath := ateompath.OCIBundlePath(actorUID, ctr.GetName())
+		overlaySpec, err := imagecache.ReadSpec(bundlePath)
+		if err != nil || overlaySpec == nil {
+			continue
+		}
+		if overlaySpec.Streamed || isStreamedLayerSet(overlaySpec.Layers) {
+			ref := overlaySpec.ImageRef
+			if ref == "" {
+				ref = ctr.GetImage()
+			}
+			releaseRef(ref)
+		}
+		for _, vol := range overlaySpec.ImageVolumes {
+			if vol.Streamed || isStreamedLayerSet(vol.Layers) {
+				releaseRef(vol.ImageRef)
+			}
+		}
+		_ = os.Remove(filepath.Join(bundlePath, imagecache.OverlaySpecFileName))
+	}
+}
+
+func (s *AteomHerder) releaseStreamedLayers(ctx context.Context, actorRef resources.ActorRef, spec *ateletpb.WorkloadSpec, bypassTTL bool) {
+	if s.ociLayerClient == nil || spec == nil {
+		return
+	}
+	releaseRef := func(ref string) {
+		if ref == "" {
+			return
+		}
+		if err := s.ociLayerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{
+			ImageRef:  ref,
+			BypassTTL: bypassTTL,
+		}); err != nil {
+			slog.WarnContext(ctx, "Failed to release streamed layers",
+				slog.String("actor", actorRef.String()),
+				slog.String("image", ref),
+				slog.Any("err", err))
+		}
+	}
+	for _, ctr := range spec.GetContainers() {
+		releaseRef(ctr.GetImage())
+		for _, vol := range mountedImageVolumes(spec.GetVolumes(), ctr.GetVolumeMounts()) {
+			releaseRef(vol.GetImage().GetReference())
+		}
+	}
 }
 
 func toAteomSnapshotScope(scope ateletpb.SnapshotScope) ateompb.SnapshotScope {
@@ -1113,10 +1308,20 @@ func (s *AteomHerder) Restore(ctx context.Context, req *ateletpb.RestoreRequest)
 		runtimeRec = goldenRec
 	}
 
-	// Undo the Register if the restore fails.
+	// Record the (manifest-pinned) sandbox binaries on-node before starting
+	// bundle prep or RestoreWorkload so a subsequent Checkpoint or Terminate
+	// (if Restore fails partway through) can always locate the sandbox record.
+	if err := writeSandboxRecord(actorUID, runtimeRec); err != nil {
+		return nil, ateerrors.CrashIfReason(ctx, err, ateerrors.ReasonTerminalFileSystemError)
+	}
+
+	// Undo the Register and release any streamed image leases if the restore fails.
 	defer func() {
 		if err != nil {
-			s.systemInfoVolumes.Deregister(actorUID)
+			if s.systemInfoVolumes != nil {
+				s.systemInfoVolumes.Deregister(actorUID)
+			}
+			s.releaseStreamedLayersForActor(ctx, actorUID, actorRef, req.GetSpec())
 		}
 	}()
 
@@ -1252,16 +1457,6 @@ func (s *AteomHerder) Restore(ctx context.Context, req *ateletpb.RestoreRequest)
 		return nil, fmt.Errorf("while calling ateom.RestoreWorkload: %w", err)
 	}
 
-	// Record the (manifest-pinned) sandbox binaries on-node so a subsequent
-	// Checkpoint of this restored actor can re-pin the same version. For a
-	// DATA_ON_GOLDEN restore that is the golden's set — those are the binaries
-	// actually running the guest (Checkpoint overwrites the identity fields
-	// from its own request).
-	if err := writeSandboxRecord(actorUID, runtimeRec); err != nil {
-		// Note: crash the actor right away, if we cannot write the sandbox record now, we will not be able to checkpoint it later.
-		return nil, ateerrors.CrashIfReason(ctx, err, ateerrors.ReasonTerminalFileSystemError)
-	}
-
 	completed = true
 	return &ateletpb.RestoreResponse{}, nil
 }
@@ -1276,44 +1471,53 @@ func (s *AteomHerder) Terminate(ctx context.Context, req *ateletpb.TerminateRequ
 	actorRef := resources.ActorRef{Atespace: req.GetAtespace(), Name: req.GetActorName()}
 	actorUID := req.GetActorUid()
 
-	var assetPaths map[string]string
 	sandboxRec, err := readSandboxRecord(actorUID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read sandbox record during terminate (actor: %s, actorUID: %s): %w", actorRef, actorUID, err)
-	}
-	paths, err := s.ensureSandboxAssets(ctx, sandboxRec)
-	if err != nil {
-		return nil, fmt.Errorf("failed to ensure sandbox assets during terminate (actor: %s, actorUID: %s): %w", actorRef, actorUID, err)
-	}
-	assetPaths = paths
-
-	client, err := s.dialAteom(ctx, req.GetTargetAteomUid())
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial ateom for terminate (actor: %s, actorUID: %s): %w", actorRef, actorUID, err)
-	}
-
-	spec, err := buildAteomWorkloadSpec(req.GetSpec())
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid workload spec: %v", err)
-	}
-	if _, err := client.TerminateWorkload(ctx, &ateompb.TerminateWorkloadRequest{
-		Atespace:              req.GetAtespace(),
-		ActorName:             req.GetActorName(),
-		ActorUid:              req.GetActorUid(),
-		ActorTemplateAtespace: req.GetActorTemplateAtespace(),
-		ActorTemplateName:     req.GetActorTemplateName(),
-		RunscPath:             runscPathFor(assetPaths),
-		Spec:                  spec,
-	}); err != nil {
-		if status.Code(err) == codes.NotFound {
-			slog.InfoContext(ctx, "workload not found on ateom during terminate", slog.Any("actor", actorRef), slog.String("actorUID", actorUID))
+		if errors.Is(err, os.ErrNotExist) {
+			slog.InfoContext(ctx, "sandbox record not found on disk during terminate; skipping ateom workload teardown",
+				slog.Any("actor", actorRef), slog.String("actorUID", actorUID))
 		} else {
-			return nil, fmt.Errorf("failed calling ateom.TerminateWorkload (actor: %s, actorUID: %s): %w", actorRef, actorUID, err)
+			return nil, fmt.Errorf("failed to read sandbox record during terminate (actor: %s, actorUID: %s): %w", actorRef, actorUID, err)
+		}
+	} else {
+		assetPaths, err := s.ensureSandboxAssets(ctx, sandboxRec)
+		if err != nil {
+			return nil, fmt.Errorf("failed to ensure sandbox assets during terminate (actor: %s, actorUID: %s): %w", actorRef, actorUID, err)
+		}
+
+		client, err := s.dialAteom(ctx, req.GetTargetAteomUid())
+		if err != nil {
+			return nil, fmt.Errorf("failed to dial ateom for terminate (actor: %s, actorUID: %s): %w", actorRef, actorUID, err)
+		}
+
+		spec, err := buildAteomWorkloadSpec(req.GetSpec())
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid workload spec: %v", err)
+		}
+		if _, err := client.TerminateWorkload(ctx, &ateompb.TerminateWorkloadRequest{
+			Atespace:              req.GetAtespace(),
+			ActorName:             req.GetActorName(),
+			ActorUid:              req.GetActorUid(),
+			ActorTemplateAtespace: req.GetActorTemplateAtespace(),
+			ActorTemplateName:     req.GetActorTemplateName(),
+			RunscPath:             runscPathFor(assetPaths),
+			Spec:                  spec,
+		}); err != nil {
+			if status.Code(err) == codes.NotFound {
+				slog.InfoContext(ctx, "workload not found on ateom during terminate", slog.Any("actor", actorRef), slog.String("actorUID", actorUID))
+			} else {
+				return nil, fmt.Errorf("failed calling ateom.TerminateWorkload (actor: %s, actorUID: %s): %w", actorRef, actorUID, err)
+			}
 		}
 	}
 
 	// Deregister after teardown succeeds
-	s.systemInfoVolumes.Deregister(actorUID)
+	if s.systemInfoVolumes != nil {
+		s.systemInfoVolumes.Deregister(actorUID)
+	}
+
+	// Release any streamed image layers for this actor's containers
+	s.releaseStreamedLayersForActor(ctx, actorUID, actorRef, req.GetSpec())
 
 	// Unmount external volumes
 	if err := s.unmountExternalVolumes(ctx, actorUID, req.GetSpec().GetVolumes()); err != nil {
@@ -1436,6 +1640,7 @@ func (s *AteomHerder) prepareOCIBundles(
 		}
 	}
 
+	layerClient := s.activeLayerClient()
 	g, gCtx := errgroup.WithContext(ctx)
 
 	// Pause container.
@@ -1443,6 +1648,9 @@ func (s *AteomHerder) prepareOCIBundles(
 		if err := prepareOCIDirectory(
 			gCtx,
 			s.imageCache,
+			nil, // pause is prewarmed into imageCache and not tracked as a streamed lease.
+			s.imageKeychain,
+			s.instruments,
 			actorUID,
 			ocispec.PauseContainer,
 			pauseImage,
@@ -1471,6 +1679,9 @@ func (s *AteomHerder) prepareOCIBundles(
 			if err := prepareOCIDirectory(
 				gCtx,
 				s.imageCache,
+				layerClient,
+				s.imageKeychain,
+				s.instruments,
 				actorUID,
 				ctr.GetName(),
 				ctr.GetImage(),
