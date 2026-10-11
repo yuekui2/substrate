@@ -23,6 +23,27 @@ const (
 	// The base path.  This is both the path of the root shared folder on the
 	// host filesystem, and when it is mounted into ateom and atelet containers.
 	BasePath = "/var/lib/ateom-gvisor"
+
+	// RiptideSnapshotterRoot is the host root directory of the dedicated
+	// Substrate Riptide remote snapshotter (containerd-gcfs-grpc), under which
+	// it creates snapshot directories (snapshotter/snapshots/<id>/fs ->
+	// /run/gcfsd/mnt/views/<diffID>/fs). Kept separate from kubelet's
+	// /var/lib/containerd/io.containerd.snapshotter.v1.gcfs so host containerd
+	// GC never walks or removes Substrate's layers. Mounted into ateom with
+	// HostToContainer mount propagation.
+	RiptideSnapshotterRoot = "/var/lib/substrate/gcfs"
+
+	// RiptideFUSERoot is the host directory where the Riptide FUSE daemon
+	// (gcfsd) mounts /run/gcfsd/mnt/views/<diffID>/fs, which
+	// RiptideSnapshotterRoot's snapshots/<id>/fs symlinks point into.
+	// Mounted into ateom with HostToContainer mount propagation.
+	RiptideFUSERoot = "/run/gcfsd"
+
+	// SOCISnapshotterRoot is the host root directory of the AWS SOCI remote
+	// snapshotter (soci-snapshotter-grpc), under which it mounts FUSE layer
+	// views (snapshotter/snapshots/<id>/fs). Mounted into ateom with
+	// HostToContainer mount propagation.
+	SOCISnapshotterRoot = "/var/lib/soci-snapshotter-grpc"
 )
 
 var (
@@ -34,6 +55,14 @@ var (
 	// directories are visible at the same path in atelet (which writes them)
 	// and in every ateom pod (which mounts them as overlay lowerdirs).
 	ImageCacheDir = filepath.Join(BasePath, "image-cache")
+
+	// ImageStreamingDir is the base directory where the OCILayerService adapter
+	// writes per-layer wrapper directories (containing fs -> snapshotter mount
+	// symlinks and finalized markers) for streamed images. It lives under
+	// BasePath so the wrapper directories are visible at the same path in
+	// atelet and in every ateom pod, while staying strictly separate from
+	// ImageCacheDir.
+	ImageStreamingDir = filepath.Join(BasePath, "streaming")
 
 	// ActorsDir holds the per-actor state directories (see ActorPath). The
 	// image cache's eviction root-set scan reads the bundle overlay specs

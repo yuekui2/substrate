@@ -284,6 +284,9 @@ type Image struct {
 	// LayerDirs are the absolute cached layer directories, bottom-most layer
 	// first. Each contains the unpacked tree under "fs/".
 	LayerDirs []string
+	// Streamed reports whether LayerDirs hold an active OCILayerService lease
+	// rather than unpacked layers in Store.
+	Streamed bool
 }
 
 // imageRecord is the persisted form of a cached image, stored under
@@ -408,6 +411,33 @@ func (s *Store) sweepTempDirs() error {
 		}
 	}
 	return nil
+}
+
+// CachedImage returns ref's cached image if ref is digest-pinned and all of
+// its layers are already present on disk, with no network I/O. It returns
+// (nil, nil) on a cache miss or when ref is a mutable tag reference.
+func (s *Store) CachedImage(ctx context.Context, ref string) (*Image, error) {
+	parsedRef, err := s.parseRef(ref)
+	if err != nil {
+		return nil, nil
+	}
+	d, ok := parsedRef.(name.Digest)
+	if !ok {
+		return nil, nil
+	}
+	digest, err := v1.NewHash(d.DigestStr())
+	if err != nil {
+		return nil, nil
+	}
+	img, err := s.cachedImageHit(digest)
+	if err != nil {
+		return nil, err
+	}
+	if img != nil {
+		s.recordRequest(ctx, ateattr.ImageCacheOutcomeHit, nil)
+		slog.InfoContext(ctx, "Image cache hit", slog.String("ref", ref), slog.String("digest", digest.String()))
+	}
+	return img, nil
 }
 
 // EnsureImage makes ref's image available in the pool and returns its config
