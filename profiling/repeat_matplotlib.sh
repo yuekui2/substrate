@@ -106,6 +106,12 @@ for i in $(seq 1 "$N"); do
   kubectl -n ate-profiling wait --for=jsonpath='{.status.readyReplicas}'=3 \
     workerpool/profiling-stream workerpool/profiling-pull --timeout=10m
   kubectl -n ate-profiling get pods -o wide > "$dir/workers.txt"
+  # Machine types without a fixed CPU (e2) can mix Intel and AMD hosts, and
+  # gVisor can't restore a snapshot on a CPU missing features it was taken on.
+  { echo; echo "NODE CPU_PLATFORM"
+    gcloud compute instances list --project "$PROJECT_ID" \
+      --filter="name:gke-${CLUSTER}-pool-*" --format='value(name,cpuPlatform)'
+  } >> "$dir/workers.txt"
 
   if (( i % 2 )); then order="stream pull"; else order="pull stream"; fi
   for arm in $order; do run_arm "$arm" "$dir"; done

@@ -14,11 +14,12 @@ work() {
 }
 
 work boot
-# A restore shows up as a wall-clock jump much larger than one ~10 ms pass.
-exec 3<> <(:) # fd that never has data or EOF, so read -t just waits
+# A restore shows up as a wall-clock jump much larger than one ~50 ms pass.
+# The wait is an external sleep rather than bash's read -t: a checkpoint taken
+# during read -t could leave bash blocked in it after every later restore.
 last=${EPOCHREALTIME/./}
 while :; do
-  read -t 0.01 -u 3 # built-in timed wait, no process started
+  sleep 0.05
   now=${EPOCHREALTIME/./}
   if (( now - last > 1000000 )); then work resume; now=${EPOCHREALTIME/./}; fi
   last=$now

@@ -64,9 +64,11 @@ once at boot, then idle in a polling loop.
 
 A `FULL` restore resumes the frozen process; it does not re-run the command, and
 a resumed process gets no new input. So the loop detects a restore itself: it
-reads bash's built-in `EPOCHREALTIME` every ~10 ms (`read -t 0.01` on an fd that
-never has data, so no process is started), and a wall-clock jump of more than
-1 s means the sandbox was checkpointed and restored. It then repeats the work.
+reads bash's built-in `EPOCHREALTIME` after every `sleep 0.05`, and a wall-clock
+jump of more than 1 s means the sandbox was checkpointed and restored. It then
+repeats the work. The loop used to wait with `read -t 0.01`, but a checkpoint
+taken during that timed read could leave bash blocked in it after every later
+restore, so it now uses `sleep` (about 5% of a CPU while idle).
 
 Each run prints two JSON lines to stdout, which ateom copies into the worker
 pod's log with its own `time` and the actor's labels:
@@ -259,7 +261,8 @@ python3 profiling/profile_lifecycle.py \
   not fetched the image. Use `streaming["swebench-verified path"]` (`STREAMED cold`
   vs. `stat hit`) on the stream arm and `images["swebench-verified"]` (`MISS` vs.
   `HIT`) on the pull arm. With `GAP=0`, resume #2 usually lands on the other node.
-- **`workload start` trails the restore by up to ~10 ms** (one poll of the loop),
+- **`workload start` trails the restore by up to ~50 ms** (one `sleep 0.05` pass of the loop;
+  ~10 ms in runs before the loop switched from `read -t` to `sleep`),
   and its `time` is when ateom read the line, not when bash printed it.
 - **`workload end` includes the `stat` in `file-read.sh`'s end marker**, which
   starts a process after the read. `workload elapsed in sandbox` excludes it.
