@@ -142,6 +142,8 @@ What each origin covers:
 - **`rpc start`** also includes the actor lookup, lease, and scheduling before `Picked worker`. It excludes client network time, auth and gRPC decoding, which happen before the interceptor's clock starts.
 - **`workload elapsed in sandbox`** is the script's own `EPOCHREALTIME` difference around the `cat` (or `compileall`). It shares no clock with the other rows.
 
+**`picked worker` is the common start point.** Cold boots, resume #1 and resume #2 all have it, so TTCE summaries measure every row from `_picked_at`, which is what lets resumes #1 and #2 be pooled and compared with boots. `rpc start` is reported for resumes only: the golden boot has no `Handle RPC` record, because the reconciler calls `ResumeActor` inside ate-api-server.
+
 ### Caveats specific to the workload rows
 - **Two clocks.** The origin is stamped by the ate-api-server node's clock, the workload lines by the worker node's clock (ateom reads them). Cross-node NTP skew is usually sub-millisecond on GCE, but it enters every TTCE row.
 - **`time` is when ateom reads the line, not when bash printed it.** Pipe and goroutine scheduling add a small delay, typically well under a millisecond.
