@@ -89,6 +89,14 @@ The profilers report each line's time relative to a start point:
 `workload elapsed in sandbox` is the script's own measurement of the work
 (`elapsed_us`), on the sandbox clock.
 
+**Use `Picked worker` to compare steps.** It is the one start point that cold
+boots, resume #1 (restore from the golden snapshot) and resume #2 (restore from
+the actor's own snapshot) all have, so TTCE summaries measure every row from it,
+and resumes #1 and #2 can be pooled. `rpc start` is supplementary: cold boots
+have no `Handle RPC` record (the reconciler calls `ResumeActor` inside
+ate-api-server), and for resumes it adds the actor lookup, lease and
+scheduling before `Picked worker`, a few milliseconds in these runs.
+
 ### Where each number comes from
 
 | component | log record | field |
