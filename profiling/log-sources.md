@@ -145,5 +145,5 @@ What each origin covers:
 ### Caveats specific to the workload rows
 - **Two clocks.** The origin is stamped by the ate-api-server node's clock, the workload lines by the worker node's clock (ateom reads them). Cross-node NTP skew is usually sub-millisecond on GCE, but it enters every TTCE row.
 - **`time` is when ateom reads the line, not when bash printed it.** Pipe and goroutine scheduling add a small delay, typically well under a millisecond.
-- **Resume detection delay.** After a FULL restore, the script notices the clock jump on its next ~10 ms poll, so `workload start (resume)` can trail `Actor restored` by up to about 10 ms.
+- **Resume detection delay.** After a FULL restore, the script notices the clock jump after its current `sleep 0.05` ends, so `workload start (resume)` can trail `Actor restored` by up to about 50 ms (about 10 ms in earlier runs, whose loop used `read -t 0.01`).
 - **The settle window caps collection.** In `profile_lifecycle.py`, a workload line logged after `end + settle + 1` s is dropped and its row is missing. That's not a risk for `file-read`; size `--settle` to the compile time for `compile`.
