@@ -184,6 +184,12 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
   * **Per-Node Data Plane (`ate-ocilayer-nydus-dragonfly` DaemonSet):** Runs `dfdaemon` (`:65001` local proxy for `nydusd`, `:65000` upload server, and `:65002` peer gRPC server over `hostNetwork`), `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd`), and `ocilayer-nydus-dragonfly` (`provider="nydus-dragonfly"`).
   * **Active Dragonfly Health Probing:** In addition to verifying Kernel EROFS and `/dev/cachefiles`, `ocilayer-nydus-dragonfly` probes `<DRAGONFLY_PROXY_ADDR>/server/ping` during `CanProvide` and `PrepareLayers` (`--verify-dragonfly-ping=true`) to ensure the local `dfdaemon` peer is online before mounting RAFS v6 layers.
 
+### 5.5 Stateless Spegel P2P OCI Layer Adapter (`cmd/ocilayer-spegel`)
+* Provides stateless node-to-node P2P OCI layer blob distribution (`--setup-image-streaming=spegel`, Mode A) for **100% standard unconverted OCI images** (`tar+gzip`, `tar+zstd`, plain `tar`) on any Linux kernel (including standard GKE `COS_CONTAINERD` and `UBUNTU_CONTAINERD`) with **zero central control plane**:
+  * **Stateless Peer Discovery (`spegel-bootstrap` Headless `Service`):** Nodes discover peer Spegel mirrors via the headless `spegel-bootstrap` `Service` in `ate-system` (`:5000` local mirror / `:5001` peer registry) without requiring `mysql`, `redis`, `manager`, or `scheduler` pods.
+  * **P2P-First Blob Fetch with Cryptographic Verification & Upstream Fallback:** On `PrepareLayers`, `ocilayer-spegel` queries the local Spegel OCI registry mirror (`GET <SPEGEL_MIRROR_ADDR>/v2/<repo>/blobs/sha256:<hex>?ns=<registry>`), which checks the local blob store and fans out `HEAD`/`GET` requests (`X-Spegel-External-Request: true`) across peer nodes. Only on a cluster-cold miss does `ocilayer-spegel` pull the blob from the upstream registry.
+  * **Content-Addressed Blob & Unpacked Layer Store (`/var/lib/substrate/spegel`):** Every compressed blob is verified against its expected `sha256:<hex>` digest before being atomically committed to `blobs/sha256/<digestHex>` (making it immediately servable to all peer nodes) and unpacked into `layers/sha256/<chainIDHex>/fs` for instant cross-image layer deduplication and `ateom` bind-mounting.
+
 ---
 
 ## 6. Deployment Workflow & Adapter Extensibility
@@ -198,8 +204,10 @@ cmd/
 │   └── ocilayer-nydus-dragonfly.yaml
 ├── ocilayer-riptide/
 │   └── ocilayer-riptide.yaml
-└── ocilayer-soci/
-    └── ocilayer-soci.yaml
+├── ocilayer-soci/
+│   └── ocilayer-soci.yaml
+└── ocilayer-spegel/
+    └── ocilayer-spegel.yaml
 ```
 Because `./hack/install-ate.sh --deploy-ate-system` only applies `manifests/ate-install/*.yaml` at the top level, **a default cluster installation does not deploy any image-streaming adapter DaemonSet**.
 
@@ -272,6 +280,8 @@ Full test logs, command transcripts, and side-by-side benchmarks are documented 
 * [`docs/image-streaming-riptide-e2e-test-report.md`](image-streaming-riptide-e2e-test-report.md)
 * [`docs/image-streaming-soci-e2e-test-report.md`](image-streaming-soci-e2e-test-report.md)
 * [`docs/image-streaming-nydus-e2e-test-report.md`](image-streaming-nydus-e2e-test-report.md)
+* [`docs/image-streaming-nydus-dragonfly-e2e-test-report.md`](image-streaming-nydus-dragonfly-e2e-test-report.md)
+* [`docs/image-streaming-spegel-e2e-test-report.md`](image-streaming-spegel-e2e-test-report.md)
 * [`docs/image-streaming-riptide-vs-soci-performance-report.md`](image-streaming-riptide-vs-soci-performance-report.md)
 
 ### 8.1 Google Riptide v2 (`ate-ocilayer-riptide`)
@@ -296,13 +306,24 @@ Full test logs, command transcripts, and side-by-side benchmarks are documented 
 | **Small-Layer Local Materialization + Unindexed Decline (`image-a:latest`)** | Layer 0 (`< 10 MiB`) materialized & committed locally; Layer 1 (`52.4 MB`) fails fast with `ErrNotSupported` + cached in `declineTTL` (`1.98 ms`) | Same (`ErrNotSupported` + cached in `declineTTL`) |
 | **`ReleaseLayers (bypass_idle_ttl=true)`** | `35.42 ms` (all 9 views & wrapper dir removed) | `35.42 ms` (all 9 views & wrapper dir removed) |
 
-### 8.3 Nydus + Dragonfly (`ate-ocilayer-nydus`, Kernel EROFS + `fscache`, 9-Layer 1.19 GB Image)
+### 8.3 Nydus + Dragonfly (`ate-ocilayer-nydus` & `ate-ocilayer-nydus-dragonfly`, Kernel EROFS + `fscache`, 9-Layer 1.19 GB Image)
 
-| Verification Scenario | Ubuntu EROFS Node (`erofs-ubuntu-pool`, `fkxc`, `c3-standard-4`) | GKE COS Node (`bpft`) |
+| Verification Scenario | Ubuntu EROFS Node (`erofs-ubuntu-pool`, `fkxc` & `49x6`, `c3-standard-4`) | GKE COS Node (`bpft`) |
 | :--- | :--- | :--- |
 | **Kernel EROFS + `fscache` Check (`fusedev` Disabled)** | Passed (`erofs` + `cachefiles` `ONDEMAND` loaded; `Magic=0xe0f5e1e2`) | Failed fast (`Exit Code 1`: `'erofs' filesystem not registered in /proc/filesystems; fusedev fallback is disabled`) |
-| **Cold `PrepareLayers` Latency (RAFS v6, 9 layers)** | **`645.85 – 736.87 ms`** (`resolve=256.8ms`, `prepare=28.4ms`, `view=38.7ms`) | N/A |
-| **Warm `PrepareLayers` Latency (Lease Hit)** | **`0.451 ms`** | N/A |
-| **Demand-Paging Sequential Read — Cold GAR vs. Warm Dragonfly P2P** | **`6.91 MiB/s`** (Cold GAR) $\to$ **`131.24 MiB/s`** (`19.0x` speedup with Warm Dragonfly P2P) | N/A |
-| **Warm In-Kernel EROFS Read (Disk `fscache` / Page Cache)** | **`180.20 MiB/s`** (Disk `fscache`) / **`5,813.32 MiB/s`** (`p50 = 10.4 µs`, Kernel Page Cache) | N/A |
-| **`ReleaseLayers (bypass_idle_ttl=true)`** | `2.36 ms` | N/A |
+| **Cold `PrepareLayers` Latency (RAFS v6, 9 layers)** | **`645.85 – 736.87 ms`** (Single-Node) / **`996.46 – 1,081.49 ms`** (Multi-Node Dragonfly v2) | N/A |
+| **Warm `PrepareLayers` Latency (Lease Hit)** | **`0.451 – 0.659 ms`** | N/A |
+| **Demand-Paging Sequential Read — Cold GAR vs. Cross-Node Dragonfly P2P** | **`6.91 MiB/s`** (Cold GAR) $\to$ **`121.48 – 131.24 MiB/s`** (`17.6x – 19.0x` speedup with Dragonfly P2P, `261 MiB` across `60+` pieces, `0` back-to-source misses on Node B) | N/A |
+| **Warm In-Kernel EROFS Read (Disk `fscache` / Page Cache)** | **`180.20 MiB/s`** (Disk `fscache`) / **`5,227.60 – 5,813.32 MiB/s`** (`p50 = 7.45 – 10.4 µs`, Kernel Page Cache) | N/A |
+| **`ReleaseLayers (bypass_idle_ttl=true)`** | `0.22 – 2.36 ms` | N/A |
+
+### 8.4 Stateless Spegel P2P OCI Layer Adapter (`ate-ocilayer-spegel`, Mode A, 4-Node `COS_CONTAINERD` + `UBUNTU_CONTAINERD`)
+
+| Verification Scenario | Node 1 (`65vz`, `COS_CONTAINERD` Seeder) | Nodes 2, 3 & 4 (`p1tz` COS, `fkxc` & `49x6` Ubuntu P2P Receivers) |
+| :--- | :--- | :--- |
+| **Control Plane & Image Format** | `0` control-plane pods (`spegel-bootstrap` headless DNS); 100% standard `tar+gzip` OCI images | `3/3` remote peers auto-discovered on `:5000`; works identically on `COS_CONTAINERD` and `UBUNTU_CONTAINERD` |
+| **3-Layer, 56.3 MB Image (`image-a:latest`) `PrepareLayers`** | **`2,027.69 ms`** (`prepare=1,659.0ms`, Cold GAR) | **`440.77 – 498.30 ms`** (`prepare=202.1 – 228.5ms`, **`4.1x – 4.6x` total / `7.3x – 8.2x` prepare speedup**, `0` GAR blob fetches) |
+| **Cross-Image Shared Layer Deduplication (`sandbox-...:latest`)** | Layer 0 deduplicated on disk (`0 ms`); 2 delta layers (`6.02 MB`) from GAR in `1,006.29 ms` (`prepare=709.2ms`) | Layer 0 deduplicated on disk (`0 ms`); 2 delta layers via P2P in **`328.30 – 353.22 ms`** (`prepare=83.4 – 84.4ms`, **`8.5x` prepare speedup**) |
+| **Warm `PrepareLayers` Latency (Lease Hit, 3 & 9 layers)** | **`0.455 – 0.586 ms`** | **`0.481 – 0.517 ms`** |
+| **Native Unpacked Layer Read (`STATFS_TYPE=0xEF53`, 22,092 files)** | **`181.83 – 194.41 MiB/s`** (Cold Disk, `p50 = 372.5 µs`) | **`4,137.90 – 4,810.04 MiB/s`** (Warm Page Cache, `p50 = 7.96 µs`) |
+| **`ReleaseLayers (bypass_idle_ttl=true)`** | `0.44 – 0.61 ms` | `0.46 – 2.05 ms` |

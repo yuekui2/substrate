@@ -76,7 +76,7 @@ function usage() {
   echo "  --setup-csi[=DRIVER]                   Setup CSI driver: nfs, hostpath, both, none (default: none;"
   echo "                                         a bare --setup-csi means nfs; hostpath is Kind only)"
   echo "  --setup-image-streaming[=ADAPTER]      Setup OCI layer streaming adapter (e.g. riptide, soci, nydus,"
-  echo "                                         nydus-dragonfly, disabled, none; default: none; bare flag = riptide)"
+  echo "                                         nydus-dragonfly, spegel, disabled, none; default: none; bare flag = riptide)"
   echo "  --delete-ate-system                    Delete core system"
   echo "  --delete-all                           Delete core system and all registered demos"
   echo "  --atenet-router=envoy|agentgateway     Select the ingress and egress dataplane (default: envoy)"
