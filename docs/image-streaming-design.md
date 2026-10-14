@@ -169,29 +169,36 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
 * Synchronizes resolved registry credentials (`PrepareLayersRequest.AuthConfig` or node keychain) to `/run/soci-snapshotter-grpc/docker/config.json` (`DOCKER_CONFIG=/run/soci-snapshotter-grpc/docker`) via `PrePrepareHook` before `Snapshots.Prepare`.
 * **Small-Layer Materialization (`materializeSmallLayer`):** When `soci-snapshotter-grpc` skips streaming a small layer (`< min-layer-size`, default `10 MiB`) and returns `codes.OK` with a local active snapshot mount instead of `codes.AlreadyExists`, the SOCI adapter verifies the layer's compressed size is `<= --max-local-layer-size` (default `10 MiB`), downloads and extracts that layer blob into the active snapshot mount directory, and commits it under `<chainID>` (`Snapshots.Commit`), satisfying the `OCILayerService` all-or-nothing contract while failing fast with `ErrNotSupported` on large unindexed layers.
 
-### 5.3 Nydus + Dragonfly Adapter (`cmd/ocilayer-nydus`, Kernel EROFS + `fscache`)
-* Connects to `containerd-nydus-grpc` (`--fs-driver=fscache --daemon-mode=shared`) over `/run/containerd-nydus/containerd-nydus-grpc.sock`, backed by a singleton `nydusd` daemon (`nydusd singleton --fscache /var/lib/containerd-nydus/cache`) and a Dragonfly P2P HTTP range/piece-caching proxy configured via `DRAGONFLY_PROXY_ADDR` (default `http://127.0.0.1:65001`, `fallback: false`, `use_http: true`).
+### 5.3 Nydus Single-Node Adapter (`cmd/ocilayer-nydus`, Kernel EROFS + `fscache`)
+* Connects to `containerd-nydus-grpc` (`--fs-driver=fscache --daemon-mode=shared`) over `/run/containerd-nydus/containerd-nydus-grpc.sock`, backed by a singleton `nydusd` daemon (`nydusd singleton --fscache /var/lib/containerd-nydus/cache`) and a local HTTP range/piece-caching proxy configured via `DRAGONFLY_PROXY_ADDR` (default `http://127.0.0.1:65001`, `fallback: false`, `use_http: true`).
 * **Strict No-Fallback Enforcement (`fusedev` Disabled):**
   * At startup, `VerifyKernelEROFSSupport` verifies that `erofs` is registered in `/proc/filesystems` and `/dev/cachefiles` exists, failing fast with an explicit error (`fusedev fallback is disabled`) on non-EROFS kernels such as GKE `COS_CONTAINERD`.
   * On every mounted snapshot view, `verifyMountIsEROFS` verifies via `syscall.Statfs` that `statfs.Type == EROFS_SUPER_MAGIC (0xE0F5E1E2)` and explicitly rejects `FUSE_SUPER_MAGIC (0x65735546)`.
 * **Single Merged EROFS Bootstrap Mount (`RAFS v6`):**
   * In Nydus RAFS v6 (`nydusify convert --fs-version 6`), layers `0 .. N-2` are chunked Zstd-compressed data blobs (`containerd.io/snapshot/nydus-blob: "true"`) and the topmost layer `N-1` is the EROFS bootstrap layer (`containerd.io/snapshot/nydus-bootstrap: "true"`, `containerd.io/snapshot/nydus-fs-version: "6"`).
-  * `cmd/ocilayer-nydus` skips intermediate `Snapshots.View` calls on `nydus-blob` layers (`WithSkipLayerView`), unpacks `image/image.boot` from the bootstrap layer when `Snapshots.Prepare` returns `codes.OK`, commits the bootstrap snapshot with Nydus annotations, mounts the resulting `erofs` (`fsid=...`) filesystem, and returns the single merged Kernel EROFS root directory in `PrepareLayersResponse.layer_dirs`.
+  * `cmd/ocilayer-nydus` skips intermediate `Snapshots.View` calls on `nydus-blob` layers, unpacks `image/image.boot` from the bootstrap layer when `Snapshots.Prepare` returns `codes.OK`, commits the bootstrap snapshot with Nydus annotations, mounts the resulting `erofs` (`fsid=...`) filesystem, and returns the single merged Kernel EROFS root directory in `PrepareLayersResponse.layer_dirs`.
+
+### 5.4 Cross-Node Nydus + Dragonfly v2 P2P Adapter (`cmd/ocilayer-nydus-dragonfly`)
+* Extends the Nydus RAFS v6 + Kernel EROFS/`fscache` stack with the full cross-node Dragonfly v2 (`d7y`) P2P control plane and data plane (`--setup-image-streaming=nydus-dragonfly`):
+  * **Control Plane (`ate-system`):** Deploys `dragonfly-mysql`, `dragonfly-redis`, `dragonfly-manager` (`:8080` REST / `:65003` gRPC), and `dragonfly-scheduler` (`:8002` gRPC) to coordinate sub-blob HTTP `Range` piece tasks across worker nodes.
+  * **Per-Node Data Plane (`ate-ocilayer-nydus-dragonfly` DaemonSet):** Runs `dfdaemon` (`:65001` local proxy for `nydusd`, `:65000` upload server, and `:65002` peer gRPC server over `hostNetwork`), `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd`), and `ocilayer-nydus-dragonfly` (`provider="nydus-dragonfly"`).
+  * **Active Dragonfly Health Probing:** In addition to verifying Kernel EROFS and `/dev/cachefiles`, `ocilayer-nydus-dragonfly` probes `<DRAGONFLY_PROXY_ADDR>/server/ping` during `CanProvide` and `PrepareLayers` (`--verify-dragonfly-ping=true`) to ensure the local `dfdaemon` peer is online before mounting RAFS v6 layers.
 
 ---
 
 ## 6. Deployment Workflow & Adapter Extensibility
 
 ### 6.1 Directory Layout & Decoupled Manifests
-Adapter DaemonSet manifests live in a dedicated subdirectory `manifests/ate-install/ocilayer/`:
+Adapter DaemonSet manifests live alongside their respective adapter binaries under `cmd/ocilayer-*/`:
 ```text
-manifests/ate-install/
-├── atelet.yaml
-├── ateapi.yaml
-├── ...
-└── ocilayer/
-    ├── ocilayer-nydus.yaml
-    ├── ocilayer-riptide.yaml
+cmd/
+├── ocilayer-nydus/
+│   └── ocilayer-nydus.yaml
+├── ocilayer-nydus-dragonfly/
+│   └── ocilayer-nydus-dragonfly.yaml
+├── ocilayer-riptide/
+│   └── ocilayer-riptide.yaml
+└── ocilayer-soci/
     └── ocilayer-soci.yaml
 ```
 Because `./hack/install-ate.sh --deploy-ate-system` only applies `manifests/ate-install/*.yaml` at the top level, **a default cluster installation does not deploy any image-streaming adapter DaemonSet**.

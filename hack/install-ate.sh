@@ -75,8 +75,8 @@ function usage() {
   echo "  --deploy-ate-system                    Deploy core system (CRDs, atelet, apiserver)"
   echo "  --setup-csi[=DRIVER]                   Setup CSI driver: nfs, hostpath, both, none (default: none;"
   echo "                                         a bare --setup-csi means nfs; hostpath is Kind only)"
-  echo "  --setup-image-streaming[=ADAPTER]      Setup OCI layer streaming adapter (e.g. riptide, soci, disabled,"
-  echo "                                         none; default: none; a bare --setup-image-streaming means riptide)"
+  echo "  --setup-image-streaming[=ADAPTER]      Setup OCI layer streaming adapter (e.g. riptide, soci, nydus,"
+  echo "                                         nydus-dragonfly, disabled, none; default: none; bare flag = riptide)"
   echo "  --delete-ate-system                    Delete core system"
   echo "  --delete-all                           Delete core system and all registered demos"
   echo "  --atenet-router=envoy|agentgateway     Select the ingress and egress dataplane (default: envoy)"
@@ -944,6 +944,10 @@ setup_image_streaming() {
   echo "${rendered}" | run_kubectl apply -f -
 
   run_kubectl label nodes --all "ate.dev/oci-layer-service=${adapter}" --overwrite
+  local deploy=""
+  for deploy in $(run_kubectl -n ate-system get deployment -l "ate.dev/oci-layer-provider=${adapter}" -o name 2>/dev/null); do
+    run_kubectl rollout status "${deploy}" -n ate-system --timeout="$(rollout_timeout)"
+  done
   local ds_name=""
   ds_name="$(ocilayer_daemonset_name "${adapter}")"
   if ! run_kubectl -n ate-system get "daemonset/${ds_name}" >/dev/null 2>&1; then
@@ -1409,6 +1413,7 @@ delete_ate_system() {
 
   run_kubectl delete --ignore-not-found -n ate-system daemonset -l app=atelet
   run_kubectl delete --ignore-not-found -n ate-system daemonset -l app=ate-ocilayer-adapter
+  run_kubectl delete --ignore-not-found -n ate-system deployment,service,configmap -l ate.dev/oci-layer-provider
   run_kubectl delete --ignore-not-found \
     -f manifests/ate-install/components/agentgateway/configmap.yaml
   run_kubectl delete --ignore-not-found -f manifests/ate-install/postgres/postgres.yaml

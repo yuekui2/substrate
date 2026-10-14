@@ -236,6 +236,18 @@ func WithWorkDirTeardownHook(fn WorkDirTeardownHookFunc) Option {
 	}
 }
 
+// ProbeHookFunc is an optional liveness check invoked by Probe (for example, to
+// verify that a local P2P proxy daemon is healthy in addition to the
+// snapshotter gRPC socket).
+type ProbeHookFunc func(ctx context.Context) error
+
+// WithProbeHook sets an optional additional health check invoked during Probe.
+func WithProbeHook(fn ProbeHookFunc) Option {
+	return func(d *Driver) {
+		d.probeHook = fn
+	}
+}
+
 type imageLease struct {
 	imageRef      string
 	digest        string
@@ -281,6 +293,7 @@ type Driver struct {
 	layerMounter        LayerMounterFunc
 	warmHitHook         WarmHitHookFunc
 	workDirTeardownHook WorkDirTeardownHookFunc
+	probeHook           ProbeHookFunc
 
 	mu              sync.Mutex
 	closed          bool
@@ -486,6 +499,11 @@ func (d *Driver) Probe(ctx context.Context) error {
 	})
 	switch status.Code(err) {
 	case codes.OK, codes.NotFound:
+		if d.probeHook != nil {
+			if err := d.probeHook(ctx); err != nil {
+				return err
+			}
+		}
 		return nil
 	default:
 		return fmt.Errorf("stat probe snapshot: %w", err)
