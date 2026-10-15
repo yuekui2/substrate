@@ -862,11 +862,11 @@ func (s *AteomHerder) releaseStreamedLayersForActor(ctx context.Context, actorUI
 		if ref == "" {
 			return
 		}
-		if err := s.ociLayerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{
+		if err := s.ociLayerClient.ReleaseImage(ctx, &ocilayer.ReleaseRequest{
 			ImageRef:  ref,
 			BypassTTL: bypassTTL,
 		}); err != nil {
-			slog.WarnContext(ctx, "Failed to release streamed layers",
+			slog.WarnContext(ctx, "Failed to release streamed image",
 				slog.String("actor", actorRef.String()),
 				slog.String("image", ref),
 				slog.Any("err", err))
@@ -902,11 +902,11 @@ func (s *AteomHerder) releaseStreamedLayers(ctx context.Context, actorRef resour
 		if ref == "" {
 			return
 		}
-		if err := s.ociLayerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{
+		if err := s.ociLayerClient.ReleaseImage(ctx, &ocilayer.ReleaseRequest{
 			ImageRef:  ref,
 			BypassTTL: bypassTTL,
 		}); err != nil {
-			slog.WarnContext(ctx, "Failed to release streamed layers",
+			slog.WarnContext(ctx, "Failed to release streamed image",
 				slog.String("actor", actorRef.String()),
 				slog.String("image", ref),
 				slog.Any("err", err))

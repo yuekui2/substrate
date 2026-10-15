@@ -23,34 +23,34 @@ option go_package = "github.com/agent-substrate/substrate/internal/proto/ocilaye
 // SOCI Adapter DaemonSets).
 //
 // Given an OCI image reference and resolved registry credentials, the service
-// prepares and mounts all layers of the image on the host (strictly
-// all-or-nothing) and returns their ordered read-only directory paths for
-// overlayfs lowerdir composition.
+// prepares and mounts the image's layers on the host (under a per-image
+// contract) and returns their ordered read-only directory paths for overlayfs
+// lowerdir composition.
 service OCILayerService {
   // CanProvide checks whether the adapter and underlying streaming provider are
   // healthy and able to serve the given OCI image.
   rpc CanProvide(CanProvideRequest) returns (CanProvideResponse);
 
-  // PrepareLayers resolves and mounts all layers for the OCI image, increments
+  // PrepareImage resolves and mounts the layers for the OCI image, increments
   // the per-image/per-layer reference count (refCount), and returns the
   // complete ordered list of read-only host LayerDirs.
   //
-  // If the image cannot be served by the provider, PrepareLayers returns
+  // If the image cannot be served by the provider, PrepareImage returns
   // codes.FailedPrecondition so atelet can fall back to local imagecache for
   // the entire image.
-  rpc PrepareLayers(PrepareLayersRequest) returns (PrepareLayersResponse);
+  rpc PrepareImage(PrepareImageRequest) returns (PrepareImageResponse);
 
-  // ReleaseLayers decrements the reference count (refCount) for the image's
+  // ReleaseImage decrements the reference count (refCount) for the image's
   // layers when an actor checkpoints or terminates, unmounting unused layer
   // views once refCount reaches 0 (subject to the adapter's idle TTL unless
   // bypass_ttl is set).
-  rpc ReleaseLayers(ReleaseLayersRequest) returns (ReleaseLayersResponse);
+  rpc ReleaseImage(ReleaseImageRequest) returns (ReleaseImageResponse);
 
-  // ReconcileLayers is called by atelet on startup/restart with the active
+  // ReconcileImages is called by atelet on startup/restart with the active
   // streamed images discovered from surviving on-disk actor bundles
   // (rootfs-overlay.json), allowing the adapter to rebuild accurate in-memory
   // refCounts and unmount orphaned FUSE views after an atelet crash.
-  rpc ReconcileLayers(ReconcileLayersRequest) returns (ReconcileLayersResponse);
+  rpc ReconcileImages(ReconcileImagesRequest) returns (ReconcileImagesResponse);
 }
 
 // RegistryAuth carries resolved registry credentials (from the Kubelet
@@ -74,12 +74,12 @@ message CanProvideResponse {
   string provider_name = 2;
 }
 
-message PrepareLayersRequest {
+message PrepareImageRequest {
   string image_ref = 1;
   RegistryAuth auth = 2;
 }
 
-message PrepareLayersResponse {
+message PrepareImageResponse {
   // image_digest is the resolved OCI manifest digest ("sha256:<hex>").
   string image_digest = 1;
 
@@ -95,7 +95,7 @@ message PrepareLayersResponse {
   string provider_name = 4;
 }
 
-message ReleaseLayersRequest {
+message ReleaseImageRequest {
   string image_ref = 1;
 
   // bypass_ttl instructs the adapter to unmount layers immediately when
@@ -104,7 +104,7 @@ message ReleaseLayersRequest {
   bool bypass_ttl = 2;
 }
 
-message ReleaseLayersResponse {}
+message ReleaseImageResponse {}
 
 message ActiveImageLayers {
   string image_ref = 1;
@@ -113,8 +113,8 @@ message ActiveImageLayers {
   int32 ref_count = 4;
 }
 
-message ReconcileLayersRequest {
+message ReconcileImagesRequest {
   repeated ActiveImageLayers active_images = 1;
 }
 
-message ReconcileLayersResponse {}
+message ReconcileImagesResponse {}

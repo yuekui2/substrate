@@ -542,10 +542,10 @@ func TestNydusDragonflyCrossNodeP2PFlow(t *testing.T) {
 		},
 	}
 
-	// Step 1: Cold PrepareLayers + demand-paging on Node A -> pulls from upstream GAR and registers piece with Scheduler.
-	resA, err := clientA.PrepareLayers(ctx, prepReq)
+	// Step 1: Cold PrepareImage + demand-paging on Node A -> pulls from upstream GAR and registers piece with Scheduler.
+	resA, err := clientA.PrepareImage(ctx, prepReq)
 	if err != nil {
-		t.Fatalf("Node A PrepareLayers failed: %v", err)
+		t.Fatalf("Node A PrepareImage failed: %v", err)
 	}
 	if resA.ProviderName != ProviderNydusDragonfly {
 		t.Errorf("Node A ProviderName = %q, want %q", resA.ProviderName, ProviderNydusDragonfly)
@@ -554,10 +554,10 @@ func TestNydusDragonflyCrossNodeP2PFlow(t *testing.T) {
 		t.Fatalf("after Node A cold pull: upstreamHits=%d dfNodeA.upstreamMisses=%d, want 1", upstreamHits.Load(), dfNodeA.upstreamMisses)
 	}
 
-	// Step 2: Cold PrepareLayers + demand-paging on Node B -> fetches piece via cross-node P2P from Node A with 0 upstream GAR hits.
-	resB, err := clientB.PrepareLayers(ctx, prepReq)
+	// Step 2: Cold PrepareImage + demand-paging on Node B -> fetches piece via cross-node P2P from Node A with 0 upstream GAR hits.
+	resB, err := clientB.PrepareImage(ctx, prepReq)
 	if err != nil {
-		t.Fatalf("Node B PrepareLayers failed: %v", err)
+		t.Fatalf("Node B PrepareImage failed: %v", err)
 	}
 	gotPayload, err := os.ReadFile(filepath.Join(resB.LayerDirs[0], "fs", "chunk.bin"))
 	if err != nil {
@@ -606,10 +606,10 @@ func TestNydusDragonflyUnconvertedOCIImageDeclinesWithErrNotSupported(t *testing
 	}
 
 	client := startTestNydusDragonflyServer(t, driver)
-	_, err = client.PrepareLayers(ctx, &ocilayer.PrepareRequest{
+	_, err = client.PrepareImage(ctx, &ocilayer.PrepareRequest{
 		ImageRef: "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/image-a:latest",
 	})
 	if !errors.Is(err, ocilayer.ErrNotSupported) {
-		t.Fatalf("PrepareLayers error = %v, want ErrNotSupported for non-Nydus OCI image", err)
+		t.Fatalf("PrepareImage error = %v, want ErrNotSupported for non-Nydus OCI image", err)
 	}
 }

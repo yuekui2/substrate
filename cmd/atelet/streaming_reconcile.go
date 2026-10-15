@@ -125,7 +125,7 @@ func reconcileStreamingLeases(ctx context.Context, client ocilayer.Client, actor
 	if err != nil {
 		return fmt.Errorf("scanning active streamed leases: %w", err)
 	}
-	if err := client.ReconcileLayers(ctx, leases); err != nil {
+	if err := client.ReconcileImages(ctx, leases); err != nil {
 		return fmt.Errorf("reconciling leases with %s: %w", client.Name(), err)
 	}
 	if len(leases) == 0 {

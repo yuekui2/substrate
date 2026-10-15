@@ -178,8 +178,8 @@ func TestSpegelCrossNodeP2PFlow(t *testing.T) {
 	}
 	defer func() { _ = nodeA.Close() }()
 
-	// Step 1: Cold PrepareLayers on Node A pulls from upstream and populates Node A's Spegel blob store.
-	resA, err := nodeA.PrepareLayers(ctx, &ocilayer.PrepareRequest{
+	// Step 1: Cold PrepareImage on Node A pulls from upstream and populates Node A's Spegel blob store.
+	resA, err := nodeA.PrepareImage(ctx, &ocilayer.PrepareRequest{
 		ImageRef: testImage,
 		AuthConfig: &ocilayer.AuthConfig{
 			Username: "oauth2accesstoken",
@@ -187,7 +187,7 @@ func TestSpegelCrossNodeP2PFlow(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("nodeA.PrepareLayers failed: %v", err)
+		t.Fatalf("nodeA.PrepareImage failed: %v", err)
 	}
 	if len(resA.LayerDirs) != 2 {
 		t.Fatalf("got %d LayerDirs on Node A, want 2", len(resA.LayerDirs))
@@ -219,12 +219,12 @@ func TestSpegelCrossNodeP2PFlow(t *testing.T) {
 	}
 	defer func() { _ = nodeB.Close() }()
 
-	// Step 2: PrepareLayers on Node B streams both compressed blobs peer-to-peer from Node A!
-	resB, err := nodeB.PrepareLayers(ctx, &ocilayer.PrepareRequest{
+	// Step 2: PrepareImage on Node B streams both compressed blobs peer-to-peer from Node A!
+	resB, err := nodeB.PrepareImage(ctx, &ocilayer.PrepareRequest{
 		ImageRef: testImage,
 	})
 	if err != nil {
-		t.Fatalf("nodeB.PrepareLayers (P2P from Node A) failed: %v", err)
+		t.Fatalf("nodeB.PrepareImage (P2P from Node A) failed: %v", err)
 	}
 	if len(resB.LayerDirs) != 2 {
 		t.Fatalf("got %d LayerDirs on Node B, want 2", len(resB.LayerDirs))
@@ -291,16 +291,16 @@ func TestSpegelSharedLayerDeduplicationAndCorruptBlobFallback(t *testing.T) {
 	defer func() { _ = sd.Close() }()
 
 	// Image 1: corrupt P2P blob is rejected and falls back cleanly to upstream.
-	if _, err := sd.PrepareLayers(ctx, &ocilayer.PrepareRequest{ImageRef: "us-central1-docker.pkg.dev/p/r/img1:v1"}); err != nil {
-		t.Fatalf("PrepareLayers(img1) failed: %v", err)
+	if _, err := sd.PrepareImage(ctx, &ocilayer.PrepareRequest{ImageRef: "us-central1-docker.pkg.dev/p/r/img1:v1"}); err != nil {
+		t.Fatalf("PrepareImage(img1) failed: %v", err)
 	}
 	if upstreamCalls.Load() != 1 {
 		t.Fatalf("expected 1 upstream call after corrupt P2P fallback, got %d", upstreamCalls.Load())
 	}
 
 	// Image 2 sharing diff0: reuses already-unpacked layer on disk with 0 extra fetches.
-	if _, err := sd.PrepareLayers(ctx, &ocilayer.PrepareRequest{ImageRef: "us-central1-docker.pkg.dev/p/r/img2:v1"}); err != nil {
-		t.Fatalf("PrepareLayers(img2) failed: %v", err)
+	if _, err := sd.PrepareImage(ctx, &ocilayer.PrepareRequest{ImageRef: "us-central1-docker.pkg.dev/p/r/img2:v1"}); err != nil {
+		t.Fatalf("PrepareImage(img2) failed: %v", err)
 	}
 	if upstreamCalls.Load() != 1 {
 		t.Fatalf("expected shared layer to reuse on-disk unpacked layer without extra upstream calls, got %d", upstreamCalls.Load())

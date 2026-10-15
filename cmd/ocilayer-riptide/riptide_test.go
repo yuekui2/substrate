@@ -189,10 +189,10 @@ func TestRiptideKeychainPushAndDeduplication(t *testing.T) {
 		t.Errorf("client.Name() = %q, want %q", client.Name(), ProviderRiptide)
 	}
 
-	// First PrepareLayers pushes credentials to gcfsd keychain.sock.
-	res1, err := client.PrepareLayers(ctx, req)
+	// First PrepareImage pushes credentials to gcfsd keychain.sock.
+	res1, err := client.PrepareImage(ctx, req)
 	if err != nil {
-		t.Fatalf("PrepareLayers(1) failed: %v", err)
+		t.Fatalf("PrepareImage(1) failed: %v", err)
 	}
 	if len(res1.LayerDirs) != 2 {
 		t.Fatalf("len(LayerDirs) = %d, want 2", len(res1.LayerDirs))
@@ -209,8 +209,8 @@ func TestRiptideKeychainPushAndDeduplication(t *testing.T) {
 	kcClient.mu.Unlock()
 
 	// Warm hit with identical credentials skips redundant UpdateCreds RPC within TTL.
-	if _, err := client.PrepareLayers(ctx, req); err != nil {
-		t.Fatalf("PrepareLayers(2) failed: %v", err)
+	if _, err := client.PrepareImage(ctx, req); err != nil {
+		t.Fatalf("PrepareImage(2) failed: %v", err)
 	}
 	kcClient.mu.Lock()
 	if len(kcClient.updates) != 1 {

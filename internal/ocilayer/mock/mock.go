@@ -27,11 +27,11 @@ import (
 type Client struct {
 	mu sync.Mutex
 
-	ProviderName       string
-	CanProvideFunc     func(ctx context.Context, req *ocilayer.PrepareRequest) (bool, error)
-	PrepareLayersFunc  func(ctx context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error)
-	ReleaseLayersFunc  func(ctx context.Context, req *ocilayer.ReleaseRequest) error
-	ReconcileFunc      func(ctx context.Context, active []*ocilayer.ActiveImageLayers) error
+	ProviderName     string
+	CanProvideFunc   func(ctx context.Context, req *ocilayer.PrepareRequest) (bool, error)
+	PrepareImageFunc func(ctx context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error)
+	ReleaseImageFunc func(ctx context.Context, req *ocilayer.ReleaseRequest) error
+	ReconcileFunc    func(ctx context.Context, active []*ocilayer.ActiveImageLayers) error
 
 	PrepareCalls   []*ocilayer.PrepareRequest
 	ReleaseCalls   []*ocilayer.ReleaseRequest
@@ -66,11 +66,11 @@ func (m *Client) CanProvide(ctx context.Context, req *ocilayer.PrepareRequest) (
 	return true, nil
 }
 
-// PrepareLayers records the call and delegates to PrepareLayersFunc.
-func (m *Client) PrepareLayers(ctx context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
+// PrepareImage records the call and delegates to PrepareImageFunc.
+func (m *Client) PrepareImage(ctx context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
 	m.mu.Lock()
 	m.PrepareCalls = append(m.PrepareCalls, req)
-	fn := m.PrepareLayersFunc
+	fn := m.PrepareImageFunc
 	m.mu.Unlock()
 	if fn != nil {
 		return fn(ctx, req)
@@ -78,11 +78,11 @@ func (m *Client) PrepareLayers(ctx context.Context, req *ocilayer.PrepareRequest
 	return nil, ocilayer.ErrNotSupported
 }
 
-// ReleaseLayers records the call and delegates to ReleaseLayersFunc.
-func (m *Client) ReleaseLayers(ctx context.Context, req *ocilayer.ReleaseRequest) error {
+// ReleaseImage records the call and delegates to ReleaseImageFunc.
+func (m *Client) ReleaseImage(ctx context.Context, req *ocilayer.ReleaseRequest) error {
 	m.mu.Lock()
 	m.ReleaseCalls = append(m.ReleaseCalls, req)
-	fn := m.ReleaseLayersFunc
+	fn := m.ReleaseImageFunc
 	m.mu.Unlock()
 	if fn != nil {
 		return fn(ctx, req)
@@ -90,8 +90,8 @@ func (m *Client) ReleaseLayers(ctx context.Context, req *ocilayer.ReleaseRequest
 	return nil
 }
 
-// ReconcileLayers records the call and delegates to ReconcileFunc.
-func (m *Client) ReconcileLayers(ctx context.Context, active []*ocilayer.ActiveImageLayers) error {
+// ReconcileImages records the call and delegates to ReconcileFunc.
+func (m *Client) ReconcileImages(ctx context.Context, active []*ocilayer.ActiveImageLayers) error {
 	m.mu.Lock()
 	m.ReconcileCalls = append(m.ReconcileCalls, active)
 	fn := m.ReconcileFunc

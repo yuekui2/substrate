@@ -69,7 +69,7 @@ type AuthConfig struct {
 	RegistryToken string `json:"registrytoken,omitempty"`
 }
 
-// PrepareRequest encapsulates the parameters for CanProvide and PrepareLayers.
+// PrepareRequest encapsulates the parameters for CanProvide and PrepareImage.
 type PrepareRequest struct {
 	// ImageRef is the OCI image reference.
 	ImageRef string
@@ -96,7 +96,7 @@ type PrepareResult struct {
 	ProviderName string
 }
 
-// ReleaseRequest encapsulates the parameters for ReleaseLayers.
+// ReleaseRequest encapsulates the parameters for ReleaseImage.
 type ReleaseRequest struct {
 	// ImageRef is the OCI image reference to release.
 	ImageRef string
@@ -123,17 +123,17 @@ type Client interface {
 	// CanProvide checks whether the adapter is reachable and able to serve the image.
 	CanProvide(ctx context.Context, req *PrepareRequest) (bool, error)
 
-	// PrepareLayers prepares and mounts all layers of the image on the host and
+	// PrepareImage prepares and mounts all layers of the image on the host and
 	// returns their ordered read-only directory paths. Returns an error wrapping
 	// ErrNotSupported if the adapter declines the image.
-	PrepareLayers(ctx context.Context, req *PrepareRequest) (*PrepareResult, error)
+	PrepareImage(ctx context.Context, req *PrepareRequest) (*PrepareResult, error)
 
-	// ReleaseLayers decrements the reference count for the image's layers.
-	ReleaseLayers(ctx context.Context, req *ReleaseRequest) error
+	// ReleaseImage decrements the reference count for the image's layers.
+	ReleaseImage(ctx context.Context, req *ReleaseRequest) error
 
-	// ReconcileLayers restores active reference counts on atelet startup and
+	// ReconcileImages restores active reference counts on atelet startup and
 	// unmounts orphaned layer views.
-	ReconcileLayers(ctx context.Context, active []*ActiveImageLayers) error
+	ReconcileImages(ctx context.Context, active []*ActiveImageLayers) error
 }
 
 // GRPCClient implements Client over a Unix domain socket speaking
@@ -242,8 +242,8 @@ func (c *GRPCClient) CanProvide(ctx context.Context, req *PrepareRequest) (bool,
 	return resp.GetCanProvide(), nil
 }
 
-// PrepareLayers requests the adapter to prepare all layers for req.ImageRef.
-func (c *GRPCClient) PrepareLayers(ctx context.Context, req *PrepareRequest) (*PrepareResult, error) {
+// PrepareImage requests the adapter to prepare all layers for req.ImageRef.
+func (c *GRPCClient) PrepareImage(ctx context.Context, req *PrepareRequest) (*PrepareResult, error) {
 	if req == nil || strings.TrimSpace(req.ImageRef) == "" {
 		return nil, fmt.Errorf("%w: empty image reference", ErrNotSupported)
 	}
@@ -251,7 +251,7 @@ func (c *GRPCClient) PrepareLayers(ctx context.Context, req *PrepareRequest) (*P
 	if err != nil {
 		return nil, err
 	}
-	resp, err := rpcClient.PrepareLayers(ctx, &ocilayer.PrepareLayersRequest{
+	resp, err := rpcClient.PrepareImage(ctx, &ocilayer.PrepareImageRequest{
 		ImageRef: req.ImageRef,
 		Auth:     resolveProtoAuth(ctx, req),
 	})
@@ -284,8 +284,8 @@ func (c *GRPCClient) PrepareLayers(ctx context.Context, req *PrepareRequest) (*P
 	}, nil
 }
 
-// ReleaseLayers decrements the reference count for req.ImageRef on the adapter.
-func (c *GRPCClient) ReleaseLayers(ctx context.Context, req *ReleaseRequest) error {
+// ReleaseImage decrements the reference count for req.ImageRef on the adapter.
+func (c *GRPCClient) ReleaseImage(ctx context.Context, req *ReleaseRequest) error {
 	if req == nil || strings.TrimSpace(req.ImageRef) == "" {
 		return nil
 	}
@@ -293,15 +293,15 @@ func (c *GRPCClient) ReleaseLayers(ctx context.Context, req *ReleaseRequest) err
 	if err != nil {
 		return err
 	}
-	_, err = rpcClient.ReleaseLayers(ctx, &ocilayer.ReleaseLayersRequest{
+	_, err = rpcClient.ReleaseImage(ctx, &ocilayer.ReleaseImageRequest{
 		ImageRef:  req.ImageRef,
 		BypassTtl: req.BypassTTL,
 	})
 	return err
 }
 
-// ReconcileLayers sends the active streamed image list to the adapter.
-func (c *GRPCClient) ReconcileLayers(ctx context.Context, active []*ActiveImageLayers) error {
+// ReconcileImages sends the active streamed image list to the adapter.
+func (c *GRPCClient) ReconcileImages(ctx context.Context, active []*ActiveImageLayers) error {
 	rpcClient, err := c.client()
 	if err != nil {
 		return err
@@ -318,7 +318,7 @@ func (c *GRPCClient) ReconcileLayers(ctx context.Context, active []*ActiveImageL
 			RefCount:    int32(a.RefCount),
 		})
 	}
-	_, err = rpcClient.ReconcileLayers(ctx, &ocilayer.ReconcileLayersRequest{
+	_, err = rpcClient.ReconcileImages(ctx, &ocilayer.ReconcileImagesRequest{
 		ActiveImages: pbActive,
 	})
 	return err

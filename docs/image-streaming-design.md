@@ -10,7 +10,7 @@ Image Streaming eliminates upfront full-image downloads by mounting read-only OC
 1. **Vendor-Agnostic `atelet` Core:** `atelet` must not embed provider-specific snapshotter state machines, auth protocols, or quirks (Google Riptide `gcfs`, AWS SOCI, eStargz, Nydus). Instead, `atelet` communicates over a single high-level gRPC contract: `OCILayerService`.
 2. **Zero Interference with Host `containerd` Garbage Collection:** Running or garbage-collecting images in host `containerd` (`kubelet` / `crictl` / `ctr`) must never unmount or delete FUSE layers in use by Substrate actors, and vice versa.
 3. **Works Identically Whether Host Image Streaming Is Enabled or Disabled:** On GKE, the Riptide v2 adapter must work identically on node pools with GKE Image Streaming disabled (`gcfsConfig: {}`) and on node pools with GKE Image Streaming enabled (`gcfsConfig: {enabled: true}`).
-4. **Decoupled Lifecycle & Crash Recovery:** Restarting `atelet` must not sever active FUSE mounts backing running actors. When `atelet` restarts, it reconciles active layer leases (`ReconcileLayers`) from surviving on-disk actor bundles (`rootfs-overlay.json`).
+4. **Decoupled Lifecycle & Crash Recovery:** Restarting `atelet` must not sever active FUSE mounts backing running actors. When `atelet` restarts, it reconciles active layer leases (`ReconcileImages`) from surviving on-disk actor bundles (`rootfs-overlay.json`).
 5. **Graceful Dynamic Node Drain:** Operators must be able to dynamically disable image streaming on a live node (`ate.dev/oci-layer-service=disabled`) so new and restoring actors immediately switch to local `imagecache` layers while currently running streamed actors continue uninterrupted until they finish and drain their FUSE mounts.
 6. **Seamless Fallback:** If no adapter socket is present, streaming is disabled on the node, or the adapter declines an image (`CanProvide=false` or `ErrNotSupported`), `atelet` transparently falls back to `internal/imagecache`.
 
@@ -28,7 +28,7 @@ flowchart TD
         KubeCreds["Kubelet Credential Provider /<br/>Workload imagePullSecrets"] -->|"Resolve Registry Credentials"| Atelet
         NodeLabel["Node Label Watch<br/>ate.dev/oci-layer-service"] -->|"Enable / Dynamic Drain"| Atelet
 
-        Atelet -->|"1. CanProvide / PrepareLayers /<br/>ReleaseLayers / ReconcileLayers"| Sock["/run/ate-image-streaming/ocilayer.sock"]
+        Atelet -->|"1. CanProvide / PrepareImage /<br/>ReleaseImage / ReconcileImages"| Sock["/run/ate-image-streaming/ocilayer.sock"]
         Atelet -. "1b. Fallback on Disabled /<br/>CanProvide=false / Error" .-> ImageCache["internal/imagecache<br/>/var/lib/atelet/imagecache/layers/&lt;chainID&gt;"]
 
         subgraph AdapterPod["OCILayerService Adapter DaemonSet Pod (1 Active per Node)"]
@@ -54,7 +54,7 @@ flowchart TD
 
 | Component | Role |
 | :--- | :--- |
-| **`cmd/atelet`** | Resolves registry credentials via the Kubelet Credential Provider and pod `imagePullSecrets`; watches the node label `ate.dev/oci-layer-service`; invokes `OCILayerService` (`CanProvide`, `PrepareLayers`, `ReleaseLayers`, `ReconcileLayers`); writes the ordered `LayerDirs` into `rootfs-overlay.json`; falls back to `internal/imagecache` when streaming is disabled or unsupported. |
+| **`cmd/atelet`** | Resolves registry credentials via the Kubelet Credential Provider and pod `imagePullSecrets`; watches the node label `ate.dev/oci-layer-service`; invokes `OCILayerService` (`CanProvide`, `PrepareImage`, `ReleaseImage`, `ReconcileImages`); writes the ordered `LayerDirs` into `rootfs-overlay.json`; falls back to `internal/imagecache` when streaming is disabled or unsupported. |
 | **`ateom`** | Unchanged. Reads `rootfs-overlay.json` and mounts the listed `LayerDirs` as read-only `overlayfs` `lowerdir` entries beneath the actor's writable `upperdir`. |
 | **`OCILayerService` Adapter (`cmd/ocilayer-*`)** | DaemonSet plugin implementing `ate.io.ocilayer.v1.OCILayerService`. Resolves image manifests/digests, pushes credentials to the provider's native keychain or snapshot labels, drives the provider's `containerd.services.snapshots.v1.Snapshots` RPCs (`Stat`, `Prepare`, `View`, `Remove`), tracks per-image `refCount` and idle TTL leases, and exposes stable read-only `LayerDirs` to `atelet`. |
 | **Streaming Provider (`gcfsd-v2`, `soci-snapshotter-grpc`)** | Runs alongside the adapter in the DaemonSet pod, manages the node-level on-disk chunk cache, and serves read-only layer filesystems over FUSE with `Bidirectional` mount propagation to the host. |
@@ -68,11 +68,11 @@ Why not have `atelet` speak CNCF's `containerd.services.snapshots.v1.Snapshots` 
 2. **Unnecessary Snapshot-Tree State Machine:** `Snapshots.v1` requires the caller to walk the OCI layer chain (`diffID` $\to$ `chainID`), issue `Prepare`/`Commit` transitions for every intermediate layer, and create a temporary `View` on top. Because `ateom` already manages the writable `overlayfs` `upperdir`, `atelet` only needs an ordered slice of read-only host directories (`[]string`) for the image's layers.
 3. **Provider-Specific Sub-Layer Quirks:** AWS SOCI skips building ztoc indexes for layers smaller than `min-layer-size` (default 10 MiB) and returns `ErrAlreadyExists` without mounting them; Riptide v2 delays populating FUSE view directories briefly after `Snapshots.View` returns. Encapsulating these quirks inside the adapter keeps `atelet` simple and uniform.
 
-### Protobuf Definition (`internal/proto/ocilayer/v1/ocilayer.proto`)
+### Protobuf Definition (`internal/proto/ocilayer/ocilayer.proto`)
 
 ```protobuf
 syntax = "proto3";
-package ate.io.ocilayer.v1;
+package substrate.ocilayer.v1;
 
 service OCILayerService {
   // Checks whether the underlying provider supports streaming the given image.
@@ -80,24 +80,24 @@ service OCILayerService {
 
   // Increments the image's reference count, prepares all OCI layers (from base
   // layer 0 to topmost layer N-1), and returns their host directory paths.
-  rpc PrepareLayers(PrepareLayersRequest) returns (PrepareLayersResponse);
+  rpc PrepareImage(PrepareImageRequest) returns (PrepareImageResponse);
 
   // Decrements the image's reference count and unmounts/cleans up views when
   // the reference count reaches 0 (either after idle TTL or immediately if
-  // bypass_idle_ttl is true).
-  rpc ReleaseLayers(ReleaseLayersRequest) returns (ReleaseLayersResponse);
+  // bypass_ttl is true).
+  rpc ReleaseImage(ReleaseImageRequest) returns (ReleaseImageResponse);
 
   // Called by atelet on startup with the set of images actively used by
   // surviving actor sandboxes on disk. Rebuilds refCounts and unmounts orphans.
-  rpc ReconcileLayers(ReconcileLayersRequest) returns (ReconcileLayersResponse);
+  rpc ReconcileImages(ReconcileImagesRequest) returns (ReconcileImagesResponse);
 }
 ```
 
-### All-or-Nothing Contract
-`PrepareLayers` enforces a strict **all-or-nothing** contract per image:
-* Either the adapter returns **all** `N` layers of the image in `PrepareLayersResponse.layer_dirs` (ordered from base layer `0` to top layer `N-1`), **or** it returns an error (`FailedPrecondition` / `Unimplemented` / error) and cleans up any partial state.
-* When `CanProvide` returns `false` or `PrepareLayers` fails, `atelet` falls back to `internal/imagecache` for the **entire image**.
-* For providers like AWS SOCI that do not stream small layers (`< min-layer-size`), the SOCI adapter downloads and unpacks those small layers internally into its work directory and returns the complete `layer_dirs` slice so `atelet` never has to stitch layers from two subsystems.
+### Per-Image Contract with Driver-Managed Layer Optimization
+`PrepareImage` enforces a clean **per-image** boundary between `atelet` and the adapter driver:
+* **Clean Boundary Between `atelet` and OSS Drivers:** Because `atelet` integrates with diverse image-acceleration backends (Riptide, AWS SOCI, Nydus/Dragonfly, Spegel), it is decoupled from backend-specific layer optimizations. Either the adapter returns the complete ordered `LayerDirs` slice in `PrepareImageResponse.layer_dirs` (from base layer `0` to top layer `N-1`), **or** it returns an error (`FailedPrecondition` / `Unimplemented` / error) and cleans up any partial state so `atelet` falls back to `internal/imagecache` for the **entire image**.
+* **Hybrid Layer Backing Inside the Driver:** Each adapter driver has full knowledge of its underlying OSS/cloud engine and implements the appropriate per-layer strategy internally. For providers like AWS SOCI (`< min-layer-size`) or Riptide (`< 10 KB`) that skip FUSE-streaming small layers, the driver materializes those layers internally and returns the complete `layer_dirs` slice so `atelet` never has to stitch layers from two subsystems.
+* **Simpler Disabling, Fallback, and GC:** Because an image is never split between `atelet`'s local `imagecache` and the adapter, dynamic disabling (`ate.dev/oci-layer-service=disabled`), startup reconciliation (`ReconcileImages`), and `atelet`'s local image GC remain isolated and deterministic.
 
 ---
 
@@ -108,28 +108,28 @@ Inside the shared adapter engine (`internal/ocilayer/adapter/server.go`):
 * **Image Lease (`imageLease`):** Keyed by normalized `imageRef`. Tracks `refCount`, `imageDigest`, the ordered list of `layerRecord`s, wrapper directory paths (`/var/lib/ateom-gvisor/streaming/<provider>/<sanitized-imageRef>/layer-<i>`), and an optional idle expiration timer (`idleTimer`).
 * **Cross-Image Layer Deduplication (`chainUsers`):** Underlying snapshotter views are keyed by content-addressed `chainID` (`view-<chainID-hex>`). If Image A and Image B share common base layers, both image leases point their respective `layer-<i>` symlinks to the shared FUSE view directory and increment `chainUsers[chainID]`. A `chainID`'s underlying snapshotter view (`Snapshots.Remove("view-<chainID>")`) is only removed when **all** image leases referencing that `chainID` have been torn down.
 * **Idle Lease TTL (`--idle-ttl`, default `10m` in DaemonSet / `2m` in library):**
-  * When an actor checkpoints or terminates during normal operation (`bypass_idle_ttl = false`), `ReleaseLayers` decrements `refCount`.
+  * When an actor checkpoints or terminates during normal operation (`bypass_idle_ttl = false`), `ReleaseImage` decrements `refCount`.
   * When `refCount` reaches `0`, if `idleTTL > 0`, the adapter starts an `idleTimer` instead of immediately unmounting the FUSE views.
-  * If another actor starts or restores with the same image before `idleTimer` fires, `PrepareLayers` cancels the timer, increments `refCount`, verifies the directories are still present and listable, and returns in **`<1 ms`** (`0.49 ms – 0.74 ms` measured on GKE).
+  * If another actor starts or restores with the same image before `idleTimer` fires, `PrepareImage` cancels the timer, increments `refCount`, verifies the directories are still present and listable, and returns in **`<1 ms`** (`0.49 ms – 0.74 ms` measured on GKE).
 
-### 4.2 `atelet` Startup Reconciliation (`ReconcileLayers`)
+### 4.2 `atelet` Startup Reconciliation (`ReconcileImages`)
 Because the adapter runs in its own DaemonSet pod (`ate-ocilayer-<adapter>`), it survives `atelet` restarts. When `atelet` starts up (`cmd/atelet/oci.go:reconcileOCILayerServiceOnStartup`):
 1. `atelet` scans `/var/lib/ateom-gvisor/sandboxes/*/rootfs-overlay.json` for all surviving actor sandboxes on the node.
 2. For each `rootfs-overlay.json` whose `LayerDirs` reside under the streaming root (`/var/lib/ateom-gvisor/streaming/`) rather than `/var/lib/atelet/imagecache/layers/`, `atelet` records the active `ImageRef` and its count of active sandboxes (`activeCount[imageRef]++`).
-3. `atelet` calls `ReconcileLayers(ctx, &ReconcileLayersRequest{ActiveImages: activeImages})` (repeating for each active sandbox reference or setting the active set).
+3. `atelet` calls `ReconcileImages(ctx, &ReconcileImagesRequest{ActiveImages: activeImages})` (repeating for each active sandbox reference or setting the active set).
 4. The adapter resets its in-memory `refCount` for every image in `active_images` and immediately tears down any leased or on-disk image directory under `--work-dir` that is not in `active_images`.
 
 ### 4.3 Dynamic Node Drain (`ate.dev/oci-layer-service=disabled`)
 `atelet` watches its own Kubernetes `Node` object via a metadata informer (`cmd/atelet/main.go:watchNodeOCILayerServiceLabel`):
 * **Enabled State (`ate.dev/oci-layer-service=<adapter>` or unset when socket is present):**
   * `ociClient.SetDraining(false)`
-  * `Run` and `Restore` call `CanProvide` $\to$ `PrepareLayers`.
-  * `ReleaseLayers` uses normal idle TTL (`bypass_idle_ttl = false`).
+  * `Run` and `Restore` call `CanProvide` $\to$ `PrepareImage`.
+  * `ReleaseImage` uses normal idle TTL (`bypass_idle_ttl = false`).
 * **Draining / Disabled State (`ate.dev/oci-layer-service=disabled`):**
   * `ociClient.SetDraining(true)`
   * **New & Restoring Actors (`Run` / `Restore`):** `atelet` immediately skips `OCILayerService` and pulls/unpacks layers into `/var/lib/atelet/imagecache/layers/...`. Even an actor that was previously checkpointed while using streamed layers seamlessly restores its writable checkpoint `upperdir` onto local `imagecache` `lowerdir` layers on its next `Restore`.
   * **Existing Running Streamed Actors:** Because the adapter DaemonSet uses `nodeAffinity` matching `ate.dev/oci-layer-service In [<adapter>, disabled]`, Kubernetes **does not terminate the adapter pod** when the node is relabeled to `disabled`. Active FUSE mounts stay alive for running actors.
-  * **Immediate Lease Eviction on Teardown:** Whenever a running streamed actor checkpoints or terminates while `atelet` is draining (`IsDraining() == true`), `atelet` calls `ReleaseLayers` with `bypass_idle_ttl = true`, immediately unmounting the FUSE view as soon as `refCount` reaches `0`.
+  * **Immediate Lease Eviction on Teardown:** Whenever a running streamed actor checkpoints or terminates while `atelet` is draining (`IsDraining() == true`), `atelet` calls `ReleaseImage` with `bypass_idle_ttl = true`, immediately unmounting the FUSE view as soon as `refCount` reaches `0`.
   * **Full Pod Removal (Optional):** Once all streamed actors have drained (`0` active views), removing the label (`kubectl label node <node> ate.dev/oci-layer-service-`) causes Kubernetes to terminate the adapter DaemonSet pod on that node.
 
 ---
@@ -155,8 +155,8 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
 
 #### Credential Push & Layer Preparation Flow
 1. `CanProvide`: Checks that the image registry host is Google Artifact Registry (`*.pkg.dev` or `*.gcr.io`) and pings `Snapshots.Stat` on `/run/ate-image-streaming/gcfs-snapshotter.sock`.
-2. `PrepareLayers`:
-   * Resolves the image manifest and layer descriptors (`diffID`s, `chainID`s, compressed sizes) from GAR using the credentials supplied in `PrepareLayersRequest` (falling back to the GKE node metadata server token if no pull secret is needed).
+2. `PrepareImage`:
+   * Resolves the image manifest and layer descriptors (`diffID`s, `chainID`s, compressed sizes) from GAR using the credentials supplied in `PrepareImageRequest` (falling back to the GKE node metadata server token if no pull secret is needed).
    * Pushes credentials to `/run/ate-image-streaming/gcfsd/keychain.sock` via `stream.Keychain/UpdateCreds` (`internal/proto/ocilayer/riptide/keychain`).
    * For each layer `i = 0 .. N-1`:
      * Ensures the committed parent snapshot `<chainID>` is registered in `containerd-gcfs-grpc` via `Snapshots.Stat` / `Snapshots.Prepare` with Riptide remote snapshot labels (`containerd.io/snapshot.ref`, `containerd.io/snapshot/image-ref`, `containerd.io/snapshot/cri.image-ref`, `containerd.io/snapshot/cri.layer-digest`, `containerd.io/snapshot/gcfs.layer-size`).
@@ -166,8 +166,8 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
 
 ### 5.2 AWS SOCI Adapter (`cmd/ocilayer-soci`)
 * Connects to `soci-snapshotter-grpc` over `/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock` (isolated root `/var/lib/soci-snapshotter-grpc` with both `pull_modes.soci_v1` and `pull_modes.soci_v2` enabled).
-* Synchronizes resolved registry credentials (`PrepareLayersRequest.AuthConfig` or node keychain) to `/run/soci-snapshotter-grpc/docker/config.json` (`DOCKER_CONFIG=/run/soci-snapshotter-grpc/docker`) via `PrePrepareHook` before `Snapshots.Prepare`.
-* **Small-Layer Materialization (`materializeSmallLayer`):** When `soci-snapshotter-grpc` skips streaming a small layer (`< min-layer-size`, default `10 MiB`) and returns `codes.OK` with a local active snapshot mount instead of `codes.AlreadyExists`, the SOCI adapter verifies the layer's compressed size is `<= --max-local-layer-size` (default `10 MiB`), downloads and extracts that layer blob into the active snapshot mount directory, and commits it under `<chainID>` (`Snapshots.Commit`), satisfying the `OCILayerService` all-or-nothing contract while failing fast with `ErrNotSupported` on large unindexed layers.
+* Synchronizes resolved registry credentials (`PrepareImageRequest.AuthConfig` or node keychain) to `/run/soci-snapshotter-grpc/docker/config.json` (`DOCKER_CONFIG=/run/soci-snapshotter-grpc/docker`) via `PrePrepareHook` before `Snapshots.Prepare`.
+* **Small-Layer Materialization (`materializeSmallLayer`):** When `soci-snapshotter-grpc` skips streaming a small layer (`< min-layer-size`, default `10 MiB`) and returns `codes.OK` with a local active snapshot mount instead of `codes.AlreadyExists`, the SOCI adapter verifies the layer's compressed size is `<= --max-local-layer-size` (default `10 MiB`), downloads and extracts that layer blob into the active snapshot mount directory, and commits it under `<chainID>` (`Snapshots.Commit`), satisfying the `OCILayerService` per-image contract while failing fast with `ErrNotSupported` on large unindexed layers.
 
 ### 5.3 Nydus Single-Node Adapter (`cmd/ocilayer-nydus`, Kernel EROFS + `fscache`)
 * Connects to `containerd-nydus-grpc` (`--fs-driver=fscache --daemon-mode=shared`) over `/run/containerd-nydus/containerd-nydus-grpc.sock`, backed by a singleton `nydusd` daemon (`nydusd singleton --fscache /var/lib/containerd-nydus/cache`) and a local HTTP range/piece-caching proxy configured via `DRAGONFLY_PROXY_ADDR` (default `http://127.0.0.1:65001`, `fallback: false`, `use_http: true`).
@@ -176,18 +176,18 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
   * On every mounted snapshot view, `verifyMountIsEROFS` verifies via `syscall.Statfs` that `statfs.Type == EROFS_SUPER_MAGIC (0xE0F5E1E2)` and explicitly rejects `FUSE_SUPER_MAGIC (0x65735546)`.
 * **Single Merged EROFS Bootstrap Mount (`RAFS v6`):**
   * In Nydus RAFS v6 (`nydusify convert --fs-version 6`), layers `0 .. N-2` are chunked Zstd-compressed data blobs (`containerd.io/snapshot/nydus-blob: "true"`) and the topmost layer `N-1` is the EROFS bootstrap layer (`containerd.io/snapshot/nydus-bootstrap: "true"`, `containerd.io/snapshot/nydus-fs-version: "6"`).
-  * `cmd/ocilayer-nydus` skips intermediate `Snapshots.View` calls on `nydus-blob` layers, unpacks `image/image.boot` from the bootstrap layer when `Snapshots.Prepare` returns `codes.OK`, commits the bootstrap snapshot with Nydus annotations, mounts the resulting `erofs` (`fsid=...`) filesystem, and returns the single merged Kernel EROFS root directory in `PrepareLayersResponse.layer_dirs`.
+  * `cmd/ocilayer-nydus` skips intermediate `Snapshots.View` calls on `nydus-blob` layers, unpacks `image/image.boot` from the bootstrap layer when `Snapshots.Prepare` returns `codes.OK`, commits the bootstrap snapshot with Nydus annotations, mounts the resulting `erofs` (`fsid=...`) filesystem, and returns the single merged Kernel EROFS root directory in `PrepareImageResponse.layer_dirs`.
 
 ### 5.4 Cross-Node Nydus + Dragonfly v2 P2P Adapter (`cmd/ocilayer-nydus-dragonfly`)
 * Extends the Nydus RAFS v6 + Kernel EROFS/`fscache` stack with the full cross-node Dragonfly v2 (`d7y`) P2P control plane and data plane (`--setup-image-streaming=nydus-dragonfly`):
   * **Control Plane (`ate-system`):** Deploys `dragonfly-mysql`, `dragonfly-redis`, `dragonfly-manager` (`:8080` REST / `:65003` gRPC), and `dragonfly-scheduler` (`:8002` gRPC) to coordinate sub-blob HTTP `Range` piece tasks across worker nodes.
   * **Per-Node Data Plane (`ate-ocilayer-nydus-dragonfly` DaemonSet):** Runs `dfdaemon` (`:65001` local proxy for `nydusd`, `:65000` upload server, and `:65002` peer gRPC server over `hostNetwork`), `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd`), and `ocilayer-nydus-dragonfly` (`provider="nydus-dragonfly"`).
-  * **Active Dragonfly Health Probing:** In addition to verifying Kernel EROFS and `/dev/cachefiles`, `ocilayer-nydus-dragonfly` probes `<DRAGONFLY_PROXY_ADDR>/server/ping` during `CanProvide` and `PrepareLayers` (`--verify-dragonfly-ping=true`) to ensure the local `dfdaemon` peer is online before mounting RAFS v6 layers.
+  * **Active Dragonfly Health Probing:** In addition to verifying Kernel EROFS and `/dev/cachefiles`, `ocilayer-nydus-dragonfly` probes `<DRAGONFLY_PROXY_ADDR>/server/ping` during `CanProvide` and `PrepareImage` (`--verify-dragonfly-ping=true`) to ensure the local `dfdaemon` peer is online before mounting RAFS v6 layers.
 
 ### 5.5 Stateless Spegel P2P OCI Layer Adapter (`cmd/ocilayer-spegel`)
 * Provides stateless node-to-node P2P OCI layer blob distribution (`--setup-image-streaming=spegel`, Mode A) for **100% standard unconverted OCI images** (`tar+gzip`, `tar+zstd`, plain `tar`) on any Linux kernel (including standard GKE `COS_CONTAINERD` and `UBUNTU_CONTAINERD`) with **zero central control plane**:
   * **Stateless Peer Discovery (`spegel-bootstrap` Headless `Service`):** Nodes discover peer Spegel mirrors via the headless `spegel-bootstrap` `Service` in `ate-system` (`:5000` local mirror / `:5001` peer registry) without requiring `mysql`, `redis`, `manager`, or `scheduler` pods.
-  * **P2P-First Blob Fetch with Cryptographic Verification & Upstream Fallback:** On `PrepareLayers`, `ocilayer-spegel` queries the local Spegel OCI registry mirror (`GET <SPEGEL_MIRROR_ADDR>/v2/<repo>/blobs/sha256:<hex>?ns=<registry>`), which checks the local blob store and fans out `HEAD`/`GET` requests (`X-Spegel-External-Request: true`) across peer nodes. Only on a cluster-cold miss does `ocilayer-spegel` pull the blob from the upstream registry.
+  * **P2P-First Blob Fetch with Cryptographic Verification & Upstream Fallback:** On `PrepareImage`, `ocilayer-spegel` queries the local Spegel OCI registry mirror (`GET <SPEGEL_MIRROR_ADDR>/v2/<repo>/blobs/sha256:<hex>?ns=<registry>`), which checks the local blob store and fans out `HEAD`/`GET` requests (`X-Spegel-External-Request: true`) across peer nodes. Only on a cluster-cold miss does `ocilayer-spegel` pull the blob from the upstream registry.
   * **Content-Addressed Blob & Unpacked Layer Store (`/var/lib/substrate/spegel`):** Every compressed blob is verified against its expected `sha256:<hex>` digest before being atomically committed to `blobs/sha256/<digestHex>` (making it immediately servable to all peer nodes) and unpacked into `layers/sha256/<chainIDHex>/fs` for instant cross-image layer deduplication and `ateom` bind-mounting.
 
 ---
@@ -270,7 +270,7 @@ without forking or modifying `substrate`.
 | `ate.imagestreaming.requests` | Counter | `{request}` | `operation` (`can_provide`, `prepare_layers`, `release_layers`, `reconcile_layers`), `status` (`ok`, `declined`, `error`, `fallback`) | Count of `OCILayerService` RPC operations and fallbacks to `imagecache`. |
 | `ate.imagestreaming.duration` | Histogram | `s` | `operation`, `status` | Latency distribution of `OCILayerService` RPC calls from `atelet`. |
 
-Additionally, the adapter logs structured per-stage latency breakdowns on every cold `PrepareLayers` call (`resolve_ms`, `stat_ms`, `prepare_ms`, `view_ms`, `listable_ms`, `wrapper_ms`, `total_ms`).
+Additionally, the adapter logs structured per-stage latency breakdowns on every cold `PrepareImage` call (`resolve_ms`, `stat_ms`, `prepare_ms`, `view_ms`, `listable_ms`, `wrapper_ms`, `total_ms`).
 
 ---
 
@@ -289,11 +289,11 @@ Full test logs, command transcripts, and side-by-side benchmarks are documented 
 | Verification Scenario | Case 1: GKE Image Streaming Disabled (`no-stream-pool`) | Case 2: GKE Image Streaming Enabled (`e2-std32-ssd-pool`) |
 | :--- | :--- | :--- |
 | **Host `gcfsd.service` / Snapshotter** | `inactive` (`overlayfs`) | `active` (`gcfs`) |
-| **Cold `PrepareLayers` — 3-Layer, 52 MB Image (`image-a:latest`)** | **`543.24 ms`** (`resolve=268.9ms`, `prepare=242.0ms`, `view=24.2ms`) | **`612.16 ms`** (`resolve=281.1ms`, `prepare=304.2ms`, `view=12.9ms`) |
-| **Cold `PrepareLayers` — 9-Layer, 1.19 GB Image (`sandbox-04176181...`)** | **`1,347.40 ms`** (`resolve=261.3ms`, `prepare=1029.3ms`, `view=39.7ms`) | **`1,226.61 ms`** (`resolve=272.1ms`, `prepare=876.8ms`, `view=49.2ms`) |
-| **Warm `PrepareLayers` Latency (3 & 9 layers)** | **`0.49 – 0.69 ms`** | **`0.74 – 0.94 ms`** |
+| **Cold `PrepareImage` — 3-Layer, 52 MB Image (`image-a:latest`)** | **`543.24 ms`** (`resolve=268.9ms`, `prepare=242.0ms`, `view=24.2ms`) | **`612.16 ms`** (`resolve=281.1ms`, `prepare=304.2ms`, `view=12.9ms`) |
+| **Cold `PrepareImage` — 9-Layer, 1.19 GB Image (`sandbox-04176181...`)** | **`1,347.40 ms`** (`resolve=261.3ms`, `prepare=1029.3ms`, `view=39.7ms`) | **`1,226.61 ms`** (`resolve=272.1ms`, `prepare=876.8ms`, `view=49.2ms`) |
+| **Warm `PrepareImage` Latency (3 & 9 layers)** | **`0.49 – 0.69 ms`** | **`0.74 – 0.94 ms`** |
 | **Host `containerd` Pull + Sync GC (`ctr -n k8s.io images rm --sync`)** | **0 interference** (`6/6` Substrate snapshots & `3/3` FUSE views intact) | **0 interference** (host `gcfs` `313 -> 314 -> 313`; Substrate `6/6` intact) |
-| **`ReleaseLayers (bypass_idle_ttl=true)`** | `6.20 ms` (3 layers) / `31.48 ms` (9 layers) | `12.42 ms` (3 layers) / `30.97 ms` (9 layers) |
+| **`ReleaseImage (bypass_idle_ttl=true)`** | `6.20 ms` (3 layers) / `31.48 ms` (9 layers) | `12.42 ms` (3 layers) / `30.97 ms` (9 layers) |
 
 ### 8.2 AWS SOCI v0.15.0 (`ate-ocilayer-soci`, 9-Layer 1.19 GB Image)
 
@@ -301,29 +301,29 @@ Full test logs, command transcripts, and side-by-side benchmarks are documented 
 | :--- | :--- | :--- |
 | **Layer Mounting Strategy** | All `9/9` layers FUSE-streamed (`fuse.rawBridge`) | All `9/9` layers FUSE-streamed (`fuse.rawBridge`) |
 | **Cold `CanProvide` Latency** | `3.55 ms` | `5.27 ms` |
-| **Cold `PrepareLayers` Latency (9 layers, 1.19 GB)** | **`3,874.12 ms`** (`resolve=368.2ms`, `prepare=3434.1ms`, `view=46.0ms`) | **`6,537.03 ms`** (`resolve=263.5ms`, `prepare=6158.7ms`, `view=90.3ms`) |
-| **Warm `PrepareLayers` Latency (9 layers)** | **`0.56 ms`** | **`0.90 ms`** |
+| **Cold `PrepareImage` Latency (9 layers, 1.19 GB)** | **`3,874.12 ms`** (`resolve=368.2ms`, `prepare=3434.1ms`, `view=46.0ms`) | **`6,537.03 ms`** (`resolve=263.5ms`, `prepare=6158.7ms`, `view=90.3ms`) |
+| **Warm `PrepareImage` Latency (9 layers)** | **`0.56 ms`** | **`0.90 ms`** |
 | **Small-Layer Local Materialization + Unindexed Decline (`image-a:latest`)** | Layer 0 (`< 10 MiB`) materialized & committed locally; Layer 1 (`52.4 MB`) fails fast with `ErrNotSupported` + cached in `declineTTL` (`1.98 ms`) | Same (`ErrNotSupported` + cached in `declineTTL`) |
-| **`ReleaseLayers (bypass_idle_ttl=true)`** | `35.42 ms` (all 9 views & wrapper dir removed) | `35.42 ms` (all 9 views & wrapper dir removed) |
+| **`ReleaseImage (bypass_idle_ttl=true)`** | `35.42 ms` (all 9 views & wrapper dir removed) | `35.42 ms` (all 9 views & wrapper dir removed) |
 
 ### 8.3 Nydus + Dragonfly (`ate-ocilayer-nydus` & `ate-ocilayer-nydus-dragonfly`, Kernel EROFS + `fscache`, 9-Layer 1.19 GB Image)
 
 | Verification Scenario | Ubuntu EROFS Node (`erofs-ubuntu-pool`, `fkxc` & `49x6`, `c3-standard-4`) | GKE COS Node (`bpft`) |
 | :--- | :--- | :--- |
 | **Kernel EROFS + `fscache` Check (`fusedev` Disabled)** | Passed (`erofs` + `cachefiles` `ONDEMAND` loaded; `Magic=0xe0f5e1e2`) | Failed fast (`Exit Code 1`: `'erofs' filesystem not registered in /proc/filesystems; fusedev fallback is disabled`) |
-| **Cold `PrepareLayers` Latency (RAFS v6, 9 layers)** | **`645.85 – 736.87 ms`** (Single-Node) / **`996.46 – 1,081.49 ms`** (Multi-Node Dragonfly v2) | N/A |
-| **Warm `PrepareLayers` Latency (Lease Hit)** | **`0.451 – 0.659 ms`** | N/A |
+| **Cold `PrepareImage` Latency (RAFS v6, 9 layers)** | **`645.85 – 736.87 ms`** (Single-Node) / **`996.46 – 1,081.49 ms`** (Multi-Node Dragonfly v2) | N/A |
+| **Warm `PrepareImage` Latency (Lease Hit)** | **`0.451 – 0.659 ms`** | N/A |
 | **Demand-Paging Sequential Read — Cold GAR vs. Cross-Node Dragonfly P2P** | **`6.91 MiB/s`** (Cold GAR) $\to$ **`121.48 – 131.24 MiB/s`** (`17.6x – 19.0x` speedup with Dragonfly P2P, `261 MiB` across `60+` pieces, `0` back-to-source misses on Node B) | N/A |
 | **Warm In-Kernel EROFS Read (Disk `fscache` / Page Cache)** | **`180.20 MiB/s`** (Disk `fscache`) / **`5,227.60 – 5,813.32 MiB/s`** (`p50 = 7.45 – 10.4 µs`, Kernel Page Cache) | N/A |
-| **`ReleaseLayers (bypass_idle_ttl=true)`** | `0.22 – 2.36 ms` | N/A |
+| **`ReleaseImage (bypass_idle_ttl=true)`** | `0.22 – 2.36 ms` | N/A |
 
 ### 8.4 Stateless Spegel P2P OCI Layer Adapter (`ate-ocilayer-spegel`, Mode A, 4-Node `COS_CONTAINERD` + `UBUNTU_CONTAINERD`)
 
 | Verification Scenario | Node 1 (`65vz`, `COS_CONTAINERD` Seeder) | Nodes 2, 3 & 4 (`p1tz` COS, `fkxc` & `49x6` Ubuntu P2P Receivers) |
 | :--- | :--- | :--- |
 | **Control Plane & Image Format** | `0` control-plane pods (`spegel-bootstrap` headless DNS); 100% standard `tar+gzip` OCI images | `3/3` remote peers auto-discovered on `:5000`; works identically on `COS_CONTAINERD` and `UBUNTU_CONTAINERD` |
-| **3-Layer, 56.3 MB Image (`image-a:latest`) `PrepareLayers`** | **`2,027.69 ms`** (`prepare=1,659.0ms`, Cold GAR) | **`440.77 – 498.30 ms`** (`prepare=202.1 – 228.5ms`, **`4.1x – 4.6x` total / `7.3x – 8.2x` prepare speedup**, `0` GAR blob fetches) |
+| **3-Layer, 56.3 MB Image (`image-a:latest`) `PrepareImage`** | **`2,027.69 ms`** (`prepare=1,659.0ms`, Cold GAR) | **`440.77 – 498.30 ms`** (`prepare=202.1 – 228.5ms`, **`4.1x – 4.6x` total / `7.3x – 8.2x` prepare speedup**, `0` GAR blob fetches) |
 | **Cross-Image Shared Layer Deduplication (`sandbox-...:latest`)** | Layer 0 deduplicated on disk (`0 ms`); 2 delta layers (`6.02 MB`) from GAR in `1,006.29 ms` (`prepare=709.2ms`) | Layer 0 deduplicated on disk (`0 ms`); 2 delta layers via P2P in **`328.30 – 353.22 ms`** (`prepare=83.4 – 84.4ms`, **`8.5x` prepare speedup**) |
-| **Warm `PrepareLayers` Latency (Lease Hit, 3 & 9 layers)** | **`0.455 – 0.586 ms`** | **`0.481 – 0.517 ms`** |
+| **Warm `PrepareImage` Latency (Lease Hit, 3 & 9 layers)** | **`0.455 – 0.586 ms`** | **`0.481 – 0.517 ms`** |
 | **Native Unpacked Layer Read (`STATFS_TYPE=0xEF53`, 22,092 files)** | **`181.83 – 194.41 MiB/s`** (Cold Disk, `p50 = 372.5 µs`) | **`4,137.90 – 4,810.04 MiB/s`** (Warm Page Cache, `p50 = 7.96 µs`) |
-| **`ReleaseLayers (bypass_idle_ttl=true)`** | `0.44 – 0.61 ms` | `0.46 – 2.05 ms` |
+| **`ReleaseImage (bypass_idle_ttl=true)`** | `0.44 – 0.61 ms` | `0.46 – 2.05 ms` |

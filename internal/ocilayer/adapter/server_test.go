@@ -178,10 +178,10 @@ func TestServerAndDriverLifecycle(t *testing.T) {
 		t.Errorf("client.Name() = %q, want %q", client.Name(), "test-provider")
 	}
 
-	// 1. First PrepareLayers mounts the 2 layers.
-	res1, err := client.PrepareLayers(ctx, req)
+	// 1. First PrepareImage mounts the 2 layers.
+	res1, err := client.PrepareImage(ctx, req)
 	if err != nil {
-		t.Fatalf("PrepareLayers(1) failed: %v", err)
+		t.Fatalf("PrepareImage(1) failed: %v", err)
 	}
 	if len(res1.LayerDirs) != 2 {
 		t.Fatalf("len(LayerDirs) = %d, want 2", len(res1.LayerDirs))
@@ -195,10 +195,10 @@ func TestServerAndDriverLifecycle(t *testing.T) {
 		}
 	}
 
-	// 2. Second PrepareLayers reuses warm lease and increments refCount to 2 without new View RPCs.
-	res2, err := client.PrepareLayers(ctx, req)
+	// 2. Second PrepareImage reuses warm lease and increments refCount to 2 without new View RPCs.
+	res2, err := client.PrepareImage(ctx, req)
 	if err != nil {
-		t.Fatalf("PrepareLayers(2) failed: %v", err)
+		t.Fatalf("PrepareImage(2) failed: %v", err)
 	}
 	snapClient.mu.Lock()
 	if len(snapClient.viewReqs) != 2 {
@@ -209,9 +209,9 @@ func TestServerAndDriverLifecycle(t *testing.T) {
 		t.Fatalf("len(res2.LayerDirs) = %d, want 2", len(res2.LayerDirs))
 	}
 
-	// 3. First ReleaseLayers decrements refCount from 2 -> 1 (views stay mounted).
-	if err := client.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: imageRef, BypassTTL: true}); err != nil {
-		t.Fatalf("ReleaseLayers(1) failed: %v", err)
+	// 3. First ReleaseImage decrements refCount from 2 -> 1 (views stay mounted).
+	if err := client.ReleaseImage(ctx, &ocilayer.ReleaseRequest{ImageRef: imageRef, BypassTTL: true}); err != nil {
+		t.Fatalf("ReleaseImage(1) failed: %v", err)
 	}
 	snapClient.mu.Lock()
 	if len(snapClient.removeKeys) != 0 {
@@ -219,9 +219,9 @@ func TestServerAndDriverLifecycle(t *testing.T) {
 	}
 	snapClient.mu.Unlock()
 
-	// 4. Second ReleaseLayers with BypassTTL=true decrements refCount 1 -> 0 and immediately removes views.
-	if err := client.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: imageRef, BypassTTL: true}); err != nil {
-		t.Fatalf("ReleaseLayers(2) failed: %v", err)
+	// 4. Second ReleaseImage with BypassTTL=true decrements refCount 1 -> 0 and immediately removes views.
+	if err := client.ReleaseImage(ctx, &ocilayer.ReleaseRequest{ImageRef: imageRef, BypassTTL: true}); err != nil {
+		t.Fatalf("ReleaseImage(2) failed: %v", err)
 	}
 	snapClient.mu.Lock()
 	if len(snapClient.removeKeys) != 2 {
@@ -248,13 +248,13 @@ func TestServerDeclineReturnsErrNotSupported(t *testing.T) {
 	}
 
 	client := startTestOCILayerServer(t, driver)
-	_, err = client.PrepareLayers(ctx, &ocilayer.PrepareRequest{ImageRef: "docker.io/library/alpine:latest"})
+	_, err = client.PrepareImage(ctx, &ocilayer.PrepareRequest{ImageRef: "docker.io/library/alpine:latest"})
 	if !errors.Is(err, ocilayer.ErrNotSupported) {
-		t.Fatalf("PrepareLayers error = %v, want ErrNotSupported", err)
+		t.Fatalf("PrepareImage error = %v, want ErrNotSupported", err)
 	}
 }
 
-func TestServerReconcileLayersRestoresAndSweepsOrphans(t *testing.T) {
+func TestServerReconcileImagesRestoresAndSweepsOrphans(t *testing.T) {
 	ctx := context.Background()
 	diffIDs := []string{"sha256:1111111111111111111111111111111111111111111111111111111111111111"}
 	snapClient := newFakeSnapshotsClient(t, diffIDs)
@@ -276,17 +276,17 @@ func TestServerReconcileLayersRestoresAndSweepsOrphans(t *testing.T) {
 	activeImg := "example.com/active:v1"
 	orphanImg := "example.com/orphan:v1"
 
-	activeRes, err := client.PrepareLayers(ctx, &ocilayer.PrepareRequest{ImageRef: activeImg})
+	activeRes, err := client.PrepareImage(ctx, &ocilayer.PrepareRequest{ImageRef: activeImg})
 	if err != nil {
-		t.Fatalf("PrepareLayers(active): %v", err)
+		t.Fatalf("PrepareImage(active): %v", err)
 	}
-	orphanRes, err := client.PrepareLayers(ctx, &ocilayer.PrepareRequest{ImageRef: orphanImg})
+	orphanRes, err := client.PrepareImage(ctx, &ocilayer.PrepareRequest{ImageRef: orphanImg})
 	if err != nil {
-		t.Fatalf("PrepareLayers(orphan): %v", err)
+		t.Fatalf("PrepareImage(orphan): %v", err)
 	}
 
 	// Reconcile only activeImg with RefCount=3; orphanImg should be swept immediately.
-	if err := client.ReconcileLayers(ctx, []*ocilayer.ActiveImageLayers{
+	if err := client.ReconcileImages(ctx, []*ocilayer.ActiveImageLayers{
 		{
 			ImageRef:    activeImg,
 			ImageDigest: activeRes.ImageDigest,
@@ -294,13 +294,13 @@ func TestServerReconcileLayersRestoresAndSweepsOrphans(t *testing.T) {
 			RefCount:    3,
 		},
 	}); err != nil {
-		t.Fatalf("ReconcileLayers: %v", err)
+		t.Fatalf("ReconcileImages: %v", err)
 	}
 
 	if _, err := os.Stat(orphanRes.LayerDirs[0]); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("orphan layer dir still exists after ReconcileLayers: err=%v", err)
+		t.Errorf("orphan layer dir still exists after ReconcileImages: err=%v", err)
 	}
 	if _, err := os.Stat(activeRes.LayerDirs[0]); err != nil {
-		t.Errorf("active layer dir missing after ReconcileLayers: %v", err)
+		t.Errorf("active layer dir missing after ReconcileImages: %v", err)
 	}
 }

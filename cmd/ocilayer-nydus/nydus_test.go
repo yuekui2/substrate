@@ -295,9 +295,9 @@ func TestNydusEROFSBootstrapAndRejectFUSEFallback(t *testing.T) {
 		},
 	}
 
-	res, err := client.PrepareLayers(ctx, req)
+	res, err := client.PrepareImage(ctx, req)
 	if err != nil {
-		t.Fatalf("PrepareLayers failed: %v", err)
+		t.Fatalf("PrepareImage failed: %v", err)
 	}
 	if len(res.LayerDirs) != 1 {
 		t.Fatalf("len(LayerDirs) = %d, want 1 merged EROFS view", len(res.LayerDirs))
@@ -344,10 +344,10 @@ func TestNydusUnconvertedOCIImageDeclinesWithErrNotSupported(t *testing.T) {
 	}
 
 	client := startTestNydusServer(t, driver)
-	_, err = client.PrepareLayers(ctx, &ocilayer.PrepareRequest{
+	_, err = client.PrepareImage(ctx, &ocilayer.PrepareRequest{
 		ImageRef: "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/image-a:latest",
 	})
 	if !errors.Is(err, ocilayer.ErrNotSupported) {
-		t.Fatalf("PrepareLayers error = %v, want ErrNotSupported for non-Nydus OCI image", err)
+		t.Fatalf("PrepareImage error = %v, want ErrNotSupported for non-Nydus OCI image", err)
 	}
 }

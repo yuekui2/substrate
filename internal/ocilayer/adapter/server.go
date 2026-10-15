@@ -72,9 +72,9 @@ func (s *Server) CanProvide(ctx context.Context, req *ocilayerpb.CanProvideReque
 	}, nil
 }
 
-// PrepareLayers prepares and mounts all layers of the image, increments the
+// PrepareImage prepares and mounts all layers of the image, increments the
 // image's reference count, and returns the ordered read-only host LayerDirs.
-func (s *Server) PrepareLayers(ctx context.Context, req *ocilayerpb.PrepareLayersRequest) (*ocilayerpb.PrepareLayersResponse, error) {
+func (s *Server) PrepareImage(ctx context.Context, req *ocilayerpb.PrepareImageRequest) (*ocilayerpb.PrepareImageResponse, error) {
 	if s.driver == nil {
 		return nil, status.Error(codes.Unavailable, "no provider driver configured")
 	}
@@ -92,7 +92,7 @@ func (s *Server) PrepareLayers(ctx context.Context, req *ocilayerpb.PrepareLayer
 		}
 	}
 
-	res, err := s.driver.PrepareLayers(ctx, prepReq)
+	res, err := s.driver.PrepareImage(ctx, prepReq)
 	if err != nil {
 		if errors.Is(err, ocilayer.ErrNotSupported) {
 			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
@@ -112,7 +112,7 @@ func (s *Server) PrepareLayers(ctx context.Context, req *ocilayerpb.PrepareLayer
 		configJSON = b
 	}
 
-	return &ocilayerpb.PrepareLayersResponse{
+	return &ocilayerpb.PrepareImageResponse{
 		ImageDigest:  res.ImageDigest,
 		ConfigJson:   configJSON,
 		LayerDirs:    res.LayerDirs,
@@ -120,25 +120,25 @@ func (s *Server) PrepareLayers(ctx context.Context, req *ocilayerpb.PrepareLayer
 	}, nil
 }
 
-// ReleaseLayers decrements the reference count for the image's layers.
-func (s *Server) ReleaseLayers(ctx context.Context, req *ocilayerpb.ReleaseLayersRequest) (*ocilayerpb.ReleaseLayersResponse, error) {
+// ReleaseImage decrements the reference count for the image's layers.
+func (s *Server) ReleaseImage(ctx context.Context, req *ocilayerpb.ReleaseImageRequest) (*ocilayerpb.ReleaseImageResponse, error) {
 	if s.driver == nil {
-		return &ocilayerpb.ReleaseLayersResponse{}, nil
+		return &ocilayerpb.ReleaseImageResponse{}, nil
 	}
-	if err := s.driver.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{
+	if err := s.driver.ReleaseImage(ctx, &ocilayer.ReleaseRequest{
 		ImageRef:  req.GetImageRef(),
 		BypassTTL: req.GetBypassTtl(),
 	}); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
-	return &ocilayerpb.ReleaseLayersResponse{}, nil
+	return &ocilayerpb.ReleaseImageResponse{}, nil
 }
 
-// ReconcileLayers restores active reference counts from surviving actor
+// ReconcileImages restores active reference counts from surviving actor
 // bundles on atelet startup and sweeps orphaned views.
-func (s *Server) ReconcileLayers(ctx context.Context, req *ocilayerpb.ReconcileLayersRequest) (*ocilayerpb.ReconcileLayersResponse, error) {
+func (s *Server) ReconcileImages(ctx context.Context, req *ocilayerpb.ReconcileImagesRequest) (*ocilayerpb.ReconcileImagesResponse, error) {
 	if s.driver == nil {
-		return &ocilayerpb.ReconcileLayersResponse{}, nil
+		return &ocilayerpb.ReconcileImagesResponse{}, nil
 	}
 	active := make([]*ocilayer.ActiveImageLayers, 0, len(req.GetActiveImages()))
 	for _, img := range req.GetActiveImages() {
@@ -152,10 +152,10 @@ func (s *Server) ReconcileLayers(ctx context.Context, req *ocilayerpb.ReconcileL
 			RefCount:    int(img.GetRefCount()),
 		})
 	}
-	if err := s.driver.ReconcileLayers(ctx, active); err != nil {
+	if err := s.driver.ReconcileImages(ctx, active); err != nil {
 		return nil, status.Errorf(codes.Internal, "%v", err)
 	}
-	return &ocilayerpb.ReconcileLayersResponse{}, nil
+	return &ocilayerpb.ReconcileImagesResponse{}, nil
 }
 
 // ServeUnixSocket starts a gRPC server for driver on listenSocket and blocks

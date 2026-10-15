@@ -70,7 +70,7 @@ const (
 
 // MountEnv provides the resolved image metadata, snapshotter client, and
 // working directory to a provider's LayerMounterFunc during a cold
-// PrepareLayers call.
+// PrepareImage call.
 type MountEnv struct {
 	Driver       *Driver
 	Client       snapshots.SnapshotsClient
@@ -213,14 +213,14 @@ func WithKeychain(k authn.Keychain) Option {
 }
 
 // WithLayerMounter sets the provider-specific layer mounter executed during cold
-// PrepareLayers calls. When unset, Driver uses StandardMountLayers.
+// PrepareImage calls. When unset, Driver uses StandardMountLayers.
 func WithLayerMounter(fn LayerMounterFunc) Option {
 	return func(d *Driver) {
 		d.layerMounter = fn
 	}
 }
 
-// WithWarmHitHook sets an optional hook invoked when PrepareLayers reuses a
+// WithWarmHitHook sets an optional hook invoked when PrepareImage reuses a
 // warm lease.
 func WithWarmHitHook(fn WarmHitHookFunc) Option {
 	return func(d *Driver) {
@@ -356,7 +356,7 @@ func (d *Driver) WithNamespaceContext(ctx context.Context) context.Context {
 	return metadata.AppendToOutgoingContext(ctx, ContainerdNamespaceHeader, ns)
 }
 
-// AcquireChainLock returns a per-ChainID mutex so concurrent PrepareLayers
+// AcquireChainLock returns a per-ChainID mutex so concurrent PrepareImage
 // calls for different images sharing base layers serialize Stat+Prepare per
 // ChainID.
 func (d *Driver) AcquireChainLock(chainID string) *sync.Mutex {
@@ -510,12 +510,12 @@ func (d *Driver) Probe(ctx context.Context) error {
 	}
 }
 
-// PrepareLayers asks the remote snapshotter to provide each layer in the image
+// PrepareImage asks the remote snapshotter to provide the layers for the image
 // and returns read-only views of them. Concurrent calls for the same image are
 // coalesced so only one goroutine prepares the views while waiters share the
 // resulting lease and increment its reference count. If the snapshotter
 // declines the image, it returns an error wrapping ocilayer.ErrNotSupported.
-func (d *Driver) PrepareLayers(ctx context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
+func (d *Driver) PrepareImage(ctx context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
 	if req == nil || req.ImageRef == "" {
 		return nil, errors.New("image reference is required")
 	}
@@ -575,7 +575,7 @@ func (d *Driver) PrepareLayers(ctx context.Context, req *ocilayer.PrepareRequest
 		break
 	}
 
-	res, err := d.prepareLayersCold(ctx, req)
+	res, err := d.prepareImageCold(ctx, req)
 
 	d.mu.Lock()
 	if errors.Is(err, ocilayer.ErrNotSupported) && d.declineTTL > 0 {
@@ -606,7 +606,7 @@ func layersExist(layers []string) bool {
 	return true
 }
 
-func (d *Driver) prepareLayersCold(ctx context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
+func (d *Driver) prepareImageCold(ctx context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
 	coldStart := time.Now()
 	client, err := d.getClient()
 	if err != nil {
@@ -835,7 +835,7 @@ func (d *Driver) prepareLayersCold(ctx context.Context, req *ocilayer.PrepareReq
 		RemoveSnapshot(nsCtx, client, snapshotter, key)
 	}
 
-	slog.InfoContext(ctx, "PrepareLayers timing breakdown",
+	slog.InfoContext(ctx, "PrepareImage timing breakdown",
 		slog.String("provider", d.name),
 		slog.String("image", req.ImageRef),
 		slog.String("digest", digest),
@@ -916,11 +916,11 @@ func (d *Driver) probeListable(ctx context.Context, mountDir string) error {
 	}
 }
 
-// ReleaseLayers decrements the reference count for the image lease. When
+// ReleaseImage decrements the reference count for the image lease. When
 // refCount reaches 0, if d.leaseIdleTTL > 0 and !req.BypassTTL the lease and
 // its mounted views are kept warm for d.leaseIdleTTL; otherwise the views and
 // wrapper directory are removed immediately.
-func (d *Driver) ReleaseLayers(ctx context.Context, req *ocilayer.ReleaseRequest) error {
+func (d *Driver) ReleaseImage(ctx context.Context, req *ocilayer.ReleaseRequest) error {
 	if req == nil || req.ImageRef == "" {
 		return nil
 	}
@@ -1065,10 +1065,10 @@ func (d *Driver) evictIdleLease(imageRef string, targetLease *imageLease) {
 	}
 }
 
-// ReconcileLayers restores active lease tracking and reference counts for
+// ReconcileImages restores active lease tracking and reference counts for
 // surviving actor workloads on atelet startup or reconnect, and sweeps orphaned
 // wrapper directories and snapshot views not referenced by any active actor.
-func (d *Driver) ReconcileLayers(ctx context.Context, active []*ocilayer.ActiveImageLayers) error {
+func (d *Driver) ReconcileImages(ctx context.Context, active []*ocilayer.ActiveImageLayers) error {
 	activeWorkDirs := make(map[string]bool)
 	activeKeys := make(map[string]bool)
 

@@ -249,9 +249,9 @@ func TestSOCISmallLayerMaterializationAndAllOrNothing(t *testing.T) {
 		t.Fatalf("client.Name() = %q, want %q", client.Name(), ProviderSOCI)
 	}
 
-	res, err := client.PrepareLayers(ctx, req)
+	res, err := client.PrepareImage(ctx, req)
 	if err != nil {
-		t.Fatalf("PrepareLayers failed: %v", err)
+		t.Fatalf("PrepareImage failed: %v", err)
 	}
 	if len(res.LayerDirs) != 2 {
 		t.Fatalf("len(LayerDirs) = %d, want 2", len(res.LayerDirs))
@@ -321,10 +321,10 @@ func TestSOCIUnindexedImageDeclinesAllOrNothing(t *testing.T) {
 	}
 
 	client := startTestSOCIServer(t, driver)
-	_, err = client.PrepareLayers(ctx, &ocilayer.PrepareRequest{
+	_, err = client.PrepareImage(ctx, &ocilayer.PrepareRequest{
 		ImageRef: "123456789012.dkr.ecr.us-west-2.amazonaws.com/unindexed:v1",
 	})
 	if !errors.Is(err, ocilayer.ErrNotSupported) {
-		t.Fatalf("PrepareLayers error = %v, want ErrNotSupported when 0 layers are remote-streamed", err)
+		t.Fatalf("PrepareImage error = %v, want ErrNotSupported when 0 layers are remote-streamed", err)
 	}
 }

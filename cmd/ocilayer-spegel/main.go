@@ -43,7 +43,7 @@ func main() {
 		upstreamMirrorAddr = flag.String("spegel-upstream-mirror-addr", "", "Optional secondary local Spegel daemon endpoint (e.g. http://127.0.0.1:5003)")
 		enableP2PServer    = flag.Bool("enable-p2p-server", false, "Start built-in Spegel-compatible P2P OCI registry mirror HTTP server on --p2p-listen-addr")
 		p2pListenAddr      = flag.String("p2p-listen-addr", ":5000", "TCP listen address for the built-in Spegel P2P OCI registry mirror server")
-		verifySpegelReady  = flag.Bool("verify-spegel-ready", true, "Probe local Spegel mirror /healthz during CanProvide and PrepareLayers")
+		verifySpegelReady  = flag.Bool("verify-spegel-ready", true, "Probe local Spegel mirror /healthz during CanProvide and PrepareImage")
 		idleTTL            = flag.Duration("idle-ttl", adapter.DefaultLeaseIdleTTL, "How long to keep an image's layer lease active after refCount drops to 0 (0 disables)")
 		declineTTL         = flag.Duration("decline-ttl", adapter.DefaultDeclineTTL, "How long to cache declined (non-streamable) images")
 		listableTimeout    = flag.Duration("listable-timeout", adapter.DefaultListableTimeout, "Maximum time to wait for a layer directory to become listable")

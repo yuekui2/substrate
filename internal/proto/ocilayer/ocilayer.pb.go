@@ -16,7 +16,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11-devel
 // 	protoc        v4.25.3
-// source: internal/proto/ocilayer/ocilayer.proto
+// source: ocilayer.proto
 
 package ocilayer
 
@@ -51,7 +51,7 @@ type RegistryAuth struct {
 
 func (x *RegistryAuth) Reset() {
 	*x = RegistryAuth{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[0]
+	mi := &file_ocilayer_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63,7 +63,7 @@ func (x *RegistryAuth) String() string {
 func (*RegistryAuth) ProtoMessage() {}
 
 func (x *RegistryAuth) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[0]
+	mi := &file_ocilayer_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -76,7 +76,7 @@ func (x *RegistryAuth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegistryAuth.ProtoReflect.Descriptor instead.
 func (*RegistryAuth) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{0}
+	return file_ocilayer_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *RegistryAuth) GetUsername() string {
@@ -131,7 +131,7 @@ type CanProvideRequest struct {
 
 func (x *CanProvideRequest) Reset() {
 	*x = CanProvideRequest{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[1]
+	mi := &file_ocilayer_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -143,7 +143,7 @@ func (x *CanProvideRequest) String() string {
 func (*CanProvideRequest) ProtoMessage() {}
 
 func (x *CanProvideRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[1]
+	mi := &file_ocilayer_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -156,7 +156,7 @@ func (x *CanProvideRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanProvideRequest.ProtoReflect.Descriptor instead.
 func (*CanProvideRequest) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{1}
+	return file_ocilayer_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CanProvideRequest) GetImageRef() string {
@@ -183,7 +183,7 @@ type CanProvideResponse struct {
 
 func (x *CanProvideResponse) Reset() {
 	*x = CanProvideResponse{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[2]
+	mi := &file_ocilayer_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +195,7 @@ func (x *CanProvideResponse) String() string {
 func (*CanProvideResponse) ProtoMessage() {}
 
 func (x *CanProvideResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[2]
+	mi := &file_ocilayer_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,7 +208,7 @@ func (x *CanProvideResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanProvideResponse.ProtoReflect.Descriptor instead.
 func (*CanProvideResponse) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{2}
+	return file_ocilayer_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CanProvideResponse) GetCanProvide() bool {
@@ -225,7 +225,7 @@ func (x *CanProvideResponse) GetProviderName() string {
 	return ""
 }
 
-type PrepareLayersRequest struct {
+type PrepareImageRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ImageRef      string                 `protobuf:"bytes,1,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
 	Auth          *RegistryAuth          `protobuf:"bytes,2,opt,name=auth,proto3" json:"auth,omitempty"`
@@ -233,21 +233,21 @@ type PrepareLayersRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PrepareLayersRequest) Reset() {
-	*x = PrepareLayersRequest{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[3]
+func (x *PrepareImageRequest) Reset() {
+	*x = PrepareImageRequest{}
+	mi := &file_ocilayer_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PrepareLayersRequest) String() string {
+func (x *PrepareImageRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PrepareLayersRequest) ProtoMessage() {}
+func (*PrepareImageRequest) ProtoMessage() {}
 
-func (x *PrepareLayersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[3]
+func (x *PrepareImageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ocilayer_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -258,26 +258,26 @@ func (x *PrepareLayersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrepareLayersRequest.ProtoReflect.Descriptor instead.
-func (*PrepareLayersRequest) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{3}
+// Deprecated: Use PrepareImageRequest.ProtoReflect.Descriptor instead.
+func (*PrepareImageRequest) Descriptor() ([]byte, []int) {
+	return file_ocilayer_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *PrepareLayersRequest) GetImageRef() string {
+func (x *PrepareImageRequest) GetImageRef() string {
 	if x != nil {
 		return x.ImageRef
 	}
 	return ""
 }
 
-func (x *PrepareLayersRequest) GetAuth() *RegistryAuth {
+func (x *PrepareImageRequest) GetAuth() *RegistryAuth {
 	if x != nil {
 		return x.Auth
 	}
 	return nil
 }
 
-type PrepareLayersResponse struct {
+type PrepareImageResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// image_digest is the resolved OCI manifest digest ("sha256:<hex>").
 	ImageDigest string `protobuf:"bytes,1,opt,name=image_digest,json=imageDigest,proto3" json:"image_digest,omitempty"`
@@ -293,21 +293,21 @@ type PrepareLayersResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *PrepareLayersResponse) Reset() {
-	*x = PrepareLayersResponse{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[4]
+func (x *PrepareImageResponse) Reset() {
+	*x = PrepareImageResponse{}
+	mi := &file_ocilayer_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *PrepareLayersResponse) String() string {
+func (x *PrepareImageResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*PrepareLayersResponse) ProtoMessage() {}
+func (*PrepareImageResponse) ProtoMessage() {}
 
-func (x *PrepareLayersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[4]
+func (x *PrepareImageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ocilayer_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -318,40 +318,40 @@ func (x *PrepareLayersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrepareLayersResponse.ProtoReflect.Descriptor instead.
-func (*PrepareLayersResponse) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{4}
+// Deprecated: Use PrepareImageResponse.ProtoReflect.Descriptor instead.
+func (*PrepareImageResponse) Descriptor() ([]byte, []int) {
+	return file_ocilayer_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *PrepareLayersResponse) GetImageDigest() string {
+func (x *PrepareImageResponse) GetImageDigest() string {
 	if x != nil {
 		return x.ImageDigest
 	}
 	return ""
 }
 
-func (x *PrepareLayersResponse) GetConfigJson() []byte {
+func (x *PrepareImageResponse) GetConfigJson() []byte {
 	if x != nil {
 		return x.ConfigJson
 	}
 	return nil
 }
 
-func (x *PrepareLayersResponse) GetLayerDirs() []string {
+func (x *PrepareImageResponse) GetLayerDirs() []string {
 	if x != nil {
 		return x.LayerDirs
 	}
 	return nil
 }
 
-func (x *PrepareLayersResponse) GetProviderName() string {
+func (x *PrepareImageResponse) GetProviderName() string {
 	if x != nil {
 		return x.ProviderName
 	}
 	return ""
 }
 
-type ReleaseLayersRequest struct {
+type ReleaseImageRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	ImageRef string                 `protobuf:"bytes,1,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
 	// bypass_ttl instructs the adapter to unmount layers immediately when
@@ -362,21 +362,21 @@ type ReleaseLayersRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ReleaseLayersRequest) Reset() {
-	*x = ReleaseLayersRequest{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[5]
+func (x *ReleaseImageRequest) Reset() {
+	*x = ReleaseImageRequest{}
+	mi := &file_ocilayer_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ReleaseLayersRequest) String() string {
+func (x *ReleaseImageRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReleaseLayersRequest) ProtoMessage() {}
+func (*ReleaseImageRequest) ProtoMessage() {}
 
-func (x *ReleaseLayersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[5]
+func (x *ReleaseImageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ocilayer_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -387,46 +387,46 @@ func (x *ReleaseLayersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReleaseLayersRequest.ProtoReflect.Descriptor instead.
-func (*ReleaseLayersRequest) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{5}
+// Deprecated: Use ReleaseImageRequest.ProtoReflect.Descriptor instead.
+func (*ReleaseImageRequest) Descriptor() ([]byte, []int) {
+	return file_ocilayer_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *ReleaseLayersRequest) GetImageRef() string {
+func (x *ReleaseImageRequest) GetImageRef() string {
 	if x != nil {
 		return x.ImageRef
 	}
 	return ""
 }
 
-func (x *ReleaseLayersRequest) GetBypassTtl() bool {
+func (x *ReleaseImageRequest) GetBypassTtl() bool {
 	if x != nil {
 		return x.BypassTtl
 	}
 	return false
 }
 
-type ReleaseLayersResponse struct {
+type ReleaseImageResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ReleaseLayersResponse) Reset() {
-	*x = ReleaseLayersResponse{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[6]
+func (x *ReleaseImageResponse) Reset() {
+	*x = ReleaseImageResponse{}
+	mi := &file_ocilayer_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ReleaseLayersResponse) String() string {
+func (x *ReleaseImageResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReleaseLayersResponse) ProtoMessage() {}
+func (*ReleaseImageResponse) ProtoMessage() {}
 
-func (x *ReleaseLayersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[6]
+func (x *ReleaseImageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ocilayer_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -437,9 +437,9 @@ func (x *ReleaseLayersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReleaseLayersResponse.ProtoReflect.Descriptor instead.
-func (*ReleaseLayersResponse) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{6}
+// Deprecated: Use ReleaseImageResponse.ProtoReflect.Descriptor instead.
+func (*ReleaseImageResponse) Descriptor() ([]byte, []int) {
+	return file_ocilayer_proto_rawDescGZIP(), []int{6}
 }
 
 type ActiveImageLayers struct {
@@ -454,7 +454,7 @@ type ActiveImageLayers struct {
 
 func (x *ActiveImageLayers) Reset() {
 	*x = ActiveImageLayers{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[7]
+	mi := &file_ocilayer_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -466,7 +466,7 @@ func (x *ActiveImageLayers) String() string {
 func (*ActiveImageLayers) ProtoMessage() {}
 
 func (x *ActiveImageLayers) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[7]
+	mi := &file_ocilayer_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -479,7 +479,7 @@ func (x *ActiveImageLayers) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActiveImageLayers.ProtoReflect.Descriptor instead.
 func (*ActiveImageLayers) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{7}
+	return file_ocilayer_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ActiveImageLayers) GetImageRef() string {
@@ -510,28 +510,28 @@ func (x *ActiveImageLayers) GetRefCount() int32 {
 	return 0
 }
 
-type ReconcileLayersRequest struct {
+type ReconcileImagesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ActiveImages  []*ActiveImageLayers   `protobuf:"bytes,1,rep,name=active_images,json=activeImages,proto3" json:"active_images,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ReconcileLayersRequest) Reset() {
-	*x = ReconcileLayersRequest{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[8]
+func (x *ReconcileImagesRequest) Reset() {
+	*x = ReconcileImagesRequest{}
+	mi := &file_ocilayer_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ReconcileLayersRequest) String() string {
+func (x *ReconcileImagesRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReconcileLayersRequest) ProtoMessage() {}
+func (*ReconcileImagesRequest) ProtoMessage() {}
 
-func (x *ReconcileLayersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[8]
+func (x *ReconcileImagesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_ocilayer_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -542,39 +542,39 @@ func (x *ReconcileLayersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReconcileLayersRequest.ProtoReflect.Descriptor instead.
-func (*ReconcileLayersRequest) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{8}
+// Deprecated: Use ReconcileImagesRequest.ProtoReflect.Descriptor instead.
+func (*ReconcileImagesRequest) Descriptor() ([]byte, []int) {
+	return file_ocilayer_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *ReconcileLayersRequest) GetActiveImages() []*ActiveImageLayers {
+func (x *ReconcileImagesRequest) GetActiveImages() []*ActiveImageLayers {
 	if x != nil {
 		return x.ActiveImages
 	}
 	return nil
 }
 
-type ReconcileLayersResponse struct {
+type ReconcileImagesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ReconcileLayersResponse) Reset() {
-	*x = ReconcileLayersResponse{}
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[9]
+func (x *ReconcileImagesResponse) Reset() {
+	*x = ReconcileImagesResponse{}
+	mi := &file_ocilayer_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ReconcileLayersResponse) String() string {
+func (x *ReconcileImagesResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReconcileLayersResponse) ProtoMessage() {}
+func (*ReconcileImagesResponse) ProtoMessage() {}
 
-func (x *ReconcileLayersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_proto_ocilayer_ocilayer_proto_msgTypes[9]
+func (x *ReconcileImagesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_ocilayer_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -585,16 +585,16 @@ func (x *ReconcileLayersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReconcileLayersResponse.ProtoReflect.Descriptor instead.
-func (*ReconcileLayersResponse) Descriptor() ([]byte, []int) {
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP(), []int{9}
+// Deprecated: Use ReconcileImagesResponse.ProtoReflect.Descriptor instead.
+func (*ReconcileImagesResponse) Descriptor() ([]byte, []int) {
+	return file_ocilayer_proto_rawDescGZIP(), []int{9}
 }
 
-var File_internal_proto_ocilayer_ocilayer_proto protoreflect.FileDescriptor
+var File_ocilayer_proto protoreflect.FileDescriptor
 
-const file_internal_proto_ocilayer_ocilayer_proto_rawDesc = "" +
+const file_ocilayer_proto_rawDesc = "" +
 	"\n" +
-	"&internal/proto/ocilayer/ocilayer.proto\x12\x15substrate.ocilayer.v1\"\xcf\x01\n" +
+	"\x0eocilayer.proto\x12\x15substrate.ocilayer.v1\"\xcf\x01\n" +
 	"\fRegistryAuth\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x12\n" +
@@ -608,75 +608,75 @@ const file_internal_proto_ocilayer_ocilayer_proto_rawDesc = "" +
 	"\x12CanProvideResponse\x12\x1f\n" +
 	"\vcan_provide\x18\x01 \x01(\bR\n" +
 	"canProvide\x12#\n" +
-	"\rprovider_name\x18\x02 \x01(\tR\fproviderName\"l\n" +
-	"\x14PrepareLayersRequest\x12\x1b\n" +
+	"\rprovider_name\x18\x02 \x01(\tR\fproviderName\"k\n" +
+	"\x13PrepareImageRequest\x12\x1b\n" +
 	"\timage_ref\x18\x01 \x01(\tR\bimageRef\x127\n" +
-	"\x04auth\x18\x02 \x01(\v2#.substrate.ocilayer.v1.RegistryAuthR\x04auth\"\x9f\x01\n" +
-	"\x15PrepareLayersResponse\x12!\n" +
+	"\x04auth\x18\x02 \x01(\v2#.substrate.ocilayer.v1.RegistryAuthR\x04auth\"\x9e\x01\n" +
+	"\x14PrepareImageResponse\x12!\n" +
 	"\fimage_digest\x18\x01 \x01(\tR\vimageDigest\x12\x1f\n" +
 	"\vconfig_json\x18\x02 \x01(\fR\n" +
 	"configJson\x12\x1d\n" +
 	"\n" +
 	"layer_dirs\x18\x03 \x03(\tR\tlayerDirs\x12#\n" +
-	"\rprovider_name\x18\x04 \x01(\tR\fproviderName\"R\n" +
-	"\x14ReleaseLayersRequest\x12\x1b\n" +
+	"\rprovider_name\x18\x04 \x01(\tR\fproviderName\"Q\n" +
+	"\x13ReleaseImageRequest\x12\x1b\n" +
 	"\timage_ref\x18\x01 \x01(\tR\bimageRef\x12\x1d\n" +
 	"\n" +
-	"bypass_ttl\x18\x02 \x01(\bR\tbypassTtl\"\x17\n" +
-	"\x15ReleaseLayersResponse\"\x8f\x01\n" +
+	"bypass_ttl\x18\x02 \x01(\bR\tbypassTtl\"\x16\n" +
+	"\x14ReleaseImageResponse\"\x8f\x01\n" +
 	"\x11ActiveImageLayers\x12\x1b\n" +
 	"\timage_ref\x18\x01 \x01(\tR\bimageRef\x12!\n" +
 	"\fimage_digest\x18\x02 \x01(\tR\vimageDigest\x12\x1d\n" +
 	"\n" +
 	"layer_dirs\x18\x03 \x03(\tR\tlayerDirs\x12\x1b\n" +
 	"\tref_count\x18\x04 \x01(\x05R\brefCount\"g\n" +
-	"\x16ReconcileLayersRequest\x12M\n" +
+	"\x16ReconcileImagesRequest\x12M\n" +
 	"\ractive_images\x18\x01 \x03(\v2(.substrate.ocilayer.v1.ActiveImageLayersR\factiveImages\"\x19\n" +
-	"\x17ReconcileLayersResponse2\xbe\x03\n" +
+	"\x17ReconcileImagesResponse2\xb8\x03\n" +
 	"\x0fOCILayerService\x12a\n" +
 	"\n" +
-	"CanProvide\x12(.substrate.ocilayer.v1.CanProvideRequest\x1a).substrate.ocilayer.v1.CanProvideResponse\x12j\n" +
-	"\rPrepareLayers\x12+.substrate.ocilayer.v1.PrepareLayersRequest\x1a,.substrate.ocilayer.v1.PrepareLayersResponse\x12j\n" +
-	"\rReleaseLayers\x12+.substrate.ocilayer.v1.ReleaseLayersRequest\x1a,.substrate.ocilayer.v1.ReleaseLayersResponse\x12p\n" +
-	"\x0fReconcileLayers\x12-.substrate.ocilayer.v1.ReconcileLayersRequest\x1a..substrate.ocilayer.v1.ReconcileLayersResponseBGZEgithub.com/agent-substrate/substrate/internal/proto/ocilayer;ocilayerb\x06proto3"
+	"CanProvide\x12(.substrate.ocilayer.v1.CanProvideRequest\x1a).substrate.ocilayer.v1.CanProvideResponse\x12g\n" +
+	"\fPrepareImage\x12*.substrate.ocilayer.v1.PrepareImageRequest\x1a+.substrate.ocilayer.v1.PrepareImageResponse\x12g\n" +
+	"\fReleaseImage\x12*.substrate.ocilayer.v1.ReleaseImageRequest\x1a+.substrate.ocilayer.v1.ReleaseImageResponse\x12p\n" +
+	"\x0fReconcileImages\x12-.substrate.ocilayer.v1.ReconcileImagesRequest\x1a..substrate.ocilayer.v1.ReconcileImagesResponseBGZEgithub.com/agent-substrate/substrate/internal/proto/ocilayer;ocilayerb\x06proto3"
 
 var (
-	file_internal_proto_ocilayer_ocilayer_proto_rawDescOnce sync.Once
-	file_internal_proto_ocilayer_ocilayer_proto_rawDescData []byte
+	file_ocilayer_proto_rawDescOnce sync.Once
+	file_ocilayer_proto_rawDescData []byte
 )
 
-func file_internal_proto_ocilayer_ocilayer_proto_rawDescGZIP() []byte {
-	file_internal_proto_ocilayer_ocilayer_proto_rawDescOnce.Do(func() {
-		file_internal_proto_ocilayer_ocilayer_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_internal_proto_ocilayer_ocilayer_proto_rawDesc), len(file_internal_proto_ocilayer_ocilayer_proto_rawDesc)))
+func file_ocilayer_proto_rawDescGZIP() []byte {
+	file_ocilayer_proto_rawDescOnce.Do(func() {
+		file_ocilayer_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_ocilayer_proto_rawDesc), len(file_ocilayer_proto_rawDesc)))
 	})
-	return file_internal_proto_ocilayer_ocilayer_proto_rawDescData
+	return file_ocilayer_proto_rawDescData
 }
 
-var file_internal_proto_ocilayer_ocilayer_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
-var file_internal_proto_ocilayer_ocilayer_proto_goTypes = []any{
+var file_ocilayer_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_ocilayer_proto_goTypes = []any{
 	(*RegistryAuth)(nil),            // 0: substrate.ocilayer.v1.RegistryAuth
 	(*CanProvideRequest)(nil),       // 1: substrate.ocilayer.v1.CanProvideRequest
 	(*CanProvideResponse)(nil),      // 2: substrate.ocilayer.v1.CanProvideResponse
-	(*PrepareLayersRequest)(nil),    // 3: substrate.ocilayer.v1.PrepareLayersRequest
-	(*PrepareLayersResponse)(nil),   // 4: substrate.ocilayer.v1.PrepareLayersResponse
-	(*ReleaseLayersRequest)(nil),    // 5: substrate.ocilayer.v1.ReleaseLayersRequest
-	(*ReleaseLayersResponse)(nil),   // 6: substrate.ocilayer.v1.ReleaseLayersResponse
+	(*PrepareImageRequest)(nil),     // 3: substrate.ocilayer.v1.PrepareImageRequest
+	(*PrepareImageResponse)(nil),    // 4: substrate.ocilayer.v1.PrepareImageResponse
+	(*ReleaseImageRequest)(nil),     // 5: substrate.ocilayer.v1.ReleaseImageRequest
+	(*ReleaseImageResponse)(nil),    // 6: substrate.ocilayer.v1.ReleaseImageResponse
 	(*ActiveImageLayers)(nil),       // 7: substrate.ocilayer.v1.ActiveImageLayers
-	(*ReconcileLayersRequest)(nil),  // 8: substrate.ocilayer.v1.ReconcileLayersRequest
-	(*ReconcileLayersResponse)(nil), // 9: substrate.ocilayer.v1.ReconcileLayersResponse
+	(*ReconcileImagesRequest)(nil),  // 8: substrate.ocilayer.v1.ReconcileImagesRequest
+	(*ReconcileImagesResponse)(nil), // 9: substrate.ocilayer.v1.ReconcileImagesResponse
 }
-var file_internal_proto_ocilayer_ocilayer_proto_depIdxs = []int32{
+var file_ocilayer_proto_depIdxs = []int32{
 	0, // 0: substrate.ocilayer.v1.CanProvideRequest.auth:type_name -> substrate.ocilayer.v1.RegistryAuth
-	0, // 1: substrate.ocilayer.v1.PrepareLayersRequest.auth:type_name -> substrate.ocilayer.v1.RegistryAuth
-	7, // 2: substrate.ocilayer.v1.ReconcileLayersRequest.active_images:type_name -> substrate.ocilayer.v1.ActiveImageLayers
+	0, // 1: substrate.ocilayer.v1.PrepareImageRequest.auth:type_name -> substrate.ocilayer.v1.RegistryAuth
+	7, // 2: substrate.ocilayer.v1.ReconcileImagesRequest.active_images:type_name -> substrate.ocilayer.v1.ActiveImageLayers
 	1, // 3: substrate.ocilayer.v1.OCILayerService.CanProvide:input_type -> substrate.ocilayer.v1.CanProvideRequest
-	3, // 4: substrate.ocilayer.v1.OCILayerService.PrepareLayers:input_type -> substrate.ocilayer.v1.PrepareLayersRequest
-	5, // 5: substrate.ocilayer.v1.OCILayerService.ReleaseLayers:input_type -> substrate.ocilayer.v1.ReleaseLayersRequest
-	8, // 6: substrate.ocilayer.v1.OCILayerService.ReconcileLayers:input_type -> substrate.ocilayer.v1.ReconcileLayersRequest
+	3, // 4: substrate.ocilayer.v1.OCILayerService.PrepareImage:input_type -> substrate.ocilayer.v1.PrepareImageRequest
+	5, // 5: substrate.ocilayer.v1.OCILayerService.ReleaseImage:input_type -> substrate.ocilayer.v1.ReleaseImageRequest
+	8, // 6: substrate.ocilayer.v1.OCILayerService.ReconcileImages:input_type -> substrate.ocilayer.v1.ReconcileImagesRequest
 	2, // 7: substrate.ocilayer.v1.OCILayerService.CanProvide:output_type -> substrate.ocilayer.v1.CanProvideResponse
-	4, // 8: substrate.ocilayer.v1.OCILayerService.PrepareLayers:output_type -> substrate.ocilayer.v1.PrepareLayersResponse
-	6, // 9: substrate.ocilayer.v1.OCILayerService.ReleaseLayers:output_type -> substrate.ocilayer.v1.ReleaseLayersResponse
-	9, // 10: substrate.ocilayer.v1.OCILayerService.ReconcileLayers:output_type -> substrate.ocilayer.v1.ReconcileLayersResponse
+	4, // 8: substrate.ocilayer.v1.OCILayerService.PrepareImage:output_type -> substrate.ocilayer.v1.PrepareImageResponse
+	6, // 9: substrate.ocilayer.v1.OCILayerService.ReleaseImage:output_type -> substrate.ocilayer.v1.ReleaseImageResponse
+	9, // 10: substrate.ocilayer.v1.OCILayerService.ReconcileImages:output_type -> substrate.ocilayer.v1.ReconcileImagesResponse
 	7, // [7:11] is the sub-list for method output_type
 	3, // [3:7] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name
@@ -684,26 +684,26 @@ var file_internal_proto_ocilayer_ocilayer_proto_depIdxs = []int32{
 	0, // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_internal_proto_ocilayer_ocilayer_proto_init() }
-func file_internal_proto_ocilayer_ocilayer_proto_init() {
-	if File_internal_proto_ocilayer_ocilayer_proto != nil {
+func init() { file_ocilayer_proto_init() }
+func file_ocilayer_proto_init() {
+	if File_ocilayer_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_proto_ocilayer_ocilayer_proto_rawDesc), len(file_internal_proto_ocilayer_ocilayer_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ocilayer_proto_rawDesc), len(file_ocilayer_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_internal_proto_ocilayer_ocilayer_proto_goTypes,
-		DependencyIndexes: file_internal_proto_ocilayer_ocilayer_proto_depIdxs,
-		MessageInfos:      file_internal_proto_ocilayer_ocilayer_proto_msgTypes,
+		GoTypes:           file_ocilayer_proto_goTypes,
+		DependencyIndexes: file_ocilayer_proto_depIdxs,
+		MessageInfos:      file_ocilayer_proto_msgTypes,
 	}.Build()
-	File_internal_proto_ocilayer_ocilayer_proto = out.File
-	file_internal_proto_ocilayer_ocilayer_proto_goTypes = nil
-	file_internal_proto_ocilayer_ocilayer_proto_depIdxs = nil
+	File_ocilayer_proto = out.File
+	file_ocilayer_proto_goTypes = nil
+	file_ocilayer_proto_depIdxs = nil
 }

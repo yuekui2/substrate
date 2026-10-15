@@ -77,7 +77,7 @@ func TestReconcileStreamingLeases(t *testing.T) {
 	}
 
 	if len(client.ReconcileCalls) != 1 {
-		t.Fatalf("expected 1 ReconcileLayers call, got %d", len(client.ReconcileCalls))
+		t.Fatalf("expected 1 ReconcileImages call, got %d", len(client.ReconcileCalls))
 	}
 	reconciled := make(map[string]*ocilayer.ActiveImageLayers)
 	for _, a := range client.ReconcileCalls[0] {

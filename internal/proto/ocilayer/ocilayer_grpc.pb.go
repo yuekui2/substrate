@@ -16,7 +16,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v4.25.3
-// source: internal/proto/ocilayer/ocilayer.proto
+// source: ocilayer.proto
 
 package ocilayer
 
@@ -34,9 +34,9 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	OCILayerService_CanProvide_FullMethodName      = "/substrate.ocilayer.v1.OCILayerService/CanProvide"
-	OCILayerService_PrepareLayers_FullMethodName   = "/substrate.ocilayer.v1.OCILayerService/PrepareLayers"
-	OCILayerService_ReleaseLayers_FullMethodName   = "/substrate.ocilayer.v1.OCILayerService/ReleaseLayers"
-	OCILayerService_ReconcileLayers_FullMethodName = "/substrate.ocilayer.v1.OCILayerService/ReconcileLayers"
+	OCILayerService_PrepareImage_FullMethodName    = "/substrate.ocilayer.v1.OCILayerService/PrepareImage"
+	OCILayerService_ReleaseImage_FullMethodName    = "/substrate.ocilayer.v1.OCILayerService/ReleaseImage"
+	OCILayerService_ReconcileImages_FullMethodName = "/substrate.ocilayer.v1.OCILayerService/ReconcileImages"
 )
 
 // OCILayerServiceClient is the client API for OCILayerService service.
@@ -48,31 +48,31 @@ const (
 // SOCI Adapter DaemonSets).
 //
 // Given an OCI image reference and resolved registry credentials, the service
-// prepares and mounts all layers of the image on the host (strictly
-// all-or-nothing) and returns their ordered read-only directory paths for
-// overlayfs lowerdir composition.
+// prepares and mounts the image's layers on the host (under a per-image
+// contract) and returns their ordered read-only directory paths for overlayfs
+// lowerdir composition.
 type OCILayerServiceClient interface {
 	// CanProvide checks whether the adapter and underlying streaming provider are
 	// healthy and able to serve the given OCI image.
 	CanProvide(ctx context.Context, in *CanProvideRequest, opts ...grpc.CallOption) (*CanProvideResponse, error)
-	// PrepareLayers resolves and mounts all layers for the OCI image, increments
+	// PrepareImage resolves and mounts the layers for the OCI image, increments
 	// the per-image/per-layer reference count (refCount), and returns the
 	// complete ordered list of read-only host LayerDirs.
 	//
-	// If the image cannot be served by the provider, PrepareLayers returns
+	// If the image cannot be served by the provider, PrepareImage returns
 	// codes.FailedPrecondition so atelet can fall back to local imagecache for
 	// the entire image.
-	PrepareLayers(ctx context.Context, in *PrepareLayersRequest, opts ...grpc.CallOption) (*PrepareLayersResponse, error)
-	// ReleaseLayers decrements the reference count (refCount) for the image's
+	PrepareImage(ctx context.Context, in *PrepareImageRequest, opts ...grpc.CallOption) (*PrepareImageResponse, error)
+	// ReleaseImage decrements the reference count (refCount) for the image's
 	// layers when an actor checkpoints or terminates, unmounting unused layer
 	// views once refCount reaches 0 (subject to the adapter's idle TTL unless
 	// bypass_ttl is set).
-	ReleaseLayers(ctx context.Context, in *ReleaseLayersRequest, opts ...grpc.CallOption) (*ReleaseLayersResponse, error)
-	// ReconcileLayers is called by atelet on startup/restart with the active
+	ReleaseImage(ctx context.Context, in *ReleaseImageRequest, opts ...grpc.CallOption) (*ReleaseImageResponse, error)
+	// ReconcileImages is called by atelet on startup/restart with the active
 	// streamed images discovered from surviving on-disk actor bundles
 	// (rootfs-overlay.json), allowing the adapter to rebuild accurate in-memory
 	// refCounts and unmount orphaned FUSE views after an atelet crash.
-	ReconcileLayers(ctx context.Context, in *ReconcileLayersRequest, opts ...grpc.CallOption) (*ReconcileLayersResponse, error)
+	ReconcileImages(ctx context.Context, in *ReconcileImagesRequest, opts ...grpc.CallOption) (*ReconcileImagesResponse, error)
 }
 
 type oCILayerServiceClient struct {
@@ -93,30 +93,30 @@ func (c *oCILayerServiceClient) CanProvide(ctx context.Context, in *CanProvideRe
 	return out, nil
 }
 
-func (c *oCILayerServiceClient) PrepareLayers(ctx context.Context, in *PrepareLayersRequest, opts ...grpc.CallOption) (*PrepareLayersResponse, error) {
+func (c *oCILayerServiceClient) PrepareImage(ctx context.Context, in *PrepareImageRequest, opts ...grpc.CallOption) (*PrepareImageResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(PrepareLayersResponse)
-	err := c.cc.Invoke(ctx, OCILayerService_PrepareLayers_FullMethodName, in, out, cOpts...)
+	out := new(PrepareImageResponse)
+	err := c.cc.Invoke(ctx, OCILayerService_PrepareImage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *oCILayerServiceClient) ReleaseLayers(ctx context.Context, in *ReleaseLayersRequest, opts ...grpc.CallOption) (*ReleaseLayersResponse, error) {
+func (c *oCILayerServiceClient) ReleaseImage(ctx context.Context, in *ReleaseImageRequest, opts ...grpc.CallOption) (*ReleaseImageResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ReleaseLayersResponse)
-	err := c.cc.Invoke(ctx, OCILayerService_ReleaseLayers_FullMethodName, in, out, cOpts...)
+	out := new(ReleaseImageResponse)
+	err := c.cc.Invoke(ctx, OCILayerService_ReleaseImage_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *oCILayerServiceClient) ReconcileLayers(ctx context.Context, in *ReconcileLayersRequest, opts ...grpc.CallOption) (*ReconcileLayersResponse, error) {
+func (c *oCILayerServiceClient) ReconcileImages(ctx context.Context, in *ReconcileImagesRequest, opts ...grpc.CallOption) (*ReconcileImagesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ReconcileLayersResponse)
-	err := c.cc.Invoke(ctx, OCILayerService_ReconcileLayers_FullMethodName, in, out, cOpts...)
+	out := new(ReconcileImagesResponse)
+	err := c.cc.Invoke(ctx, OCILayerService_ReconcileImages_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -132,31 +132,31 @@ func (c *oCILayerServiceClient) ReconcileLayers(ctx context.Context, in *Reconci
 // SOCI Adapter DaemonSets).
 //
 // Given an OCI image reference and resolved registry credentials, the service
-// prepares and mounts all layers of the image on the host (strictly
-// all-or-nothing) and returns their ordered read-only directory paths for
-// overlayfs lowerdir composition.
+// prepares and mounts the image's layers on the host (under a per-image
+// contract) and returns their ordered read-only directory paths for overlayfs
+// lowerdir composition.
 type OCILayerServiceServer interface {
 	// CanProvide checks whether the adapter and underlying streaming provider are
 	// healthy and able to serve the given OCI image.
 	CanProvide(context.Context, *CanProvideRequest) (*CanProvideResponse, error)
-	// PrepareLayers resolves and mounts all layers for the OCI image, increments
+	// PrepareImage resolves and mounts the layers for the OCI image, increments
 	// the per-image/per-layer reference count (refCount), and returns the
 	// complete ordered list of read-only host LayerDirs.
 	//
-	// If the image cannot be served by the provider, PrepareLayers returns
+	// If the image cannot be served by the provider, PrepareImage returns
 	// codes.FailedPrecondition so atelet can fall back to local imagecache for
 	// the entire image.
-	PrepareLayers(context.Context, *PrepareLayersRequest) (*PrepareLayersResponse, error)
-	// ReleaseLayers decrements the reference count (refCount) for the image's
+	PrepareImage(context.Context, *PrepareImageRequest) (*PrepareImageResponse, error)
+	// ReleaseImage decrements the reference count (refCount) for the image's
 	// layers when an actor checkpoints or terminates, unmounting unused layer
 	// views once refCount reaches 0 (subject to the adapter's idle TTL unless
 	// bypass_ttl is set).
-	ReleaseLayers(context.Context, *ReleaseLayersRequest) (*ReleaseLayersResponse, error)
-	// ReconcileLayers is called by atelet on startup/restart with the active
+	ReleaseImage(context.Context, *ReleaseImageRequest) (*ReleaseImageResponse, error)
+	// ReconcileImages is called by atelet on startup/restart with the active
 	// streamed images discovered from surviving on-disk actor bundles
 	// (rootfs-overlay.json), allowing the adapter to rebuild accurate in-memory
 	// refCounts and unmount orphaned FUSE views after an atelet crash.
-	ReconcileLayers(context.Context, *ReconcileLayersRequest) (*ReconcileLayersResponse, error)
+	ReconcileImages(context.Context, *ReconcileImagesRequest) (*ReconcileImagesResponse, error)
 	mustEmbedUnimplementedOCILayerServiceServer()
 }
 
@@ -170,14 +170,14 @@ type UnimplementedOCILayerServiceServer struct{}
 func (UnimplementedOCILayerServiceServer) CanProvide(context.Context, *CanProvideRequest) (*CanProvideResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CanProvide not implemented")
 }
-func (UnimplementedOCILayerServiceServer) PrepareLayers(context.Context, *PrepareLayersRequest) (*PrepareLayersResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method PrepareLayers not implemented")
+func (UnimplementedOCILayerServiceServer) PrepareImage(context.Context, *PrepareImageRequest) (*PrepareImageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PrepareImage not implemented")
 }
-func (UnimplementedOCILayerServiceServer) ReleaseLayers(context.Context, *ReleaseLayersRequest) (*ReleaseLayersResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ReleaseLayers not implemented")
+func (UnimplementedOCILayerServiceServer) ReleaseImage(context.Context, *ReleaseImageRequest) (*ReleaseImageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReleaseImage not implemented")
 }
-func (UnimplementedOCILayerServiceServer) ReconcileLayers(context.Context, *ReconcileLayersRequest) (*ReconcileLayersResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ReconcileLayers not implemented")
+func (UnimplementedOCILayerServiceServer) ReconcileImages(context.Context, *ReconcileImagesRequest) (*ReconcileImagesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReconcileImages not implemented")
 }
 func (UnimplementedOCILayerServiceServer) mustEmbedUnimplementedOCILayerServiceServer() {}
 func (UnimplementedOCILayerServiceServer) testEmbeddedByValue()                         {}
@@ -218,56 +218,56 @@ func _OCILayerService_CanProvide_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _OCILayerService_PrepareLayers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PrepareLayersRequest)
+func _OCILayerService_PrepareImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PrepareImageRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(OCILayerServiceServer).PrepareLayers(ctx, in)
+		return srv.(OCILayerServiceServer).PrepareImage(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: OCILayerService_PrepareLayers_FullMethodName,
+		FullMethod: OCILayerService_PrepareImage_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OCILayerServiceServer).PrepareLayers(ctx, req.(*PrepareLayersRequest))
+		return srv.(OCILayerServiceServer).PrepareImage(ctx, req.(*PrepareImageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _OCILayerService_ReleaseLayers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReleaseLayersRequest)
+func _OCILayerService_ReleaseImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReleaseImageRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(OCILayerServiceServer).ReleaseLayers(ctx, in)
+		return srv.(OCILayerServiceServer).ReleaseImage(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: OCILayerService_ReleaseLayers_FullMethodName,
+		FullMethod: OCILayerService_ReleaseImage_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OCILayerServiceServer).ReleaseLayers(ctx, req.(*ReleaseLayersRequest))
+		return srv.(OCILayerServiceServer).ReleaseImage(ctx, req.(*ReleaseImageRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _OCILayerService_ReconcileLayers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReconcileLayersRequest)
+func _OCILayerService_ReconcileImages_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReconcileImagesRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(OCILayerServiceServer).ReconcileLayers(ctx, in)
+		return srv.(OCILayerServiceServer).ReconcileImages(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: OCILayerService_ReconcileLayers_FullMethodName,
+		FullMethod: OCILayerService_ReconcileImages_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OCILayerServiceServer).ReconcileLayers(ctx, req.(*ReconcileLayersRequest))
+		return srv.(OCILayerServiceServer).ReconcileImages(ctx, req.(*ReconcileImagesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -284,18 +284,18 @@ var OCILayerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _OCILayerService_CanProvide_Handler,
 		},
 		{
-			MethodName: "PrepareLayers",
-			Handler:    _OCILayerService_PrepareLayers_Handler,
+			MethodName: "PrepareImage",
+			Handler:    _OCILayerService_PrepareImage_Handler,
 		},
 		{
-			MethodName: "ReleaseLayers",
-			Handler:    _OCILayerService_ReleaseLayers_Handler,
+			MethodName: "ReleaseImage",
+			Handler:    _OCILayerService_ReleaseImage_Handler,
 		},
 		{
-			MethodName: "ReconcileLayers",
-			Handler:    _OCILayerService_ReconcileLayers_Handler,
+			MethodName: "ReconcileImages",
+			Handler:    _OCILayerService_ReconcileImages_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "internal/proto/ocilayer/ocilayer.proto",
+	Metadata: "ocilayer.proto",
 }

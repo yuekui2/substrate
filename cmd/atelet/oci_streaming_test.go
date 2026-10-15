@@ -55,7 +55,7 @@ func TestEnsureContainerImage_StreamingAndFallback(t *testing.T) {
 	}
 
 	layerClient := mock.New("riptide")
-	layerClient.PrepareLayersFunc = func(_ context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
+	layerClient.PrepareImageFunc = func(_ context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
 		if req.ImageRef == refStream {
 			return &ocilayer.PrepareResult{
 				LayerDirs:    []string{fakeLayerDir},
@@ -83,7 +83,7 @@ func TestEnsureContainerImage_StreamingAndFallback(t *testing.T) {
 		t.Errorf("unexpected LayerDirs: %v", img.LayerDirs)
 	}
 	if len(layerClient.PrepareCalls) != 1 {
-		t.Fatalf("expected 1 PrepareLayers call, got %d", len(layerClient.PrepareCalls))
+		t.Fatalf("expected 1 PrepareImage call, got %d", len(layerClient.PrepareCalls))
 	}
 	if creds := layerClient.PrepareCalls[0].AuthConfig; creds == nil || creds.Password != "secret-token" {
 		t.Errorf("expected forwarded credentials with secret-token, got %+v", creds)
@@ -122,7 +122,7 @@ func TestDynamicDrain_SkipsStreamingAndBypassesTTLOnRelease(t *testing.T) {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 	layerClient := mock.New("riptide")
-	layerClient.PrepareLayersFunc = func(_ context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
+	layerClient.PrepareImageFunc = func(_ context.Context, req *ocilayer.PrepareRequest) (*ocilayer.PrepareResult, error) {
 		return &ocilayer.PrepareResult{
 			LayerDirs:    []string{fakeLayerDir},
 			ImageDigest:  "sha256:2222222222222222222222222222222222222222222222222222222222222222",
@@ -177,7 +177,7 @@ func TestDynamicDrain_SkipsStreamingAndBypassesTTLOnRelease(t *testing.T) {
 	}
 	herder.releaseStreamedLayersForActor(ctx, actor1, resources.ActorRef{Atespace: "default", Name: "a1"}, workloadSpec)
 	if len(layerClient.ReleaseCalls) != 1 {
-		t.Fatalf("expected 1 ReleaseLayers call, got %d", len(layerClient.ReleaseCalls))
+		t.Fatalf("expected 1 ReleaseImage call, got %d", len(layerClient.ReleaseCalls))
 	}
 	if !layerClient.ReleaseCalls[0].BypassTTL {
 		t.Errorf("expected BypassTTL = true when releasing during node drain")

@@ -35,12 +35,12 @@ type fakeServer struct {
 	ocilayerpb.UnimplementedOCILayerServiceServer
 
 	canProvideResp *ocilayerpb.CanProvideResponse
-	prepareResp    *ocilayerpb.PrepareLayersResponse
+	prepareResp    *ocilayerpb.PrepareImageResponse
 	prepareErr     error
 
 	lastAuth      *ocilayerpb.RegistryAuth
-	lastRelease   *ocilayerpb.ReleaseLayersRequest
-	lastReconcile *ocilayerpb.ReconcileLayersRequest
+	lastRelease   *ocilayerpb.ReleaseImageRequest
+	lastReconcile *ocilayerpb.ReconcileImagesRequest
 }
 
 func (s *fakeServer) CanProvide(_ context.Context, req *ocilayerpb.CanProvideRequest) (*ocilayerpb.CanProvideResponse, error) {
@@ -51,7 +51,7 @@ func (s *fakeServer) CanProvide(_ context.Context, req *ocilayerpb.CanProvideReq
 	return &ocilayerpb.CanProvideResponse{CanProvide: true, ProviderName: "riptide"}, nil
 }
 
-func (s *fakeServer) PrepareLayers(_ context.Context, req *ocilayerpb.PrepareLayersRequest) (*ocilayerpb.PrepareLayersResponse, error) {
+func (s *fakeServer) PrepareImage(_ context.Context, req *ocilayerpb.PrepareImageRequest) (*ocilayerpb.PrepareImageResponse, error) {
 	s.lastAuth = req.GetAuth()
 	if s.prepareErr != nil {
 		return nil, s.prepareErr
@@ -59,14 +59,14 @@ func (s *fakeServer) PrepareLayers(_ context.Context, req *ocilayerpb.PrepareLay
 	return s.prepareResp, nil
 }
 
-func (s *fakeServer) ReleaseLayers(_ context.Context, req *ocilayerpb.ReleaseLayersRequest) (*ocilayerpb.ReleaseLayersResponse, error) {
+func (s *fakeServer) ReleaseImage(_ context.Context, req *ocilayerpb.ReleaseImageRequest) (*ocilayerpb.ReleaseImageResponse, error) {
 	s.lastRelease = req
-	return &ocilayerpb.ReleaseLayersResponse{}, nil
+	return &ocilayerpb.ReleaseImageResponse{}, nil
 }
 
-func (s *fakeServer) ReconcileLayers(_ context.Context, req *ocilayerpb.ReconcileLayersRequest) (*ocilayerpb.ReconcileLayersResponse, error) {
+func (s *fakeServer) ReconcileImages(_ context.Context, req *ocilayerpb.ReconcileImagesRequest) (*ocilayerpb.ReconcileImagesResponse, error) {
 	s.lastReconcile = req
-	return &ocilayerpb.ReconcileLayersResponse{}, nil
+	return &ocilayerpb.ReconcileImagesResponse{}, nil
 }
 
 type staticKeychain struct {
@@ -111,7 +111,7 @@ func TestGRPCClientLifecycle(t *testing.T) {
 	}
 
 	srv := &fakeServer{
-		prepareResp: &ocilayerpb.PrepareLayersResponse{
+		prepareResp: &ocilayerpb.PrepareImageResponse{
 			ImageDigest:  "sha256:1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff",
 			ConfigJson:   cfgJSON,
 			LayerDirs:    []string{"/var/lib/atelet/streaming/riptide/img/layer-0/fs", "/var/lib/atelet/streaming/riptide/img/layer-1/fs"},
@@ -141,11 +141,11 @@ func TestGRPCClientLifecycle(t *testing.T) {
 		t.Errorf("client.Name() = %q, want riptide", got)
 	}
 
-	res, err := client.PrepareLayers(ctx, &ocilayer.PrepareRequest{
+	res, err := client.PrepareImage(ctx, &ocilayer.PrepareRequest{
 		ImageRef: "us-central1-docker.pkg.dev/proj/repo/agent:v1",
 	})
 	if err != nil {
-		t.Fatalf("PrepareLayers: %v", err)
+		t.Fatalf("PrepareImage: %v", err)
 	}
 	if srv.lastAuth == nil || srv.lastAuth.GetPassword() != "secret-gar-token" {
 		t.Fatalf("expected keychain credentials forwarded to adapter, got %+v", srv.lastAuth)
@@ -154,17 +154,17 @@ func TestGRPCClientLifecycle(t *testing.T) {
 		t.Fatalf("unexpected PrepareResult: %+v", res)
 	}
 
-	if err := client.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{
+	if err := client.ReleaseImage(ctx, &ocilayer.ReleaseRequest{
 		ImageRef:  "us-central1-docker.pkg.dev/proj/repo/agent:v1",
 		BypassTTL: true,
 	}); err != nil {
-		t.Fatalf("ReleaseLayers: %v", err)
+		t.Fatalf("ReleaseImage: %v", err)
 	}
 	if srv.lastRelease == nil || !srv.lastRelease.GetBypassTtl() {
-		t.Fatalf("expected BypassTtl=true in ReleaseLayersRequest, got %+v", srv.lastRelease)
+		t.Fatalf("expected BypassTtl=true in ReleaseImageRequest, got %+v", srv.lastRelease)
 	}
 
-	if err := client.ReconcileLayers(ctx, []*ocilayer.ActiveImageLayers{
+	if err := client.ReconcileImages(ctx, []*ocilayer.ActiveImageLayers{
 		{
 			ImageRef:    "us-central1-docker.pkg.dev/proj/repo/agent:v1",
 			ImageDigest: res.ImageDigest,
@@ -172,10 +172,10 @@ func TestGRPCClientLifecycle(t *testing.T) {
 			RefCount:    2,
 		},
 	}); err != nil {
-		t.Fatalf("ReconcileLayers: %v", err)
+		t.Fatalf("ReconcileImages: %v", err)
 	}
 	if srv.lastReconcile == nil || len(srv.lastReconcile.GetActiveImages()) != 1 || srv.lastReconcile.GetActiveImages()[0].GetRefCount() != 2 {
-		t.Fatalf("unexpected ReconcileLayersRequest: %+v", srv.lastReconcile)
+		t.Fatalf("unexpected ReconcileImagesRequest: %+v", srv.lastReconcile)
 	}
 }
 
@@ -190,10 +190,10 @@ func TestGRPCClientNotSupportedMapping(t *testing.T) {
 	}
 	defer client.Close()
 
-	_, err = client.PrepareLayers(context.Background(), &ocilayer.PrepareRequest{
+	_, err = client.PrepareImage(context.Background(), &ocilayer.PrepareRequest{
 		ImageRef: "docker.io/library/busybox:latest",
 	})
 	if !errors.Is(err, ocilayer.ErrNotSupported) {
-		t.Fatalf("PrepareLayers err = %v, want errors.Is(..., ErrNotSupported)", err)
+		t.Fatalf("PrepareImage err = %v, want errors.Is(..., ErrNotSupported)", err)
 	}
 }

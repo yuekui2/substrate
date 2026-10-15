@@ -13,9 +13,9 @@
 // limitations under the License.
 
 // Command e2e-stream-probe exercises an OCILayerService Adapter over its Unix
-// domain socket (--socket) by calling CanProvide, PrepareLayers, verifying that
+// domain socket (--socket) by calling CanProvide, PrepareImage, verifying that
 // each returned layer directory is listable, and releasing the lease via
-// ReleaseLayers.
+// ReleaseImage.
 package main
 
 import (
@@ -47,7 +47,7 @@ func main() {
 		socket    = flag.String("socket", "/run/ate-image-streaming/ocilayer.sock", "Unix domain socket path for OCILayerService")
 		imageRef  = flag.String("image", "", "OCI image reference to prepare and release")
 		timeout   = flag.Duration("timeout", 2*time.Minute, "Overall probe timeout")
-		bypassTTL = flag.Bool("bypass-ttl", true, "Pass bypass_ttl=true in ReleaseLayers")
+		bypassTTL = flag.Bool("bypass-ttl", true, "Pass bypass_ttl=true in ReleaseImage")
 	)
 	flag.Parse()
 
@@ -90,10 +90,10 @@ func main() {
 	}
 
 	prepStart := time.Now()
-	res, err := client.PrepareLayers(ctx, req)
+	res, err := client.PrepareImage(ctx, req)
 	prepDur := time.Since(prepStart)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "PrepareLayers error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "PrepareImage error: %v\n", err)
 		os.Exit(1)
 	}
 	report.Provider = client.Name()
@@ -112,11 +112,11 @@ func main() {
 	}
 
 	relStart := time.Now()
-	if err := client.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{
+	if err := client.ReleaseImage(ctx, &ocilayer.ReleaseRequest{
 		ImageRef:  *imageRef,
 		BypassTTL: *bypassTTL,
 	}); err != nil {
-		fmt.Fprintf(os.Stderr, "ReleaseLayers error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "ReleaseImage error: %v\n", err)
 		os.Exit(1)
 	}
 	report.ReleaseMs = float64(time.Since(relStart).Microseconds()) / 1000.0

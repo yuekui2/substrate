@@ -121,11 +121,11 @@ func prepareOCIDirectory(ctx context.Context, imageCache *imagecache.Store, laye
 			return
 		}
 		if img != nil && img.Streamed {
-			_ = layerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: ref})
+			_ = layerClient.ReleaseImage(ctx, &ocilayer.ReleaseRequest{ImageRef: ref})
 		}
 		for _, v := range imageVolumes {
 			if v.Streamed && v.ImageRef != "" {
-				_ = layerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: v.ImageRef})
+				_ = layerClient.ReleaseImage(ctx, &ocilayer.ReleaseRequest{ImageRef: v.ImageRef})
 			}
 		}
 	}
@@ -241,7 +241,7 @@ func resolveImageVolumes(ctx context.Context, imageCache *imagecache.Store, laye
 		if layerClient != nil {
 			for _, v := range out {
 				if v.Streamed && v.ImageRef != "" {
-					_ = layerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: v.ImageRef})
+					_ = layerClient.ReleaseImage(ctx, &ocilayer.ReleaseRequest{ImageRef: v.ImageRef})
 				}
 			}
 		}
@@ -342,7 +342,7 @@ func ensureContainerImage(ctx context.Context, imageCache *imagecache.Store, lay
 				slog.String("image", ref),
 				slog.String("provider", layerClient.Name()))
 		} else {
-			res, err := layerClient.PrepareLayers(ctx, req)
+			res, err := layerClient.PrepareImage(ctx, req)
 			provider := layerClient.Name()
 			if res != nil && res.ProviderName != "" {
 				provider = res.ProviderName
@@ -370,7 +370,7 @@ func ensureContainerImage(ctx context.Context, imageCache *imagecache.Store, lay
 				} else {
 					d, c, err := fetchImageConfig(ctx, ref, keychain)
 					if err != nil {
-						_ = layerClient.ReleaseLayers(ctx, &ocilayer.ReleaseRequest{ImageRef: ref})
+						_ = layerClient.ReleaseImage(ctx, &ocilayer.ReleaseRequest{ImageRef: ref})
 						instruments.RecordImageStreaming(ctx, provider, ateattr.ImageStreamingOutcomeFallback, time.Since(t0))
 						slog.WarnContext(ctx, "Failed to resolve image config for streamed image; falling back to cache",
 							slog.String("image", ref),
