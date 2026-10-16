@@ -77,7 +77,7 @@ On GCE the label group is named `logging.googleapis.com/labels`. Elsewhere it is
 
 ## `profile_coldboot.py`
 
-[`profile_coldboot.py`](profile_coldboot.py) runs `swebench-template.sh` with `RECREATE=1` and times it, giving `t0`..`t1`. It then scrapes **once**: `since = (t1 - t0) + 60` s, keeping only records with `t0 - 2 ≤ _ts ≤ t1 + 2` ([lines 277-282](profile_coldboot.py#L277-L282)).
+[`profile_coldboot.py`](profile_coldboot.py) runs `swebench-template.sh` with `RECREATE=1` and times it, giving `t0`..`t1`. During the build it follows the ateapi, atelet and worker logs (`kubectl logs -f`, [`LogStream`](profile_lifecycle.py)), because a busy ate-api-server can rotate its log file (kubelet rotates at 10 MiB) and `kubectl logs` only returns the current file. After the build it also scrapes once with `since = (t1 - t0) + 60` s, to cover pods created after the followers started. It merges the two, drops duplicate lines, and keeps records with `t0 - 2 ≤ _ts ≤ t1 + 2`. Within that window it keeps only the golden actor's records ([`golden_records`](profile_coldboot.py)): the ateom `Actor starting` line whose `ate.actor.name` is the template's uid gives the boot's `trace_id` and worker pod. ateapi and atelet lines are kept by that trace ID, and `Picked worker`, which is logged under a different trace, by that pod (the last one at or before `Actor starting`). Without the ateom line it falls back to the window and adds a note. This keeps out another template's golden boot in the same window, even one for the same image.
 
 The subject is the template's **golden actor**: atespace `ate-golden`, name = the template's `metadata.uid`.
 
@@ -106,7 +106,7 @@ Some values come from the API instead of logs: `createTime` and `goldenSnapshotS
 
 ## `profile_lifecycle.py`
 
-[`profile_lifecycle.py`](profile_lifecycle.py) runs four steps: create, resume #1, suspend, resume #2. Each step runs `kubectl-ate <verb> actor <name> -a <atespace> --trace`. It takes the trace ID from stderr (`Trace ID: <hex>`, in [`ate()`](profile_lifecycle.py#L159-L179)) and records the call's wall-clock span. After a `--settle` wait (3 s), [`collect`](profile_lifecycle.py#L461-L495) scrapes **again for each step**, with a short `--since`.
+[`profile_lifecycle.py`](profile_lifecycle.py) runs four steps: create, resume #1, suspend, resume #2. Each step runs `kubectl-ate <verb> actor <name> -a <atespace> --trace`. It takes the trace ID from stderr (`Trace ID: <hex>`, in [`ate()`](profile_lifecycle.py)) and records the call's wall-clock span. For the whole run it follows the ateapi, atelet and worker logs (`kubectl logs -f`, `LogStream`), so a log rotation during a long step loses nothing. After each resume, with `--workload-timeout` > 0, it waits until the followed worker log shows this actor's `workload end` (logged at or after the call's start), or until the timeout, which adds a note to the step. Then, and after create and suspend, it waits `--settle` (3 s), and [`collect`](profile_lifecycle.py) merges the followed records with a per-step scrape (short `--since`), which covers pods created after the followers started.
 
 The subject is the actor the script creates: default name `prof-<unix seconds>`, or `--actor`.
 
@@ -121,9 +121,9 @@ The subject is the actor the script creates: default name `prof-<unix seconds>`,
 | atelet | `Image cache hit` / `Image cache miss`, `Image pulled into layer cache` | `ref`, `digest`, `layers`, `took` | **trace ID** ([`atelet_images`](profile_lifecycle.py#L250-L282)) | [R9](log-appendix.md#r9) / [R10](log-appendix.md#r10) / [R11](log-appendix.md#r11) |
 | atelet | `PrepareLayers timing breakdown`, `Image streamed`, fallbacks, re-prepare | as in the coldboot table | **trace ID** (`digests=None`, so no digest filter) | [R13](log-appendix.md#r13) / [R14](log-appendix.md#r14) / [R15](log-appendix.md#r15) / [R16](log-appendix.md#r16) |
 | atelet | `Restore timing breakdown` | `ate.actor.restore.duration.{volume_mount,manifest_fetch,sandbox_assets,download,oci_unpack,ateom_restore,total}` (s) | **trace ID**, last record wins ([`atelet_restore`](profile_lifecycle.py#L230-L247)) | [R17](log-appendix.md#r17) |
-| ateom | `Actor starting`/`started` (resume #1 if it boots), `restoring`/`restored` (resume #1/#2), `checkpointing`/`checkpointed` (suspend) | `_ts`, labels | records within the **call's wall span** (−1 s / +settle+1 s), then **`ate.actor.name == actor`** | [R18](log-appendix.md#r18)–[R23](log-appendix.md#r23) |
+| ateom | `Actor starting`/`started` (resume #1 if it boots), `restoring`/`restored` (resume #1/#2), `checkpointing`/`checkpointed` (suspend) | `_ts`, labels | records from the **call's start − 1 s to collection time + 1 s** (after any workload wait and the settle), then **`ate.actor.name == actor`** | [R18](log-appendix.md#r18)–[R23](log-appendix.md#r23) |
 | ateom | `About to run runsc <verb>`, `Readyz reached 200` | `container`, `_ts`, `elapsed` | inside that window **+ same worker pod**, skipping records labeled with a different actor | [R24](log-appendix.md#r24) / [R25](log-appendix.md#r25) |
-| actor stdout | `workload start` / `workload end`, `trigger: resume` | `_ts`, `trigger`, `elapsed_us` | the same **wall span** as ateom (−1 s / +settle+1 s), then **`ate.actor.name == actor`**; first record per (message, trigger) wins ([`workload`](profile_lifecycle.py#L438-L458)) | [R26](log-appendix.md#r26) / [R27](log-appendix.md#r27) |
+| actor stdout | `workload start` / `workload end`, `trigger: resume` | `_ts`, `trigger`, `elapsed_us` | the same window as ateom, then **`ate.actor.name == actor`**; first record per (message, trigger) wins ([`workload`](profile_lifecycle.py)) | [R26](log-appendix.md#r26) / [R27](log-appendix.md#r27) |
 
 ---
 
@@ -148,4 +148,4 @@ What each origin covers:
 - **Two clocks.** The origin is stamped by the ate-api-server node's clock, the workload lines by the worker node's clock (ateom reads them). Cross-node NTP skew is usually sub-millisecond on GCE, but it enters every TTCE row.
 - **`time` is when ateom reads the line, not when bash printed it.** Pipe and goroutine scheduling add a small delay, typically well under a millisecond.
 - **Resume detection delay.** After a FULL restore, the script notices the clock jump after its current `sleep 0.05` ends, so `workload start (resume)` can trail `Actor restored` by up to about 50 ms (about 10 ms in earlier runs, whose loop used `read -t 0.01`).
-- **The settle window caps collection.** In `profile_lifecycle.py`, a workload line logged after `end + settle + 1` s is dropped and its row is missing. That's not a risk for `file-read`; size `--settle` to the compile time for `compile`.
+- **The workload wait caps collection.** In `profile_lifecycle.py`, a resume whose `workload end` doesn't appear within `--workload-timeout` gets a note, and the next step starts anyway, so that workload may be suspended mid-run. With `--workload-timeout 0`, a workload line logged after the settle is dropped and its row is missing.

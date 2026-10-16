@@ -13,9 +13,10 @@ from `ate-api-server`, `atelet`, and `ateom` worker pods.
 | `profiling-pool.yaml.tmpl` | The WorkerPool manifest template rendered by `deploy-pool.sh` and `repeat_matplotlib.sh` |
 | `swebench-template.sh` | Creates an ActorTemplate from a mirrored SWE-bench image, pinned by digest, and waits for its golden snapshot. With `ACTOR_SCRIPT` set, the container runs that script instead of `sleep infinity` |
 | `profile_coldboot.py` | Profiles **template creation**: cold registry pull or streaming `PrepareLayers`, boot from spec, golden checkpoint, and workload TTCE from `Picked worker` |
-| `profile_lifecycle.py` | Profiles **one actor**: create → initial activation → suspend → resume, with workload TTCE per resume (supports `--step-gap` and `--settle`) |
+| `profile_lifecycle.py` | Profiles **one actor**: create → initial activation → suspend → resume, with workload TTCE per resume (supports `--step-gap`, `--settle` and `--workload-timeout`) |
 | `workloads/file-read.sh` | Actor workload: reads one file (`READ_FILE`, default `pyplot.py`) at boot and after every restore, logging `workload start` / `workload end` |
 | `workloads/compile.sh` | Actor workload: runs `compileall` on `COMPILE_DIR` (default `/testbed/lib/matplotlib`) at boot and after every restore, logging the same records |
+| `workloads/read-all.sh` | Actor workload: reads every regular file on the rootfs (`READ_ROOT`, default `/`) with `find -xdev -type f \| xargs cat \| wc -c` at boot and after every restore, logging the same records plus `bytes` and `rc`. `cat` reads every path in full, so a pulled and a streamed rootfs of the same image read the same bytes (tar does not: it reads a hardlink group once only where the rootfs shows it as one inode) |
 | `repeat_matplotlib.sh` | Runs the N-rep paired `stream` vs. `pull` benchmark on freshly recreated node pools per repetition, with the actor running `workloads/$ACTOR_WORKLOAD.sh` |
 | `aggregate_repeats.py` | Aggregates `repeat_matplotlib.sh` output directories (`rep-01..rep-N`) into median / min / max markdown tables (does not read the `workload` key yet) |
 | [`log-sources.md`](log-sources.md) | Which log record each reported number comes from, how it is tied to the actor, and how the TTCE rows are computed |
@@ -189,9 +190,10 @@ saves JSON telemetry + node pool configuration under `OUT`.
 | variable | default | meaning |
 |---|---|---|
 | `N` | `15` | repetitions |
-| `ACTOR_WORKLOAD` | `file-read` | `file-read` or `compile` (a script in `workloads/`) |
+| `ACTOR_WORKLOAD` | `file-read` | `file-read`, `compile` or `read-all` (a script in `workloads/`) |
 | `GAP` | `0` | seconds between coldboot and lifecycle, and `--step-gap` between lifecycle steps. `0` gives `gcfsd` no idle time to finish background layer downloads, so stream reads see the real cost of streaming |
-| `SETTLE` | `3` | lifecycle `--settle`: seconds before each step's logs are scraped. Workload lines logged later than this are missed, so raise it for `compile` |
+| `SETTLE` | `3` | lifecycle `--settle`: seconds before each step's logs are scraped, after the workload wait on resumes |
+| `WORKLOAD_TIMEOUT` | `600` | lifecycle `--workload-timeout`: after each resume, wait up to this many seconds for the actor's `workload end` before settling, so a long workload is never suspended mid-run. A timeout adds a note to the step |
 | `OUT` | `profiling/results/workload/$ACTOR_WORKLOAD` | output directory |
 | `MACHINE_TYPE`, `DISK_TYPE`, `DISK_SIZE` | `c3-standard-4`, `pd-balanced`, `100` | node pool shape |
 
@@ -207,8 +209,8 @@ export BUCKET_NAME=snapshot-substrate-test-${PROJECT_ID}
 # 15 paired cold repetitions of the file-read workload:
 N=15 ACTOR_WORKLOAD=file-read profiling/repeat_matplotlib.sh
 
-# The compile workload takes seconds, so give each step longer to log:
-N=15 ACTOR_WORKLOAD=compile SETTLE=10 profiling/repeat_matplotlib.sh
+# The compile workload; each resume waits for its workload end:
+N=15 ACTOR_WORKLOAD=compile profiling/repeat_matplotlib.sh
 ```
 
 To benchmark an alternate VM or disk shape (for example `e2-standard-32` + `pd-ssd`),

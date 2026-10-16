@@ -27,8 +27,9 @@ set -uo pipefail
 
 N="${N:-15}"
 GAP="${GAP:-0}"                  # seconds between steps; 0 leaves no idle time for background downloads
-SETTLE="${SETTLE:-3}"            # seconds before scraping each step; must cover the workload's run time
-ACTOR_WORKLOAD="${ACTOR_WORKLOAD:-file-read}"  # file-read | compile
+SETTLE="${SETTLE:-3}"            # seconds before scraping each step, after any workload wait
+WORKLOAD_TIMEOUT="${WORKLOAD_TIMEOUT:-600}"  # max seconds to wait for each resume's workload end
+ACTOR_WORKLOAD="${ACTOR_WORKLOAD:-file-read}"  # file-read | compile | read-all
 ACTOR_SCRIPT="$PWD/profiling/workloads/$ACTOR_WORKLOAD.sh"
 [[ -f "$ACTOR_SCRIPT" ]] || { echo "no such workload: $ACTOR_SCRIPT" >&2; exit 1; }
 OUT="${OUT:-profiling/results/workload/$ACTOR_WORKLOAD}"
@@ -56,7 +57,8 @@ cat > "$OUT/config.json" <<EOF
   "workload": "$ACTOR_WORKLOAD",
   "n": $N,
   "gap_s": $GAP,
-  "settle_s": $SETTLE
+  "settle_s": $SETTLE,
+  "workload_timeout_s": $WORKLOAD_TIMEOUT
 }
 EOF
 
@@ -75,19 +77,43 @@ mkpool() {  # $1 = WorkerPool, $2 = node pool
       -e "s|^\(      ate.dev/substrate-version: .*\)$|\1\n      cloud.google.com/gke-nodepool: $2|" \
       profiling/profiling-pool.yaml.tmpl
 }
-run_arm() {  # $1 = stream|pull, $2 = rep dir
-  local arm=$1 dir=$2
-  for a in $(kubectl-ate get actor -a ate-golden 2>/dev/null | awk -v t="ate-prof-$arm/$SLUG_M" '$3 == t {print $2}'); do
+delete_golden() {  # $1 = stream|pull
+  for a in $(kubectl-ate get actor -a ate-golden 2>/dev/null | awk -v t="ate-prof-$1/$SLUG_M" '$3 == t {print $2}'); do
     kubectl-ate delete actor "$a" -a ate-golden --any-state || true
   done
+}
+reset_arm() {  # $1 = stream|pull: delete the arm's actors, template and golden actors
+  local as="ate-prof-$1"
+  for a in $(kubectl-ate get actor -a "$as" 2>/dev/null | awk 'NR > 1 {print $2}'); do
+    kubectl-ate delete actor "$a" -a "$as" --any-state || true
+  done
+  # Deleting the template first stops the reconciler from rebuilding the
+  # golden actor deleted next.
+  if kubectl-ate get actor-template "$SLUG_M" -a "$as" >/dev/null 2>&1; then
+    kubectl-ate delete actor-template "$SLUG_M" -a "$as" || true
+    for _ in $(seq 60); do
+      kubectl-ate get actor-template "$SLUG_M" -a "$as" >/dev/null 2>&1 || break
+      sleep 2
+    done
+  fi
+  delete_golden "$1"
+}
+run_arm() {  # $1 = stream|pull, $2 = rep dir
+  local arm=$1 dir=$2
+  delete_golden "$arm"
   profiling/profile_coldboot.py --instance "$IM" --atespace "ate-prof-$arm" \
     --worker-namespace ate-profiling --worker-pool "profiling-$arm" \
     --env "WORKLOAD=profiling-$arm ACTOR_SCRIPT=$ACTOR_SCRIPT" --json "$dir/$arm-coldboot-$IM.json"
   sleep "$GAP"                                   # same spacing on both arms
   profiling/profile_lifecycle.py --atespace "ate-prof-$arm" --template "ate-prof-$arm/$SLUG_M" \
     --worker-namespace ate-profiling --worker-pool "profiling-$arm" \
-    --step-gap "$GAP" --settle "$SETTLE" --json "$dir/$arm-lifecycle-$IM.json"
+    --step-gap "$GAP" --settle "$SETTLE" --workload-timeout "$WORKLOAD_TIMEOUT" \
+    --json "$dir/$arm-lifecycle-$IM.json"
 }
+
+# A template an interrupted run left behind can rebuild its golden actor while
+# the other arm is being measured, so start with neither arm's objects.
+for arm in stream pull; do reset_arm "$arm"; done
 
 for i in $(seq 1 "$N"); do
   dir="$OUT/rep-$(printf %02d "$i")"; mkdir -p "$dir"

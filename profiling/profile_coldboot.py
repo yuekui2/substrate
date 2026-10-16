@@ -39,11 +39,15 @@ import time
 
 from profile_lifecycle import (
     ATE_SYSTEM,
+    LogStream,
+    actor_name_of,
     atelet_flags,
     atelet_streaming,
     ateom_timeline,
+    for_trace,
     log_level_note,
     logs,
+    merge_records,
     msg_of,
     ns_to_s,
     parse_ts,
@@ -238,6 +242,35 @@ def boot_path(records):
     return facts, notes
 
 
+def golden_records(api, let, wrk, uid):
+    """Narrow the build window's ateapi and atelet records to the golden actor.
+
+    The window alone is not enough: another template whose golden actor boots
+    during the build (for example one left behind by an interrupted run) logs
+    the same messages, and for the same image even the same digest. The
+    golden actor's ateom "Actor starting" envelope names it (uid) and carries
+    the boot's trace ID, which ateapi's boot-path line and atelet's image
+    lines share. "Picked worker" is logged under a different trace, so it is
+    matched by the worker pod the actor started on instead: the last one for
+    that pod at or before the boot started.
+
+    Returns (api, let, notes). Without the ateom record, falls back to the
+    window and says so.
+    """
+    start = next((r for r in wrk if msg_of(r) == "Actor starting" and actor_name_of(r) == uid), None)
+    trace = (start or {}).get("trace_id", "")
+    if not start or not trace:
+        return api, let, ["golden actor's 'Actor starting' not found in the worker logs: "
+                          "records matched by the build window only"]
+    pod, began = start.get("_pod", ""), start["_ts"]
+    picked = sorted((r for r in api
+                     if msg_of(r) == "Picked worker" and pod and f'worker_pod:"{pod}"' in str(r.get("worker", ""))
+                     and r["_ts"] is not None and (began is None or r["_ts"] <= began)),
+                    key=lambda r: r["_ts"])
+    traced = [r for r in for_trace(api, trace) if msg_of(r) != "Picked worker"]
+    return picked[-1:] + traced, for_trace(let, trace), []
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -263,7 +296,15 @@ def main():
     level_note = log_level_note(flags)
 
     print(f"\nbuilding {args.atespace}/{name} from {args.instance} ...")
-    t0, t1, out = build_template(args.script, args.instance, args.atespace, args.env)
+    # Follow the logs during the build as well as scraping after it: a busy
+    # ate-api-server can rotate its log file mid-build, and kubectl logs only
+    # returns the current file, so a scrape alone can miss the golden boot.
+    with LogStream("app=ate-api-server", ATE_SYSTEM) as api_stream, \
+            LogStream("app=atelet", ATE_SYSTEM) as let_stream, \
+            LogStream(selector, args.worker_namespace, prefix=True) as wrk_stream:
+        t0, t1, out = build_template(args.script, args.instance, args.atespace, args.env)
+        time.sleep(3)  # let lines up to t1 + 2 reach the followers
+        streamed = api_stream.records(), let_stream.records(), wrk_stream.records()
     print(out)
 
     tmpl = template_json(args.kubectl_ate, args.atespace, name)
@@ -272,19 +313,20 @@ def main():
     sizes = {d: image_size(c["image"]) for c in tmpl.get("containers", [])
              for d in digests if d in c.get("image", "")}
 
-    # One scrape covering the build, then filtered to it. Overshooting --since
-    # only costs log lines; undershooting loses the event outright.
+    # The scrape covers pods the followers could not (ones created after they
+    # started). Overshooting --since only costs log lines.
     since = int(t1 - t0) + 60
     window = lambda rs: [r for r in rs if r["_ts"] is not None and t0 - 2 <= r["_ts"] <= t1 + 2]
-    api = window(logs("app=ate-api-server", ATE_SYSTEM, since)) # ateapi logs
-    let = window(logs("app=atelet", ATE_SYSTEM, since)) # atelet logs
-    wrk = sorted(window(logs(selector, args.worker_namespace, since, prefix=True)), # worker logs
+    api = window(merge_records(streamed[0], logs("app=ate-api-server", ATE_SYSTEM, since))) # ateapi logs
+    let = window(merge_records(streamed[1], logs("app=atelet", ATE_SYSTEM, since))) # atelet logs
+    wrk = sorted(window(merge_records(streamed[2], logs(selector, args.worker_namespace, since, prefix=True))), # worker logs
                  key=lambda r: r["_ts"])
 
-    facts, notes = boot_path(api)
-    streaming, stream_notes, streamed = atelet_streaming(let, digests)
-    pulls, pull_notes = cold_pull(let, digests, sizes, streamed)
-    pull_notes += stream_notes + ([level_note] if level_note else [])
+    golden_api, golden_let, match_notes = golden_records(api, let, wrk, uid)
+    facts, notes = boot_path(golden_api)
+    streaming, stream_notes, streamed = atelet_streaming(golden_let, digests)
+    pulls, pull_notes = cold_pull(golden_let, digests, sizes, streamed)
+    pull_notes += match_notes + stream_notes + ([level_note] if level_note else [])
     phases, meta = ateom_timeline(wrk, "boot", uid)
     ckpt, ckpt_meta = ateom_timeline(wrk, "suspend", uid)
     # From placement, so the image fetch is included: on a fresh node this is
@@ -304,7 +346,7 @@ def main():
     # Each row is a measured span between recorded instants; the warmup is
     # reported, not subtracted.
     warmup = warmup_for(tmpl, args.warmup)
-    segments = build_segments(tmpl, api, name, t0, t1)
+    segments = build_segments(tmpl, api, f"{args.atespace}/{name}", t0, t1)
     table("build wall clock", segments)
     if warmup:
         print()

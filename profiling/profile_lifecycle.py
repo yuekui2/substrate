@@ -26,10 +26,13 @@ the ateom markers and the ateapi tail breakdown.
 """
 
 import argparse
+import contextlib
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime
 
@@ -112,8 +115,8 @@ def actor_name_of(rec):
     return labels.get("ate.actor.name") or ""
 
 
-def logs(selector, namespace, since, prefix=False):
-    """Scrape the JSON log records of every pod matching a label selector.
+def parse_log_lines(text, prefix=False):
+    """Parse `kubectl logs` output into JSON records.
 
     Each record gains three synthetic keys the rest of the script reads:
     _pod (empty unless prefix, which is how a worker record is tied back to the
@@ -123,12 +126,8 @@ def logs(selector, namespace, since, prefix=False):
     Anything that is not a JSON object is dropped: kubectl's own prefix lines
     and any component that logged in text are noise here, not errors.
     """
-    cmd = f"kubectl logs -l {selector} -n {namespace} --since={since}s --tail=-1"
-    if prefix:
-        cmd += " --prefix"
-    out = run(cmd, check=False).stdout
     records = []
-    for line in out.splitlines():
+    for line in text.splitlines():
         pod = ""
         if prefix:
             m = re.match(r"\[pod/([^/]+)/[^]]+\]\s*(.*)", line)
@@ -147,6 +146,80 @@ def logs(selector, namespace, since, prefix=False):
         rec["_raw"] = line
         records.append(rec)
     return records
+
+
+def logs(selector, namespace, since, prefix=False):
+    """Scrape the JSON log records of every pod matching a label selector."""
+    cmd = f"kubectl logs -l {selector} -n {namespace} --since={since}s --tail=-1"
+    if prefix:
+        cmd += " --prefix"
+    return parse_log_lines(run(cmd, check=False).stdout, prefix)
+
+
+class LogStream:
+    """Follow every pod matching a selector into a temp file while in use.
+
+    `kubectl logs` returns only a pod's current log file, and kubelet rotates
+    it at 10 MiB (containerLogMaxSize), so a busy component such as
+    ate-api-server can rotate away a line between when it is written and a
+    scrape at the end of a long step. Following the logs as they are written
+    keeps those lines. `kubectl logs -f -l` only follows pods that exist when
+    it starts, so merge the result with a scrape to cover pods created later.
+
+    The follower appends to a named file that is read through a separate
+    handle, so snapshot() can be called while it is still following.
+    """
+
+    def __init__(self, selector, namespace, prefix=False):
+        self.selector, self.namespace, self.prefix = selector, namespace, prefix
+        self._path = self._proc = None
+
+    def __enter__(self):
+        fd, self._path = tempfile.mkstemp(prefix="logstream-", suffix=".log")
+        os.close(fd)
+        cmd = ["kubectl", "logs", "-f", "-l", self.selector, "-n", self.namespace,
+               "--since=1s", "--tail=-1", "--max-log-requests=50"]
+        if self.prefix:
+            cmd.append("--prefix")
+        with open(self._path, "a") as out:
+            self._proc = subprocess.Popen(cmd, stdout=out, stderr=subprocess.DEVNULL, text=True)
+        return self
+
+    def __exit__(self, *exc):
+        self.stop()
+        os.unlink(self._path)
+
+    def stop(self):
+        """Stop following; safe to call more than once."""
+        if self._proc and self._proc.poll() is None:
+            self._proc.terminate()
+            try:
+                self._proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._proc.kill()
+                self._proc.wait()
+
+    def snapshot(self):
+        """Everything captured so far, without stopping the follower."""
+        with open(self._path) as f:
+            return parse_log_lines(f.read(), self.prefix)
+
+    def records(self):
+        """Stop following and return everything captured."""
+        self.stop()
+        return self.snapshot()
+
+
+def merge_records(*sources):
+    """Union record lists, dropping lines seen in more than one source."""
+    seen, out = set(), []
+    for records in sources:
+        for r in records:
+            key = (r["_pod"], r["_raw"])
+            if key not in seen:
+                seen.add(key)
+                out.append(r)
+    return out
 
 
 def for_trace(records, trace_id):
@@ -441,7 +514,8 @@ def workload(records, actor, t_zero, origin):
     The profiling/workloads scripts print those records from inside the
     container, tagged with the trigger (boot or resume); ateom stamps them with
     the worker's clock. origin names t_zero in the row labels. The in-sandbox
-    elapsed_us, when present, is reported alongside.
+    elapsed_us, and the end record's bytes and rc when present, are reported
+    alongside; bytes is how two arms are checked for doing the same work.
     """
     out = {}
     for r in records:
@@ -455,25 +529,51 @@ def workload(records, actor, t_zero, origin):
         out[key] = r["_ts"] - t_zero if t_zero is not None else None
         if m == "workload end" and isinstance(r.get("elapsed_us"), (int, float)):
             out[f"workload elapsed in sandbox ({trigger})"] = r["elapsed_us"] / 1e6
+        if m == "workload end":
+            # Integers, so table() prints them as they are rather than as ms.
+            for field in ("bytes", "rc"):
+                if isinstance(r.get(field), int):
+                    out[f"workload {field} ({trigger})"] = r[field]
     return out
 
 
-def collect(args, step, method, window, trace_id, since, actor, span):
+def wait_for_workload_end(read_records, actor, after, timeout, poll=1.0,
+                          clock=time.time, sleep=time.sleep):
+    """Block until the actor logs "workload end" at or after `after`.
+
+    read_records returns the worker records captured so far. Returns the
+    record, or None once `timeout` seconds pass without one: a workload that
+    hung, crashed or never started would otherwise stall the run.
+    """
+    deadline = clock() + timeout
+    while True:
+        for r in read_records():
+            if (msg_of(r) == "workload end" and actor_name_of(r) == actor
+                    and r["_ts"] is not None and r["_ts"] >= after):
+                return r
+        if clock() >= deadline:
+            return None
+        sleep(poll)
+
+
+def collect(args, streams, step, method, window, trace_id, since, actor, span):
     """Join one lifecycle step's records from all three components.
 
-    Scraping happens per step rather than once at the end so that `since` stays
-    short and the worker stream stays small enough to filter by timestamp.
+    Each component's followed log (streams: api, atelet, worker) is merged
+    with a per-step scrape, which covers pods the followers could not see.
 
     ateapi and atelet are selected by trace ID. ateom is not: its lifecycle
-    envelope names the actor but carries no trace ID, so the call's own
-    wall-clock span selects its records, padded by a second on each side for
-    clock skew between the client and the nodes.
+    envelope names the actor but carries no trace ID, so its records are
+    selected from the call's start, padded by a second for clock skew between
+    the client and the nodes, up to now, which includes any workload wait.
     """
-    api = for_trace(logs("app=ate-api-server", ATE_SYSTEM, since), trace_id)
-    let = for_trace(logs("app=atelet", ATE_SYSTEM, since), trace_id)
-    begin, end = span
-    wrk = [r for r in logs(args.worker_selector, args.worker_namespace, since, prefix=True)
-           if r["_ts"] is not None and begin - 1 <= r["_ts"] <= end + args.settle + 1]
+    api_s, let_s, wrk_s = streams
+    api = for_trace(merge_records(api_s.snapshot(), logs("app=ate-api-server", ATE_SYSTEM, since)), trace_id)
+    let = for_trace(merge_records(let_s.snapshot(), logs("app=atelet", ATE_SYSTEM, since)), trace_id)
+    begin, until = span[0], time.time()
+    wrk = [r for r in merge_records(wrk_s.snapshot(),
+                                    logs(args.worker_selector, args.worker_namespace, since, prefix=True))
+           if r["_ts"] is not None and begin - 1 <= r["_ts"] <= until + 1]
     wrk.sort(key=lambda r: r["_ts"])
 
     facts, notes = ateapi_facts(api, method)
@@ -555,7 +655,11 @@ def main():
     p.add_argument("--worker-pool", default="", help="WorkerPool name")
     p.add_argument("--actor", default="", help="actor name; defaults to a timestamped one")
     p.add_argument("--kubectl-ate", default="kubectl-ate")
-    p.add_argument("--settle", type=float, default=3.0, help="seconds to wait before scraping logs")
+    p.add_argument("--settle", type=float, default=3.0,
+                   help="seconds to wait before scraping each step's logs (after the workload wait, if any)")
+    p.add_argument("--workload-timeout", type=float, default=0.0,
+                   help="after each resume, wait up to this many seconds for the actor's "
+                        "'workload end' line before settling; 0 disables the wait")
     p.add_argument("--step-gap", type=float, default=0.0,
                    help="seconds to idle before the suspend and before resume #2, outside every "
                         "measured span, so a cold stream's background layer download can finish")
@@ -586,46 +690,72 @@ def main():
         """
         return max(int(time.time() - t_origin) + 5, 10)
 
-    # 1. create: metadata only, the actor is born suspended and holds no worker.
+    def settle_after_resume(streams, span):
+        """Wait for the resume's workload to finish, then settle.
+
+        Returns a note when the wait timed out, else None.
+        """
+        note = None
+        if args.workload_timeout > 0:
+            if wait_for_workload_end(streams[2].snapshot, actor, span[0] - 1, args.workload_timeout) is None:
+                note = f"workload end not seen within {args.workload_timeout:.0f} s of the resume"
+                print(f"WARNING: {note}")
+        time.sleep(args.settle)
+        return note
+
     try:
-        wall, trace, span = ate(args, f"create actor {actor} --template {args.template}")
-        time.sleep(args.settle)
-        r = collect(args, "create actor record", "CreateActor", "boot", trace, since(), actor, span)
-        r["client_wall"] = wall
-        results.append((r, ""))
+        with contextlib.ExitStack() as stack:
+            # Followed for the whole lifecycle: a busy ate-api-server can rotate
+            # its log file during a long workload wait.
+            streams = tuple(stack.enter_context(s) for s in (
+                LogStream("app=ate-api-server", ATE_SYSTEM),
+                LogStream("app=atelet", ATE_SYSTEM),
+                LogStream(args.worker_selector, args.worker_namespace, prefix=True)))
 
-        # 2. first resume: cold boot from the template spec, or a golden restore
-        #    if the template has a golden snapshot. ateapi logs which it chose.
-        wall, trace, span = ate(args, f"resume actor {actor}", retries=args.retries)
-        time.sleep(args.settle)
-        boot = collect(args, "cold boot (resume #1)", "ResumeActor", "boot", trace, since(), actor, span)
-        if not boot["ateom"]:  # a golden restore lands in the restore window
-            boot.update(collect(args, "initial activation (resume #1)", "ResumeActor", "restore", trace, since(), actor, span))
-        boot["client_wall"] = wall
-        node_before = boot["ateapi"].get("_node", "")
-        results.append((boot, f"node {node_before or 'unknown'}"))
+            # 1. create: metadata only, the actor is born suspended and holds no worker.
+            wall, trace, span = ate(args, f"create actor {actor} --template {args.template}")
+            time.sleep(args.settle)
+            r = collect(args, streams, "create actor record", "CreateActor", "boot", trace, since(), actor, span)
+            r["client_wall"] = wall
+            results.append((r, ""))
 
-        # 3. live suspend: checkpoint to object storage and release the worker.
-        #    --step-gap idles first, outside the measured span: a cold stream
-        #    keeps downloading layers in the background after the resume returns.
-        time.sleep(args.step_gap)
-        wall, trace, span = ate(args, f"suspend actor {actor}", retries=args.retries)
-        time.sleep(args.settle)
-        r = collect(args, "live suspend", "SuspendActor", "suspend", trace, since(), actor, span)
-        r["client_wall"] = wall
-        results.append((r, ""))
+            # 2. first resume: cold boot from the template spec, or a golden restore
+            #    if the template has a golden snapshot. ateapi logs which it chose.
+            wall, trace, span = ate(args, f"resume actor {actor}", retries=args.retries)
+            wait_note = settle_after_resume(streams, span)
+            boot = collect(args, streams, "cold boot (resume #1)", "ResumeActor", "boot", trace, since(), actor, span)
+            if not boot["ateom"]:  # a golden restore lands in the restore window
+                boot.update(collect(args, streams, "initial activation (resume #1)", "ResumeActor", "restore",
+                                    trace, since(), actor, span))
+            if wait_note:
+                boot["notes"].append(wait_note)
+            boot["client_wall"] = wall
+            node_before = boot["ateapi"].get("_node", "")
+            results.append((boot, f"node {node_before or 'unknown'}"))
 
-        # 4. second resume: restore from the snapshot just written. Whether it
-        #    lands on the same node is the pool's choice, so classify it rather
-        #    than force it. --step-gap idles first, as before the suspend.
-        time.sleep(args.step_gap)
-        wall, trace, span = ate(args, f"resume actor {actor}", retries=args.retries)
-        time.sleep(args.settle)
-        r = collect(args, "resume from snapshot", "ResumeActor", "restore", trace, since(), actor, span)
-        r["client_wall"] = wall
-        node_after = r["ateapi"].get("_node", "")
-        kind = "same-node warm resume" if node_after and node_after == node_before else "cross-node migration"
-        results.append((r, f"{kind}: {node_before or '?'} -> {node_after or '?'}"))
+            # 3. live suspend: checkpoint to object storage and release the worker.
+            #    --step-gap idles first, outside the measured span: a cold stream
+            #    keeps downloading layers in the background after the resume returns.
+            time.sleep(args.step_gap)
+            wall, trace, span = ate(args, f"suspend actor {actor}", retries=args.retries)
+            time.sleep(args.settle)
+            r = collect(args, streams, "live suspend", "SuspendActor", "suspend", trace, since(), actor, span)
+            r["client_wall"] = wall
+            results.append((r, ""))
+
+            # 4. second resume: restore from the snapshot just written. Whether it
+            #    lands on the same node is the pool's choice, so classify it rather
+            #    than force it. --step-gap idles first, as before the suspend.
+            time.sleep(args.step_gap)
+            wall, trace, span = ate(args, f"resume actor {actor}", retries=args.retries)
+            wait_note = settle_after_resume(streams, span)
+            r = collect(args, streams, "resume from snapshot", "ResumeActor", "restore", trace, since(), actor, span)
+            if wait_note:
+                r["notes"].append(wait_note)
+            r["client_wall"] = wall
+            node_after = r["ateapi"].get("_node", "")
+            kind = "same-node warm resume" if node_after and node_after == node_before else "cross-node migration"
+            results.append((r, f"{kind}: {node_before or '?'} -> {node_after or '?'}"))
     finally:
         # A step that fails still measured the ones before it, and still leaves
         # an actor behind, so report and clean up on the way out either way.
