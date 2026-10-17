@@ -38,9 +38,12 @@ import sys
 import time
 
 from profile_lifecycle import (
+    ADAPTER_CONTAINER,
+    ADAPTER_SELECTOR,
     ATE_SYSTEM,
     LogStream,
     actor_name_of,
+    adapter_records,
     atelet_flags,
     atelet_streaming,
     ateom_timeline,
@@ -301,10 +304,11 @@ def main():
     # returns the current file, so a scrape alone can miss the golden boot.
     with LogStream("app=ate-api-server", ATE_SYSTEM) as api_stream, \
             LogStream("app=atelet", ATE_SYSTEM) as let_stream, \
-            LogStream(selector, args.worker_namespace, prefix=True) as wrk_stream:
+            LogStream(selector, args.worker_namespace, prefix=True) as wrk_stream, \
+            LogStream(ADAPTER_SELECTOR, ATE_SYSTEM, prefix=True, container=ADAPTER_CONTAINER) as ada_stream:
         t0, t1, out = build_template(args.script, args.instance, args.atespace, args.env)
         time.sleep(3)  # let lines up to t1 + 2 reach the followers
-        streamed = api_stream.records(), let_stream.records(), wrk_stream.records()
+        streamed = api_stream.records(), let_stream.records(), wrk_stream.records(), ada_stream.records()
     print(out)
 
     tmpl = template_json(args.kubectl_ate, args.atespace, name)
@@ -321,10 +325,15 @@ def main():
     let = window(merge_records(streamed[1], logs("app=atelet", ATE_SYSTEM, since))) # atelet logs
     wrk = sorted(window(merge_records(streamed[2], logs(selector, args.worker_namespace, since, prefix=True))), # worker logs
                  key=lambda r: r["_ts"])
+    # Adapter logs: no trace ID, so selected by the build window and the template's digests.
+    ada = adapter_records(merge_records(streamed[3], logs(ADAPTER_SELECTOR, ATE_SYSTEM, since, prefix=True,
+                                                          container=ADAPTER_CONTAINER)),
+                          t0 - 2, t1 + 2, digests)
 
     golden_api, golden_let, match_notes = golden_records(api, let, wrk, uid)
     facts, notes = boot_path(golden_api)
-    streaming, stream_notes, streamed = atelet_streaming(golden_let, digests)
+    streaming, stream_notes, streamed = atelet_streaming(
+        sorted(golden_let + ada, key=lambda r: r["_ts"] or 0.0), digests)
     pulls, pull_notes = cold_pull(golden_let, digests, sizes, streamed)
     pull_notes += match_notes + stream_notes + ([level_note] if level_note else [])
     phases, meta = ateom_timeline(wrk, "boot", uid)
@@ -337,7 +346,7 @@ def main():
     print(f" GOLDEN ACTOR COLD BOOT   {args.atespace}/{name}")
     print("=" * 68)
     print(f"  golden actor {GOLDEN_ATESPACE}/{uid}")
-    print(f"  atelet --image-streamer={flags['image_streamer']} --log-level={flags['log_level']}")
+    print(f"  atelet --oci-layer-service-socket={flags['image_streamer']} --log-level={flags['log_level']}")
     for n in notes + pull_notes:
         print(f"  - {n}")
     if not notes:

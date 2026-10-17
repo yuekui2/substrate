@@ -107,7 +107,7 @@ scheduling before `Picked worker`, a few milliseconds in these runs.
 | `ate-api-server` | `FinalizeSuspended store call durations` | per-store-call durations (int64 ns) |
 | `atelet` (pull arm) | `Image cache hit` / `Image cache miss` | per image reference |
 | `atelet` (pull arm) | `Image pulled into layer cache` | `took` (int64 ns): registry download + gunzip + untar |
-| `atelet` (stream arm) | `PrepareLayers` / `Image prepared via streaming` | `resolve`, `stat`, `prepare`, `view`, `listable`, `wrapper`, `total` |
+| OCILayerService adapter (stream arm) | `PrepareImage timing breakdown` (Go log text, 1 s timestamps, no trace ID) | `resolve`, `stat`, `prepare`, `view`, `listable`, `wrapper`, `total` |
 | `atelet` (restore) | `Restore timing breakdown` | `ate.actor.restore.duration.<phase>` (float **seconds**; emitted on `Restore`, not cold `Run`) |
 | `ateom` | `Actor starting/started`, `restoring/restored`, `checkpointing/checkpointed` | lifecycle envelope timestamps |
 | `ateom` | `About to run runsc <verb>` | per-container step markers |
@@ -117,10 +117,10 @@ scheduling before `Picked worker`, a few milliseconds in these runs.
 
 | | value | why it matters |
 |---|---|---|
-| cluster | GKE Standard cluster in `us-west1-c` with Image Streaming enabled | Required for `gcfsd` on `--enable-image-streaming` node pools |
-| paired node pools (`repeat_matplotlib.sh`) | `pool-stream` (`--enable-image-streaming`) and `pool-pull` (`--no-enable-image-streaming`), 2 nodes each (`c3-standard-4`, 100 GB `pd-balanced` by default; overridable via `MACHINE_TYPE`, `DISK_TYPE`, `DISK_SIZE`) | Isolates streaming vs. baseline pull on freshly created nodes every repetition |
+| cluster | GKE Standard cluster in `us-west1-c`, Substrate installed with `--setup-image-streaming=riptide` | The Riptide OCILayerService adapter runs its own `gcfsd`, so GKE Image Streaming is not needed |
+| paired node pools (`repeat_matplotlib.sh`) | `pool-stream` (`ate.dev/oci-layer-service=riptide`) and `pool-pull` (`ate.dev/oci-layer-service=none`, which matches no adapter), both `--no-enable-image-streaming`, 2 nodes each (`c3-standard-4`, 100 GB `pd-balanced` by default; overridable via `MACHINE_TYPE`, `DISK_TYPE`, `DISK_SIZE`) | Isolates streaming vs. baseline pull on freshly created nodes every repetition. Pull nodes run no adapter, so atelet finds no socket and pulls through its image cache, and no `gcfsd` runs on them; `install-ate.sh` only labels nodes that exist when it runs |
 | sandbox | gVisor (`SANDBOX_CLASS_GVISOR`, config `gvisor-default`) | |
-| registry | Artifact Registry, `us-west1-docker.pkg.dev/<project>/swebench-mirror/swebench-verified`, **same region as the cluster** | GKE Image Streaming only streams from Artifact Registry in the same region/multi-region (not Docker Hub) |
+| registry | Artifact Registry, `us-west1-docker.pkg.dev/<project>/swebench-mirror/swebench-verified`, **same region as the cluster** | Riptide (`gcfsd`) only streams from Artifact Registry in the same region/multi-region (not Docker Hub) |
 | snapshot store | GCS bucket `snapshot-substrate-test-<project>` | `manifest_fetch` and `download` are GCS reads, not registry reads |
 
 Local tools: `go`, `kubectl`, `kubectl-ate`, `crane`, `jq`, `gcloud`, and
@@ -141,18 +141,18 @@ export PATH="$HOME/go/bin:$PATH"   # kubectl-ate and crane live here
 
 **2. GCP resources and cluster.** `bootstrap` creates the cluster, the snapshot
 bucket, and the IAM bindings (including `roles/artifactregistry.reader` for the
-`atelet` Workload Identity principal). Pass `--enable-image-streaming` so GKE
-allows `--enable-image-streaming` node pools (`pool-stream`):
+`atelet` Workload Identity principal):
 
 ```bash
-go run ./tools/setup-gcp bootstrap --enable-image-streaming
+go run ./tools/setup-gcp bootstrap
 ```
 
-**3. Deploy Substrate.** This deploys `ate-system` and labels the nodes with
-`ate.dev/substrate-version`.
+**3. Deploy Substrate.** This deploys `ate-system`, labels the nodes with
+`ate.dev/substrate-version`, and deploys the Riptide OCILayerService adapter
+that the stream arm streams through.
 
 ```bash
-./hack/install-ate.sh --deploy-ate-system
+./hack/install-ate.sh --deploy-ate-system --setup-image-streaming=riptide
 kubectl create namespace ate-profiling 
 ```
 

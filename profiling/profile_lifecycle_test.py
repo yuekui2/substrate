@@ -157,5 +157,52 @@ class WorkloadTest(unittest.TestCase):
         self.assertAlmostEqual(out["picked worker -> workload end (resume)"], 3.0)
 
 
+DIGEST = "sha256:64bb043b17a25dbeeba766c82d1d5f66ca446ca32da12c88418ded9e0d79cfdc"
+IMAGE = f"us-west1-docker.pkg.dev/p/swebench-mirror/swebench-verified@{DIGEST}"
+# Verbatim from ate-ocilayer-riptide (project name replaced): Go's default
+# logger, second-resolution UTC timestamp, unquoted message.
+ADAPTER_LINE = (f"2026/10/19 17:01:56 INFO PrepareImage timing breakdown provider=riptide "
+                f"image={IMAGE} digest={DIGEST} layers=10 resolve_ms=399.442 stat_ms=17.194 "
+                "prepare_ms=1983.077 view_ms=20.614 listable_ms=2.868 wrapper_ms=2.528 total_ms=2427.578")
+STREAMED_LINE = ('{"time":"2026-10-19T17:01:56.95Z","msg":"Image streamed via OCILayerService",'
+                 f'"image":"{IMAGE}","layers":10,"duration":2512811227}}')
+
+
+class AdapterTest(unittest.TestCase):
+    def test_parses_adapter_lines(self):
+        r, = pl.parse_log_lines(f"[pod/ada-1/ocilayer-riptide] {ADAPTER_LINE}\n", prefix=True)
+        self.assertEqual((r["_pod"], r["level"], r["msg"], r["layers"], r["prepare_ms"], r["digest"]),
+                         ("ada-1", "INFO", "PrepareImage timing breakdown", 10, 1983.077, DIGEST))
+        self.assertEqual(r["_ts"], pl.parse_ts("2026-10-19T17:01:56Z"))
+
+    def test_quoted_values_and_bare_message(self):
+        r = pl.parse_go_log('2026/10/19 17:00:00 WARN Something failed err="a \\"b\\" c=d" n=3')
+        self.assertEqual((r["msg"], r["err"], r["n"]), ("Something failed", 'a "b" c=d', 3))
+        self.assertEqual(pl.parse_go_log("2026/10/19 17:00:00 INFO no attributes")["msg"], "no attributes")
+        self.assertIsNone(pl.parse_go_log("gcfsd: some other output"))
+
+    def test_adapter_records_by_window_and_digest(self):
+        ada, = pl.parse_log_lines(ADAPTER_LINE)
+        t = ada["_ts"]
+        self.assertEqual(pl.adapter_records([ada], t - 1, t + 1), [ada])
+        self.assertEqual(pl.adapter_records([ada], t + 1, t + 2), [])
+        self.assertEqual(pl.adapter_records([ada], t - 1, t + 1, {"sha256:bb"}), [])
+
+    def test_cold_stream_from_adapter_and_atelet(self):
+        recs = sorted(pl.parse_log_lines(f"{STREAMED_LINE}\n{ADAPTER_LINE}"), key=lambda r: r["_ts"])
+        out, notes, streamed = pl.atelet_streaming(recs)
+        self.assertEqual(out["swebench-verified path"], "STREAMED cold, 10 layers")
+        self.assertAlmostEqual(out["  prepare_layers.prepare"], 1.983077)
+        self.assertAlmostEqual(out["stream swebench-verified (atelet total)"], 2.512811227)
+        self.assertEqual((notes, streamed), ([], {DIGEST}))
+
+    def test_fallback(self):
+        out, _, streamed = pl.atelet_streaming(pl.parse_log_lines(
+            '{"time":"2026-10-15T17:00:02Z","msg":"OCILayerService layer preparation failed; '
+            'falling back to cache","image":"r/img@sha256:aa","err":"boom"}'))
+        self.assertEqual(out["img path"], "FALLBACK to pull: OCILayerService layer preparation failed (boom)")
+        self.assertEqual(streamed, set())
+
+
 if __name__ == "__main__":
     unittest.main()

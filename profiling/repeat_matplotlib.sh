@@ -62,13 +62,16 @@ cat > "$OUT/config.json" <<EOF
 }
 EOF
 
-create_pool() {  # $1 = pool, $2 = --enable-image-streaming | --no-enable-image-streaming
+create_pool() {  # $1 = pool, $2 = ate.dev/oci-layer-service: riptide runs the adapter; none matches
+                 # no adapter, so atelet finds no socket and pulls through its image cache
+  # GKE Image Streaming stays off on both pools: the adapter runs its own
+  # gcfsd, and a host gcfsd on only one arm would skew the comparison.
   gcloud container node-pools create "$1" --cluster "$CLUSTER" --zone "$ZONE" \
     --machine-type "$MACHINE_TYPE" --disk-type "$DISK_TYPE" --disk-size "$DISK_SIZE" \
     --image-type COS_CONTAINERD --node-version "$NODE_VERSION" --num-nodes 2 \
     --workload-metadata GKE_METADATA \
-    --node-labels "ate.dev/substrate-version=$VER,bench-arm=$1" \
-    --no-enable-autoupgrade --no-enable-autorepair "$2" --quiet
+    --node-labels "ate.dev/substrate-version=$VER,bench-arm=$1,ate.dev/oci-layer-service=$2" \
+    --no-enable-autoupgrade --no-enable-autorepair --no-enable-image-streaming --quiet
 }
 mkpool() {  # $1 = WorkerPool, $2 = node pool
   sed -e "s|name: profiling$|name: $1|" -e "s|workload: profiling$|workload: $1|" \
@@ -124,9 +127,12 @@ for i in $(seq 1 "$N"); do
   for P in pool-stream pool-pull; do
     gcloud container node-pools delete "$P" --cluster "$CLUSTER" --zone "$ZONE" --quiet || true
   done
-  create_pool pool-stream --enable-image-streaming
-  create_pool pool-pull --no-enable-image-streaming
+  create_pool pool-stream riptide
+  create_pool pool-pull none
   kubectl -n ate-system rollout status ds/"$DS" --timeout=10m
+  for ds in $(kubectl -n ate-system get ds -l app=ate-ocilayer-adapter -o name); do
+    kubectl -n ate-system rollout status "$ds" --timeout=10m
+  done
   mkpool profiling-stream pool-stream | hack/run-tool.sh ko apply -f -
   mkpool profiling-pull pool-pull | hack/run-tool.sh ko apply -f -
   kubectl -n ate-profiling wait --for=jsonpath='{.status.readyReplicas}'=3 \

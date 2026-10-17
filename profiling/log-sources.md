@@ -90,17 +90,17 @@ The subject is the template's **golden actor**: atespace `ate-golden`, name = th
 | ateapi | `Picked worker` | `worker` → `worker_pod`, `node_name`; **`_ts` of the first one → `_picked_at`, the TTCE origin** | **window only** | [R4](log-appendix.md#r4) |
 | atelet | `Image cache hit` / `Image cache miss` | `ref`, `digest` | window **+ digest** pinned by the template ([`cold_pull`](profile_coldboot.py#L181-L209)). The first outcome seen wins. | [R9](log-appendix.md#r9) / [R10](log-appendix.md#r10) |
 | atelet | `Image pulled into layer cache` | `digest`, `layers`, `took` (ns) | window **+ digest** | [R11](log-appendix.md#r11) |
-| atelet | `PrepareLayers timing breakdown` | `resolve_ms`, `stat_ms`, `prepare_ms`, `view_ms`, `listable_ms`, `wrapper_ms`, `total_ms`, `layers` | window **+ digest** ([`atelet_streaming`](profile_lifecycle.py#L325-L377)) | [R12](log-appendix.md#r12) |
-| atelet | `Image streamed` (Debug) | `duration` (ns), `layers` | window **+ digest** | [R14](log-appendix.md#r14) |
-| atelet | `Image … falling back to cache` (5 variants) | `err` | window **+ digest** | [R15](log-appendix.md#r15) |
-| atelet | `Cached streaming lease layers missing on disk; re-preparing layers` | — | window **+ digest** | [R16](log-appendix.md#r16) |
+| OCILayerService adapter | `PrepareImage timing breakdown` (Go log text, 1 s timestamps, no trace ID) | `resolve_ms`, `stat_ms`, `prepare_ms`, `view_ms`, `listable_ms`, `wrapper_ms`, `total_ms`, `layers` | window **+ digest** ([`adapter_records`](profile_lifecycle.py), [`atelet_streaming`](profile_lifecycle.py)) | [R12](log-appendix.md#r12) |
+| atelet | `Image streamed via OCILayerService` (Debug) | `duration` (ns), `layers` | window **+ digest** | [R14](log-appendix.md#r14) |
+| atelet | `… falling back to cache` (5 OCILayerService variants) | `err` | window **+ digest** | [R15](log-appendix.md#r15) |
+| OCILayerService adapter | `Cached streaming lease layers missing on disk; re-preparing layers` | — | window **+ digest** | [R16](log-appendix.md#r16) |
 | ateom | `Actor starting` → `Actor started` (boot window) | `_ts`, labels | **`ate.actor.name == template uid`** ([`ateom_timeline`](profile_lifecycle.py#L183-L227)) | [R18](log-appendix.md#r18) / [R19](log-appendix.md#r19) |
 | ateom | `Actor checkpointing` → `Actor checkpointed` (suspend window) | `_ts`, labels | same | [R22](log-appendix.md#r22) / [R23](log-appendix.md#r23) |
 | ateom | `About to run runsc <verb>` | `container`, `_ts` | inside that window **+ same worker pod**, skipping any record labeled with a different actor | [R24](log-appendix.md#r24) |
 | ateom | `Readyz reached 200` | `container`, `elapsed` (ns) | same | [R25](log-appendix.md#r25) |
 | actor stdout | `workload start` / `workload end`, `trigger: boot` | `_ts`, `trigger`, `elapsed_us` | window **+ `ate.actor.name == template uid`**; first record per (message, trigger) wins ([`workload`](profile_lifecycle.py#L438-L458)) | [R26](log-appendix.md#r26) / [R27](log-appendix.md#r27) |
 
-Some values come from the API instead of logs: `createTime` and `goldenSnapshotStatus.takeGoldenSnapshotAt` from `kubectl-ate get actor-template -o json`, the compressed image size from `crane manifest`, and atelet's `--image-streamer` / `--log-level` from the DaemonSet args.
+Some values come from the API instead of logs: `createTime` and `goldenSnapshotStatus.takeGoldenSnapshotAt` from `kubectl-ate get actor-template -o json`, the compressed image size from `crane manifest`, and atelet's `--oci-layer-service-socket` / `--log-level` from the DaemonSet args.
 
 ---
 
@@ -119,7 +119,8 @@ The subject is the actor the script creates: default name `prof-<unix seconds>`,
 | ateapi | `… Restoring from snapshot` / `… Booting from ActorTemplate spec` | message text | **trace ID** | [R6](log-appendix.md#r6) / [R5](log-appendix.md#r5) |
 | ateapi | `FinalizeSuspended store call durations` | `get_actor`, `release_worker`, `refetch_actor`, `release_snapshot`, `update_actor`, `total` (ns) | **trace ID** | [R7](log-appendix.md#r7) |
 | atelet | `Image cache hit` / `Image cache miss`, `Image pulled into layer cache` | `ref`, `digest`, `layers`, `took` | **trace ID** ([`atelet_images`](profile_lifecycle.py#L250-L282)) | [R9](log-appendix.md#r9) / [R10](log-appendix.md#r10) / [R11](log-appendix.md#r11) |
-| atelet | `PrepareLayers timing breakdown`, `Image streamed`, fallbacks, re-prepare | as in the coldboot table | **trace ID** (`digests=None`, so no digest filter) | [R13](log-appendix.md#r13) / [R14](log-appendix.md#r14) / [R15](log-appendix.md#r15) / [R16](log-appendix.md#r16) |
+| atelet | `Image streamed via OCILayerService`, fallbacks | as in the coldboot table | **trace ID** (`digests=None`, so no digest filter) | [R14](log-appendix.md#r14) / [R15](log-appendix.md#r15) |
+| OCILayerService adapter | `PrepareImage timing breakdown`, re-prepare | as in the coldboot table | **the call's span ± 1 s** (no trace ID) | [R13](log-appendix.md#r13) / [R16](log-appendix.md#r16) |
 | atelet | `Restore timing breakdown` | `ate.actor.restore.duration.{volume_mount,manifest_fetch,sandbox_assets,download,oci_unpack,ateom_restore,total}` (s) | **trace ID**, last record wins ([`atelet_restore`](profile_lifecycle.py#L230-L247)) | [R17](log-appendix.md#r17) |
 | ateom | `Actor starting`/`started` (resume #1 if it boots), `restoring`/`restored` (resume #1/#2), `checkpointing`/`checkpointed` (suspend) | `_ts`, labels | records from the **call's start − 1 s to collection time + 1 s** (after any workload wait and the settle), then **`ate.actor.name == actor`** | [R18](log-appendix.md#r18)–[R23](log-appendix.md#r23) |
 | ateom | `About to run runsc <verb>`, `Readyz reached 200` | `container`, `_ts`, `elapsed` | inside that window **+ same worker pod**, skipping records labeled with a different actor | [R24](log-appendix.md#r24) / [R25](log-appendix.md#r25) |

@@ -12,9 +12,9 @@ Phase sources (all verified against the tree):
                   "FinalizeSuspended store ..." slog.Duration, int64 ns
   atelet          "Image cache hit|miss"        per image reference
                   "Image pulled into layer cache" took, int64 ns: the registry pull
-                  "PrepareLayers timing breakdown" *_ms, float64 ms: image streaming (Info)
-                  "Image streamed"              duration, int64 ns (Debug)
-                  "Image ... falling back to cache" streaming declined or failed
+                  "Image streamed via OCILayerService" duration, int64 ns (Debug)
+                  "... falling back to cache"   streaming declined or failed
+  ocilayer adapter "PrepareImage timing breakdown" *_ms, float64 ms (Info, Go log text, no trace ID)
                   "Restore timing breakdown"    ate.actor.restore.duration.*, float64 s
   ateom worker    "Actor starting|started"      lifecycle envelope, RFC3339Nano
                   "Actor restoring|restored"
@@ -37,6 +37,10 @@ import time
 from datetime import datetime
 
 ATE_SYSTEM = "ate-system"
+# The OCILayerService adapter atelet streams through. Its pod has a second
+# container (gcfsd), so `kubectl logs -l` needs the adapter's named.
+ADAPTER_SELECTOR = "app=ate-ocilayer-adapter"
+ADAPTER_CONTAINER = "ocilayer-riptide"
 RESTORE_PREFIX = "ate.actor.restore.duration."
 # The phase names atelet records, used to read the older bare-key spelling.
 RESTORE_PHASES = (
@@ -115,16 +119,48 @@ def actor_name_of(rec):
     return labels.get("ate.actor.name") or ""
 
 
+def parse_go_log(line):
+    """One line from Go's default logger ("2026/10/19 17:01:56 INFO msg k=v ...")
+    as a dict, or None. The adapter logs through slog's default handler, which
+    writes this shape: a UTC timestamp to the second, the level, the unquoted
+    message up to the first key=, then key=value attributes."""
+    m = re.match(r"(\d{4})/(\d{2})/(\d{2}) (\d{2}:\d{2}:\d{2}(?:\.\d+)?) ([A-Z]+) (.*)", line)
+    if not m:
+        return None
+    rest = m.group(6)
+    attrs = re.search(r'\s[^\s="]+=', rest)
+    msg = rest[:attrs.start()] if attrs else rest
+    rec = {}
+    for k, v in re.findall(r'([^\s=]+)=("(?:[^"\\]|\\.)*"|\S*)', rest[len(msg):]):
+        if v.startswith('"'):
+            try:
+                v = json.loads(v)
+            except json.JSONDecodeError:
+                v = v[1:-1]
+        else:
+            for conv in (int, float):
+                try:
+                    v = conv(v)
+                    break
+                except ValueError:
+                    pass
+        rec[k] = v
+    rec.update(time=f"{m.group(1)}-{m.group(2)}-{m.group(3)}T{m.group(4)}Z",
+               level=m.group(5), msg=msg.strip())
+    return rec
+
+
 def parse_log_lines(text, prefix=False):
-    """Parse `kubectl logs` output into JSON records.
+    """Parse `kubectl logs` output into records.
 
     Each record gains three synthetic keys the rest of the script reads:
     _pod (empty unless prefix, which is how a worker record is tied back to the
     pod that wrote it), _ts (epoch seconds) and _raw (the line as received, for
     substring matching a trace ID whatever key it was written under).
 
-    Anything that is not a JSON object is dropped: kubectl's own prefix lines
-    and any component that logged in text are noise here, not errors.
+    Lines are JSON objects, or Go default-logger text from the OCILayerService
+    adapter (parse_go_log). Anything else is dropped: kubectl's own prefix
+    lines and other text are noise here, not errors.
     """
     records = []
     for line in text.splitlines():
@@ -136,11 +172,14 @@ def parse_log_lines(text, prefix=False):
             pod, line = m.group(1), m.group(2)
         line = line.strip()
         if not line.startswith("{"):
-            continue
-        try:
-            rec = json.loads(line)
-        except json.JSONDecodeError:
-            continue
+            rec = parse_go_log(line)
+            if rec is None:
+                continue
+        else:
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
         rec["_pod"] = pod
         rec["_ts"] = parse_ts(rec.get("time") or rec.get("timestamp"))
         rec["_raw"] = line
@@ -148,9 +187,11 @@ def parse_log_lines(text, prefix=False):
     return records
 
 
-def logs(selector, namespace, since, prefix=False):
-    """Scrape the JSON log records of every pod matching a label selector."""
+def logs(selector, namespace, since, prefix=False, container=""):
+    """Scrape the log records of every pod matching a label selector."""
     cmd = f"kubectl logs -l {selector} -n {namespace} --since={since}s --tail=-1"
+    if container:
+        cmd += f" -c {container}"
     if prefix:
         cmd += " --prefix"
     return parse_log_lines(run(cmd, check=False).stdout, prefix)
@@ -170,8 +211,9 @@ class LogStream:
     handle, so snapshot() can be called while it is still following.
     """
 
-    def __init__(self, selector, namespace, prefix=False):
+    def __init__(self, selector, namespace, prefix=False, container=""):
         self.selector, self.namespace, self.prefix = selector, namespace, prefix
+        self.container = container
         self._path = self._proc = None
 
     def __enter__(self):
@@ -179,6 +221,8 @@ class LogStream:
         os.close(fd)
         cmd = ["kubectl", "logs", "-f", "-l", self.selector, "-n", self.namespace,
                "--since=1s", "--tail=-1", "--max-log-requests=50"]
+        if self.container:
+            cmd += ["-c", self.container]
         if self.prefix:
             cmd.append("--prefix")
         with open(self._path, "a") as out:
@@ -355,27 +399,38 @@ def atelet_images(records):
     return out, notes
 
 
-# Image streaming messages (cmd/atelet/oci.go and
-# internal/imagestreaming/drivers/remotesnapshotter/driver.go).
-STREAM_BREAKDOWN = "PrepareLayers timing breakdown"
+# Image streaming messages (cmd/atelet/oci.go and the adapter's
+# internal/ocilayer/adapter/driver.go).
+STREAM_BREAKDOWN = "PrepareImage timing breakdown"
 STREAM_BREAKDOWN_FIELDS = ("resolve_ms", "stat_ms", "prepare_ms", "view_ms",
                            "listable_ms", "wrapper_ms", "total_ms")
-STREAMED = "Image streamed"
+STREAMED = "Image streamed via OCILayerService"
 STREAM_REPREPARE = "Cached streaming lease layers missing on disk; re-preparing layers"
 STREAM_FALLBACKS = (
-    "Image not streamable; falling back to cache",
-    "Image streaming layer preparation failed; falling back to cache",
-    "Image streaming unavailable; falling back to cache",
-    "Error evaluating image streaming eligibility; falling back to cache",
+    "Image not streamable via OCILayerService; falling back to cache",
+    "OCILayerService layer preparation failed; falling back to cache",
+    "OCILayerService declined image; falling back to cache",
+    "Error evaluating OCILayerService eligibility; falling back to cache",
     "Failed to resolve image config for streamed image; falling back to cache",
 )
 
 
-def atelet_flags():
-    """--image-streamer and --log-level from the atelet DaemonSet args.
+def adapter_records(records, begin, until, digests=None):
+    """Adapter records logged in [begin, until], limited to digests if given.
 
-    Absent flags take atelet's defaults (none, info). Call this outside every
-    timed span: it is script overhead, not part of any step.
+    The adapter's lines carry no trace ID (atelet's gRPC client propagates
+    none), so time and image are all there is to select them by.
+    """
+    return [r for r in records
+            if r["_ts"] is not None and begin <= r["_ts"] <= until
+            and (digests is None or image_digest(r) in digests)]
+
+
+def atelet_flags():
+    """--oci-layer-service-socket and --log-level from the atelet DaemonSet args.
+
+    image_streamer holds the socket, or "none" when unset (streaming off).
+    Call this outside every timed span: it is script overhead, not part of any step.
     """
     out = run(f"kubectl -n {ATE_SYSTEM} get ds -l app=atelet -o jsonpath='{{..args}}'",
               check=False).stdout
@@ -385,7 +440,7 @@ def atelet_flags():
         vals = sorted(set(re.findall(rf"--{name}=([^\",\s\]]+)", out)))
         return ",".join(vals) or default
 
-    return {"image_streamer": flag("image-streamer", "none"),
+    return {"image_streamer": flag("oci-layer-service-socket", "none"),
             "log_level": flag("log-level", "info")}
 
 
@@ -396,20 +451,20 @@ def image_digest(rec):
 
 
 def atelet_streaming(records, digests=None):
-    """Per-image streaming path and PrepareLayers breakdown.
+    """Per-image streaming path and the adapter's PrepareImage breakdown.
 
+    records are atelet's plus the adapter's (adapter_records), in time order.
     Returns (table, notes, streamed digests). digests limits the scan to those
-    images; None keeps every record, which suits records already selected by
-    trace ID.
+    images; None keeps every record, which suits records already selected.
 
     The path is read from which lines appear:
-      breakdown, prepare_ms > 0   cold: snapshots prepared through Google's Image Streaming
+      breakdown, prepare_ms > 0   cold: snapshots prepared through the adapter
       breakdown, prepare_ms == 0  stat hit: committed layers already on the node
       breakdown, resolve_ms == 0  resolve cached: image metadata reused, no registry call
-      "Image streamed" only       lease reuse: the driver's fast paths log no breakdown
+      "Image streamed ..." only   lease reuse: the adapter's fast paths log no breakdown
 
-    "unattributed" is total_ms minus the named phases: work inside
-    prepareLayersCold that has no field of its own.
+    "unattributed" is total_ms minus the named phases: work inside the
+    adapter's PrepareImage that has no field of its own.
     """
     out, notes = {}, []
     broken_down, streamed, fell_back = set(), set(), set()
@@ -444,7 +499,7 @@ def atelet_streaming(records, digests=None):
 
     if broken_down - streamed - fell_back:
         notes.append(
-            "PrepareLayers logged a breakdown but no 'Image streamed' followed: "
+            f"the adapter logged a breakdown but atelet logged no '{STREAMED}': "
             "atelet may not be running at debug level."
         )
     return out, notes, streamed | (broken_down - fell_back)
@@ -455,9 +510,9 @@ def log_level_note(flags):
     if flags.get("image_streamer") == "none" or "debug" in flags.get("log_level", ""):
         return None
     return (
-        f"atelet runs at --log-level={flags.get('log_level')}: 'Image streamed' and "
-        "'Image streaming unavailable' are Debug, so lease reuse and declines are "
-        "invisible and only the Info breakdown shows. Set --log-level=debug."
+        f"atelet runs at --log-level={flags.get('log_level')}: '{STREAMED}' and "
+        "'OCILayerService declined image' are Debug, so lease reuse and declines are "
+        "invisible and only the adapter's Info breakdown shows. Set --log-level=debug."
     )
 
 
@@ -557,17 +612,19 @@ def wait_for_workload_end(read_records, actor, after, timeout, poll=1.0,
 
 
 def collect(args, streams, step, method, window, trace_id, since, actor, span):
-    """Join one lifecycle step's records from all three components.
+    """Join one lifecycle step's records from all four components.
 
-    Each component's followed log (streams: api, atelet, worker) is merged
-    with a per-step scrape, which covers pods the followers could not see.
+    Each component's followed log (streams: api, atelet, worker, adapter) is
+    merged with a per-step scrape, which covers pods the followers could not see.
 
     ateapi and atelet are selected by trace ID. ateom is not: its lifecycle
     envelope names the actor but carries no trace ID, so its records are
     selected from the call's start, padded by a second for clock skew between
     the client and the nodes, up to now, which includes any workload wait.
+    The adapter has no trace ID either; its records are those logged during
+    the call, which assumes no other actor prepares an image meanwhile.
     """
-    api_s, let_s, wrk_s = streams
+    api_s, let_s, wrk_s, ada_s = streams
     api = for_trace(merge_records(api_s.snapshot(), logs("app=ate-api-server", ATE_SYSTEM, since)), trace_id)
     let = for_trace(merge_records(let_s.snapshot(), logs("app=atelet", ATE_SYSTEM, since)), trace_id)
     begin, until = span[0], time.time()
@@ -575,10 +632,13 @@ def collect(args, streams, step, method, window, trace_id, since, actor, span):
                                     logs(args.worker_selector, args.worker_namespace, since, prefix=True))
            if r["_ts"] is not None and begin - 1 <= r["_ts"] <= until + 1]
     wrk.sort(key=lambda r: r["_ts"])
+    ada = adapter_records(merge_records(ada_s.snapshot(), logs(ADAPTER_SELECTOR, ATE_SYSTEM, since, prefix=True,
+                                                               container=ADAPTER_CONTAINER)),
+                          begin - 1, span[1] + 1)
 
     facts, notes = ateapi_facts(api, method)
     images, image_notes = atelet_images(let)
-    streaming, stream_notes, _ = atelet_streaming(let)
+    streaming, stream_notes, _ = atelet_streaming(sorted(let + ada, key=lambda r: r["_ts"] or 0.0))
     phases, meta = ateom_timeline(wrk, window, actor)
     return {
         "step": step,
@@ -675,7 +735,7 @@ def main():
 
     # Read before the first step so it never lands in a measured span.
     flags = atelet_flags()
-    print(f"atelet --image-streamer={flags['image_streamer']} --log-level={flags['log_level']}")
+    print(f"atelet --oci-layer-service-socket={flags['image_streamer']} --log-level={flags['log_level']}")
     if log_level_note(flags):
         print(f"WARNING: {log_level_note(flags)}")
 
@@ -710,7 +770,8 @@ def main():
             streams = tuple(stack.enter_context(s) for s in (
                 LogStream("app=ate-api-server", ATE_SYSTEM),
                 LogStream("app=atelet", ATE_SYSTEM),
-                LogStream(args.worker_selector, args.worker_namespace, prefix=True)))
+                LogStream(args.worker_selector, args.worker_namespace, prefix=True),
+                LogStream(ADAPTER_SELECTOR, ATE_SYSTEM, prefix=True, container=ADAPTER_CONTAINER)))
 
             # 1. create: metadata only, the actor is born suspended and holds no worker.
             wall, trace, span = ate(args, f"create actor {actor} --template {args.template}")
