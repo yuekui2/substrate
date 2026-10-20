@@ -734,7 +734,11 @@ func (d *Driver) prepareImageCold(ctx context.Context, req *ocilayer.PrepareRequ
 	var (
 		listableDur time.Duration
 		wrapperDur  time.Duration
-		layerDirs   = make([]string, 0, len(mounted.MountDirs))
+		layerDirs   = make([]string, len(mounted.MountDirs))
+		wg          sync.WaitGroup
+		errOnce     sync.Once
+		firstErr    error
+		durMu       sync.Mutex
 	)
 
 	for i, mountDir := range mounted.MountDirs {
@@ -742,38 +746,63 @@ func (d *Driver) prepareImageCold(ctx context.Context, req *ocilayer.PrepareRequ
 			cleanupOnErr()
 			return nil, fmt.Errorf("empty mount directory for layer %d", i)
 		}
-
-		listStart := time.Now()
-		if err := d.probeListable(ctx, mountDir); err != nil {
-			cleanupOnErr()
-			return nil, fmt.Errorf("layer %d mount not listable: %w", i, err)
-		}
-		listableDur += time.Since(listStart)
-
-		wrapStart := time.Now()
 		layerDir := filepath.Join(imageWorkDir, fmt.Sprintf("layer-%d", i))
-		if err := os.MkdirAll(layerDir, 0o755); err != nil {
-			cleanupOnErr()
-			return nil, fmt.Errorf("creating layer wrapper directory %s: %w", layerDir, err)
-		}
+		layerDirs[i] = layerDir
 
-		fsLink := filepath.Join(layerDir, "fs")
-		_ = os.Remove(fsLink)
-		if err := os.Symlink(mountDir, fsLink); err != nil {
-			cleanupOnErr()
-			return nil, fmt.Errorf("symlinking layer view %s -> %s: %w", fsLink, mountDir, err)
-		}
+		wg.Add(1)
+		go func(idx int, mDir, lDir string) {
+			defer wg.Done()
 
-		finalizedMarker := filepath.Join(layerDir, "finalized")
-		if err := os.WriteFile(finalizedMarker, nil, 0o600); err != nil {
-			cleanupOnErr()
-			return nil, fmt.Errorf("writing finalized marker %s: %w", finalizedMarker, err)
-		}
-		wrapperDur += time.Since(wrapStart)
+			listStart := time.Now()
+			if err := d.probeListable(ctx, mDir); err != nil {
+				errOnce.Do(func() {
+					firstErr = fmt.Errorf("layer %d mount not listable: %w", idx, err)
+				})
+				return
+			}
+			lDur := time.Since(listStart)
 
-		go warmLayerMetadata(mountDir)
+			wrapStart := time.Now()
+			if err := os.MkdirAll(lDir, 0o755); err != nil {
+				errOnce.Do(func() {
+					firstErr = fmt.Errorf("creating layer wrapper directory %s: %w", lDir, err)
+				})
+				return
+			}
 
-		layerDirs = append(layerDirs, layerDir)
+			fsLink := filepath.Join(lDir, "fs")
+			_ = os.Remove(fsLink)
+			if err := os.Symlink(mDir, fsLink); err != nil {
+				errOnce.Do(func() {
+					firstErr = fmt.Errorf("symlinking layer view %s -> %s: %w", fsLink, mDir, err)
+				})
+				return
+			}
+
+			finalizedMarker := filepath.Join(lDir, "finalized")
+			if err := os.WriteFile(finalizedMarker, nil, 0o600); err != nil {
+				errOnce.Do(func() {
+					firstErr = fmt.Errorf("writing finalized marker %s: %w", finalizedMarker, err)
+				})
+				return
+			}
+			wDur := time.Since(wrapStart)
+
+			go warmLayerMetadata(mDir)
+
+			durMu.Lock()
+			if lDur > listableDur {
+				listableDur = lDur
+			}
+			wrapperDur += wDur
+			durMu.Unlock()
+		}(i, mountDir, layerDir)
+	}
+
+	wg.Wait()
+	if firstErr != nil {
+		cleanupOnErr()
+		return nil, firstErr
 	}
 
 	leaseWriteStart := time.Now()
@@ -894,11 +923,14 @@ func (d *Driver) probeListable(ctx context.Context, mountDir string) error {
 	if d.listableTimeout <= 0 {
 		return nil
 	}
-	interval := d.listableInterval
-	if interval <= 0 {
-		interval = 50 * time.Millisecond
-	}
 	start := time.Now()
+	// Start with aggressive fast-probing (2ms, 4ms, 8ms...) to catch mounts the
+	// instant they propagate across namespaces without wasting 50ms slices.
+	interval := 2 * time.Millisecond
+	maxInterval := d.listableInterval
+	if maxInterval <= 0 {
+		maxInterval = 50 * time.Millisecond
+	}
 	for {
 		entries, err := os.ReadDir(mountDir)
 		if err == nil {
@@ -912,6 +944,10 @@ func (d *Driver) probeListable(ctx context.Context, mountDir string) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(interval):
+		}
+		interval *= 2
+		if interval > maxInterval {
+			interval = maxInterval
 		}
 	}
 }

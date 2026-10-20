@@ -365,5 +365,3 @@ func TestBuildGCFSDAndSnapshotterCommands(t *testing.T) {
 		t.Errorf("Case 5 missing --enable-kubernetes-event-reporting=false in %v", snapArgs5)
 	}
 }
-
-

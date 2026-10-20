@@ -82,7 +82,6 @@ func StandardMountLayers(ctx context.Context, env *MountEnv) (*MountedLayers, er
 
 	for i, c := range env.ChainInfos {
 		prepKey := fmt.Sprintf("%s-%s-l%d-prep", imgKey, runID, i)
-		viewKey := fmt.Sprintf("%s-%s-l%d-view", imgKey, runID, i)
 		labels := StandardCRILayerLabels(env.CanonicalRef, env.ImageDigest, env.LayerDigests, i, c.ChainID)
 
 		lk := env.Driver.AcquireChainLock(c.ChainID)
@@ -121,20 +120,50 @@ func StandardMountLayers(ctx context.Context, env *MountEnv) (*MountedLayers, er
 		if err != nil {
 			return res, fmt.Errorf("layer %d (%s): %w", i, c.ChainID, err)
 		}
+	}
 
-		viewStart := time.Now()
-		mounts, err := ViewLayerMounts(nsCtx, env.Client, env.Snapshotter, viewKey, c.ChainID)
-		res.ViewDur += time.Since(viewStart)
-		if err != nil {
-			return res, fmt.Errorf("layer %d (%s): %w", i, c.ChainID, err)
-		}
-		res.SnapshotKeys = append(res.SnapshotKeys, viewKey)
+	type viewResult struct {
+		viewKey  string
+		mountDir string
+		err      error
+		dur      time.Duration
+	}
+	viewResults := make([]viewResult, len(env.ChainInfos))
+	var viewWg sync.WaitGroup
 
-		mountDir := ExtractMountDir(mounts)
-		if mountDir == "" {
-			return res, fmt.Errorf("unable to determine mount directory from mounts for layer %d (%s)", i, c.ChainID)
+	for i, c := range env.ChainInfos {
+		viewKey := fmt.Sprintf("%s-%s-l%d-view", imgKey, runID, i)
+		viewWg.Add(1)
+		go func(idx int, vKey, chainID string) {
+			defer viewWg.Done()
+			viewStart := time.Now()
+			mounts, err := ViewLayerMounts(nsCtx, env.Client, env.Snapshotter, vKey, chainID)
+			dur := time.Since(viewStart)
+			if err != nil {
+				viewResults[idx] = viewResult{viewKey: vKey, err: fmt.Errorf("layer %d (%s): %w", idx, chainID, err), dur: dur}
+				return
+			}
+			mountDir := ExtractMountDir(mounts)
+			if mountDir == "" {
+				viewResults[idx] = viewResult{viewKey: vKey, err: fmt.Errorf("unable to determine mount directory from mounts for layer %d (%s)", idx, chainID), dur: dur}
+				return
+			}
+			viewResults[idx] = viewResult{viewKey: vKey, mountDir: mountDir, dur: dur}
+		}(i, viewKey, c.ChainID)
+	}
+	viewWg.Wait()
+
+	for _, vr := range viewResults {
+		if vr.viewKey != "" {
+			res.SnapshotKeys = append(res.SnapshotKeys, vr.viewKey)
 		}
-		res.MountDirs = append(res.MountDirs, mountDir)
+		if vr.dur > res.ViewDur {
+			res.ViewDur = vr.dur
+		}
+		if vr.err != nil {
+			return res, vr.err
+		}
+		res.MountDirs = append(res.MountDirs, vr.mountDir)
 	}
 	return res, nil
 }
