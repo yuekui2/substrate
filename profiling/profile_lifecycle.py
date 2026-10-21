@@ -37,10 +37,12 @@ import time
 from datetime import datetime
 
 ATE_SYSTEM = "ate-system"
-# The OCILayerService adapter atelet streams through. Its pod has a second
-# container (gcfsd), so `kubectl logs -l` needs the adapter's named.
+# The OCILayerService adapter atelet streams through, named by --adapter
+# (riptide, spegel, nydus-dragonfly, ...; empty for none). Its pods carry
+# ate.dev/oci-layer-provider=<adapter> and its container is ocilayer-<adapter>;
+# other containers in the pod (gcfsd, dfdaemon) are not read.
 ADAPTER_SELECTOR = "app=ate-ocilayer-adapter"
-ADAPTER_CONTAINER = "ocilayer-riptide"
+DEFAULT_ADAPTER = "riptide"
 RESTORE_PREFIX = "ate.actor.restore.duration."
 # The phase names atelet records, used to read the older bare-key spelling.
 RESTORE_PHASES = (
@@ -254,6 +256,43 @@ class LogStream:
         return self.snapshot()
 
 
+class NoLogs:
+    """Stands in for a LogStream when there is nothing to follow."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        pass
+
+    def snapshot(self):
+        return []
+
+    def records(self):
+        return []
+
+
+def adapter_source(adapter):
+    """(selector, container) for an adapter's logs, or None without one.
+
+    Selecting by provider as well keeps out other adapters' pods, whose
+    containers have other names and would fail `kubectl logs -c`.
+    """
+    if not adapter:
+        return None
+    return f"{ADAPTER_SELECTOR},ate.dev/oci-layer-provider={adapter}", f"ocilayer-{adapter}"
+
+
+def adapter_stream(adapter):
+    src = adapter_source(adapter)
+    return LogStream(src[0], ATE_SYSTEM, prefix=True, container=src[1]) if src else NoLogs()
+
+
+def adapter_logs(adapter, since):
+    src = adapter_source(adapter)
+    return logs(src[0], ATE_SYSTEM, since, prefix=True, container=src[1]) if src else []
+
+
 def merge_records(*sources):
     """Union record lists, dropping lines seen in more than one source."""
     seen, out = set(), []
@@ -415,15 +454,56 @@ STREAM_FALLBACKS = (
 )
 
 
+DECLINED = "OCILayerService declined image; falling back to cache"
+# Adapter-specific lines (cmd/ocilayer-spegel, cmd/ocilayer-nydus-dragonfly).
+# They are per layer or per blob and carry no image digest.
+SPEGEL_PEER_BLOB = "Streamed OCI layer blob from remote Spegel P2P peer"
+SPEGEL_LAYER = "Materialized Spegel OCI layer"
+SPEGEL_SHA_FALLBACK = "Spegel mirror blob failed SHA-256 verification; falling back to upstream registry"
+NYDUS_LAYER = "Materialized and committed Nydus RAFS v6 EROFS bootstrap layer"
+
+
 def adapter_records(records, begin, until, digests=None):
-    """Adapter records logged in [begin, until], limited to digests if given.
+    """Adapter records logged in [begin, until].
 
     The adapter's lines carry no trace ID (atelet's gRPC client propagates
-    none), so time and image are all there is to select them by.
+    none), so time is what selects them. digests further limits the
+    image-level lines (breakdown, re-prepare); per-layer lines name blob
+    digests rather than the image's, so time alone selects those.
     """
     return [r for r in records
             if r["_ts"] is not None and begin <= r["_ts"] <= until
-            and (digests is None or image_digest(r) in digests)]
+            and (digests is None or msg_of(r) not in (STREAM_BREAKDOWN, STREAM_REPREPARE)
+                 or image_digest(r) in digests)]
+
+
+def adapter_notes(records):
+    """Adapter-specific lines as notes, and where Spegel got its layers.
+
+    Returns (notes, facts). facts["layer source"] names where Spegel's
+    layers came from (registry, peer, local, or a mix joined by "+"), read
+    from each layer's source: "upstream:<host>", "spegel-p2p:<peer>" or
+    "local-store" (cmd/ocilayer-spegel ensureBlobInStore).
+    """
+    notes, facts = [], {}
+    sources = [str(r.get("source", "")) for r in records if msg_of(r) == SPEGEL_LAYER]
+    if sources:
+        counts = {"registry": sum(s.startswith("upstream:") for s in sources),
+                  "peer": sum(s.startswith("spegel-p2p:") for s in sources),
+                  "local": sum(s == "local-store" for s in sources)}
+        facts["layer source"] = "+".join(k for k, n in counts.items() if n) or "unknown"
+        notes.append(f"spegel materialized {len(sources)} layers: "
+                     + ", ".join(f"{n} from {k}" for k, n in counts.items()))
+    peers = [str(r.get("peer", "")) for r in records if msg_of(r) == SPEGEL_PEER_BLOB]
+    if peers:
+        notes.append(f"spegel streamed {len(peers)} blobs from peers {sorted(set(peers))}")
+    sha = sum(msg_of(r) == SPEGEL_SHA_FALLBACK for r in records)
+    if sha:
+        notes.append(f"spegel: {sha} peer blobs failed SHA-256 verification; fetched from the registry")
+    nydus = sum(msg_of(r) == NYDUS_LAYER for r in records)
+    if nydus:
+        notes.append(f"nydus materialized {nydus} EROFS bootstrap layers")
+    return notes, facts
 
 
 def atelet_flags():
@@ -450,12 +530,14 @@ def image_digest(rec):
     return m.group(1) if m else rec.get("digest", "")
 
 
-def atelet_streaming(records, digests=None):
+def atelet_streaming(records, digests=None, ignore_declined=False):
     """Per-image streaming path and the adapter's PrepareImage breakdown.
 
     records are atelet's plus the adapter's (adapter_records), in time order.
     Returns (table, notes, streamed digests). digests limits the scan to those
     images; None keeps every record, which suits records already selected.
+    ignore_declined drops atelet's "declined" line, which is how a node with
+    no adapter (no socket) falls through to its image cache.
 
     The path is read from which lines appear:
       breakdown, prepare_ms > 0   cold: snapshots prepared through the adapter
@@ -471,6 +553,8 @@ def atelet_streaming(records, digests=None):
     for r in records:
         m, d = msg_of(r), image_digest(r)
         if digests is not None and d not in digests:
+            continue
+        if ignore_declined and m == DECLINED:
             continue
         ref = short_ref(r.get("image", "")) or d[7:19]
         if m == STREAM_BREAKDOWN:
@@ -632,18 +716,20 @@ def collect(args, streams, step, method, window, trace_id, since, actor, span):
                                     logs(args.worker_selector, args.worker_namespace, since, prefix=True))
            if r["_ts"] is not None and begin - 1 <= r["_ts"] <= until + 1]
     wrk.sort(key=lambda r: r["_ts"])
-    ada = adapter_records(merge_records(ada_s.snapshot(), logs(ADAPTER_SELECTOR, ATE_SYSTEM, since, prefix=True,
-                                                               container=ADAPTER_CONTAINER)),
+    ada = adapter_records(merge_records(ada_s.snapshot(), adapter_logs(args.adapter, since)),
                           begin - 1, span[1] + 1)
 
     facts, notes = ateapi_facts(api, method)
     images, image_notes = atelet_images(let)
-    streaming, stream_notes, _ = atelet_streaming(sorted(let + ada, key=lambda r: r["_ts"] or 0.0))
+    streaming, stream_notes, _ = atelet_streaming(sorted(let + ada, key=lambda r: r["_ts"] or 0.0),
+                                                  ignore_declined=not args.adapter)
+    ada_notes, ada_facts = adapter_notes(ada)
+    streaming.update(ada_facts)
     phases, meta = ateom_timeline(wrk, window, actor)
     return {
         "step": step,
         "trace_id": trace_id,
-        "notes": notes + image_notes + stream_notes,
+        "notes": notes + image_notes + stream_notes + ada_notes,
         "ateapi": facts,
         "images": images,
         "streaming": streaming,
@@ -726,6 +812,9 @@ def main():
     p.add_argument("--retries", type=int, default=5, help="retries when the assigned worker pod is gone")
     p.add_argument("--json", default="", help="write the full result to this path")
     p.add_argument("--keep", action="store_true", help="do not delete the actor afterwards")
+    p.add_argument("--adapter", default=DEFAULT_ADAPTER,
+                   help="OCILayerService adapter on the worker nodes (riptide, spegel, nydus-dragonfly); "
+                        "empty for none, which reads no adapter logs")
     args = p.parse_args()
 
     if not args.worker_selector:
@@ -771,7 +860,7 @@ def main():
                 LogStream("app=ate-api-server", ATE_SYSTEM),
                 LogStream("app=atelet", ATE_SYSTEM),
                 LogStream(args.worker_selector, args.worker_namespace, prefix=True),
-                LogStream(ADAPTER_SELECTOR, ATE_SYSTEM, prefix=True, container=ADAPTER_CONTAINER)))
+                adapter_stream(args.adapter)))
 
             # 1. create: metadata only, the actor is born suspended and holds no worker.
             wall, trace, span = ate(args, f"create actor {actor} --template {args.template}")

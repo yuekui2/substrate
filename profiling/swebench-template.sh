@@ -59,8 +59,14 @@ done
 
 ate() { kubectl ate "$@"; }
 
-DIGEST="$(crane digest "${REPO}:sweb.eval.x86_64.${INSTANCE}")"
-echo "${ATESPACE}/${NAME} -> ${REPO}@${DIGEST}"
+# IMAGE_REF pins the image (repo@digest) instead of resolving
+# REPO:sweb.eval.x86_64.<instance>, e.g. a Nydus conversion of the same image.
+if [[ -n "${IMAGE_REF:-}" ]]; then
+  IMAGE="${IMAGE_REF}"
+else
+  IMAGE="${REPO}@$(crane digest "${REPO}:sweb.eval.x86_64.${INSTANCE}")"
+fi
+echo "${ATESPACE}/${NAME} -> ${IMAGE}"
 
 # The store rejects a template whose atespace does not exist. Creating one
 # that is already there is not an error worth surfacing.
@@ -93,7 +99,7 @@ containers:
 # No readyz probe, so the reconciler treats the actor as ready as soon as it
 # runs rather than waiting on an HTTP endpoint that does not exist.
 - name: testbed
-  image: ${REPO}@${DIGEST}
+  image: ${IMAGE}
   command: ${CONTAINER_COMMAND}
   args: ${CONTAINER_ARGS}
 resources:

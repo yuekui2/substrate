@@ -203,6 +203,55 @@ class AdapterTest(unittest.TestCase):
         self.assertEqual(out["img path"], "FALLBACK to pull: OCILayerService layer preparation failed (boom)")
         self.assertEqual(streamed, set())
 
+    def test_declined_is_ignored_without_an_adapter(self):
+        recs = pl.parse_log_lines(
+            '{"time":"2026-10-15T17:00:02Z","msg":"OCILayerService declined image; '
+            'falling back to cache","image":"r/img@sha256:aa"}')
+        self.assertIn("img path", pl.atelet_streaming(recs)[0])
+        self.assertEqual(pl.atelet_streaming(recs, ignore_declined=True)[0], {})
+
+    def test_adapter_source(self):
+        self.assertIsNone(pl.adapter_source(""))
+        self.assertEqual(pl.adapter_source("spegel"),
+                         ("app=ate-ocilayer-adapter,ate.dev/oci-layer-provider=spegel", "ocilayer-spegel"))
+        self.assertIsInstance(pl.adapter_stream(""), pl.NoLogs)
+        self.assertEqual(pl.adapter_logs("", 60), [])
+
+
+SPEGEL_LINES = (
+    "2026/10/19 17:01:50 INFO Materialized Spegel OCI layer layerIndex=0 blobDigest=sha256:01 "
+    "source=upstream:us-west1-docker.pkg.dev layerFSDir=/x/0\n"
+    "2026/10/19 17:01:51 INFO Materialized Spegel OCI layer layerIndex=1 blobDigest=sha256:02 "
+    "source=spegel-p2p:10.0.0.7:5000 layerFSDir=/x/1\n"
+    "2026/10/19 17:01:51 INFO Streamed OCI layer blob from remote Spegel P2P peer "
+    "peer=10.0.0.7:5000 digest=sha256:02\n"
+)
+
+
+class AdapterNotesTest(unittest.TestCase):
+    def test_spegel_sources_and_peers(self):
+        notes, facts = pl.adapter_notes(pl.parse_log_lines(SPEGEL_LINES))
+        self.assertEqual(facts, {"layer source": "registry+peer"})
+        self.assertEqual(notes, ["spegel materialized 2 layers: 1 from registry, 1 from peer, 0 from local",
+                                 "spegel streamed 1 blobs from peers ['10.0.0.7:5000']"])
+
+    def test_local_store_is_not_a_peer(self):
+        _, facts = pl.adapter_notes(pl.parse_log_lines(
+            "2026/10/19 17:01:50 INFO Materialized Spegel OCI layer layerIndex=0 "
+            "blobDigest=sha256:01 source=local-store\n"))
+        self.assertEqual(facts, {"layer source": "local"})
+
+    def test_nydus(self):
+        notes, facts = pl.adapter_notes(pl.parse_log_lines(
+            "2026/10/19 17:01:50 INFO Materialized and committed Nydus RAFS v6 EROFS bootstrap layer "
+            "layerIndex=0 layerDigest=sha256:01\n"))
+        self.assertEqual((notes, facts), (["nydus materialized 1 EROFS bootstrap layers"], {}))
+
+    def test_digest_filter_keeps_layer_lines(self):
+        recs = pl.parse_log_lines(SPEGEL_LINES)
+        t = recs[0]["_ts"]
+        self.assertEqual(len(pl.adapter_records(recs, t - 1, t + 2, {DIGEST})), 3)
+
 
 if __name__ == "__main__":
     unittest.main()

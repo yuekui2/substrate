@@ -18,6 +18,8 @@ from `ate-api-server`, `atelet`, and `ateom` worker pods.
 | `workloads/compile.sh` | Actor workload: runs `compileall` on `COMPILE_DIR` (default `/testbed/lib/matplotlib`) at boot and after every restore, logging the same records |
 | `workloads/read-all.sh` | Actor workload: reads every regular file on the rootfs (`READ_ROOT`, default `/`) with `find -xdev -type f \| xargs cat \| wc -c` at boot and after every restore, logging the same records plus `bytes` and `rc`. `cat` reads every path in full, so a pulled and a streamed rootfs of the same image read the same bytes (tar does not: it reads a hardlink group once only where the rootfs shows it as one inode) |
 | `repeat_matplotlib.sh` | Runs the N-rep paired `stream` vs. `pull` benchmark on freshly recreated node pools per repetition, with the actor running `workloads/$ACTOR_WORKLOAD.sh` |
+| `repeat_matrix.sh` | Runs the counterbalanced four-arm matrix (`pull`, `riptidev2`, `spegel`, `dragonfly-nydus`), installing only the measured arm's adapter on a fresh node pool per arm |
+| `nydus-kmods.sh` | Builds `erofs.ko` and `cachefiles.ko` with on-demand (fscache) support for one GKE Ubuntu kernel, which the `dragonfly-nydus` arm needs; GKE's Ubuntu kernels ship both without it |
 | `aggregate_repeats.py` | Aggregates `repeat_matplotlib.sh` output directories (`rep-01..rep-N`) into median / min / max markdown tables (does not read the `workload` key yet) |
 | [`log-sources.md`](log-sources.md) | Which log record each reported number comes from, how it is tied to the actor, and how the TTCE rows are computed |
 | [`log-appendix.md`](log-appendix.md) | Example raw lines for every record in `log-sources.md`, plus findings from the live cluster samples |
@@ -225,6 +227,35 @@ The earlier `results/v3*` runs used an idle actor (`sleep infinity`), `GAP=90`,
 and an extra wait for `gcfsd` background downloads to finish before the
 lifecycle. That wait has been removed, so those runs can't be reproduced exactly
 with the current script. `aggregate_repeats.py` still summarizes their fields.
+
+### Four-arm image streaming matrix
+
+`repeat_matrix.sh` compares `pull` (no adapter), `riptidev2`, `spegel` and
+`dragonfly-nydus` on one cluster. Each rep runs all four arms in one of four
+counterbalanced orders (a 4x4 Williams square, cycled every four reps). For
+each arm it removes the previous arm's WorkerPool, adapter and node pool,
+installs only this arm's adapter, creates a fresh 2-node `pool-arm`
+(`UBUNTU_CONTAINERD`, which Nydus needs, for every arm), and runs coldboot then
+lifecycle with `--adapter`. Adapter manifests are rendered once into
+`MANIFESTS`, so every arm run uses the same adapter build. Snapshots go to
+`gs://$BUCKET_NAME/$CLUSTER/ate-prof-<arm>/`. The run stops if an arm can't be
+prepared and logs the `START_REP` to resume from.
+
+| variable | default | meaning |
+|---|---|---|
+| `WORKLOADS` | `small medium large` | `file-read`, `compile` and `read-all` |
+| `ARMS` | all four | the arms to run, in sequence order (e.g. leave out `dragonfly-nydus`) |
+| `NYDUS_KERNEL` | `6.8.0-1061-gke` | kernel the `dragonfly-nydus` modules are built for (`nydus-kmods.sh`, cached in `$MANIFESTS/kmods-<kernel>`); must match the pool nodes' `uname -r` |
+| `START_REP`, `N` | `1`, `16` | reps `START_REP` .. `START_REP+N-1`; rep r uses order `(r-1) % 4` |
+| `SWEBENCH_IMG`, `SWEBENCH_NYDUS_IMG` | required | OCI and Nydus RAFS v6 images, `repo@digest` |
+| `SYSTEM_POOL` | `substrate-system-e2` | where the Dragonfly control plane is pinned |
+| `MANIFESTS` | `profiling/results/matrix/manifests-$VER` | rendered adapter manifests; `RENDER_ONLY=1` renders and exits |
+| `OUT` | `profiling/results/matrix/$CLUSTER` | output: `<workload>/rep-XX/{order.txt,<arm>-*.json,<arm>-workers.txt}` and `run.log` |
+
+```bash
+RENDER_ONLY=1 profiling/repeat_matrix.sh                 # once, shared by all clusters
+WORKLOADS=small START_REP=1 N=1 profiling/repeat_matrix.sh
+```
 
 ### Single-Arm / Interactive Profiling
 

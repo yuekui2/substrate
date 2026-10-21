@@ -9,8 +9,12 @@ work() { # compile workload
   mark start "$1" ""
   t0=${EPOCHREALTIME/./}
   /opt/miniconda3/envs/testbed/bin/python -m compileall -f -q "$D" > /dev/null
+  rc=$?
   t1=${EPOCHREALTIME/./}
-  mark end "$1" ",\"elapsed_us\":$((t1 - t0))"
+  # Total size of the compiled sources, from metadata only and outside the
+  # timed section, so arms can be checked for compiling the same files.
+  bytes=$(find "$D" -name '*.py' -type f -printf '%s\n' 2>/dev/null | awk '{s+=$1} END {print s+0}')
+  mark end "$1" ",\"bytes\":$bytes,\"rc\":$rc,\"elapsed_us\":$((t1 - t0))"
 }
 
 work boot

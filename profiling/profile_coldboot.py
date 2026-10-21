@@ -38,12 +38,14 @@ import sys
 import time
 
 from profile_lifecycle import (
-    ADAPTER_CONTAINER,
-    ADAPTER_SELECTOR,
     ATE_SYSTEM,
+    DEFAULT_ADAPTER,
     LogStream,
     actor_name_of,
+    adapter_logs,
+    adapter_notes,
     adapter_records,
+    adapter_stream,
     atelet_flags,
     atelet_streaming,
     ateom_timeline,
@@ -289,6 +291,9 @@ def main():
     p.add_argument("--warmup", type=float, default=GOLDEN_SNAPSHOT_WARMUP,
                    help="seconds the reconciler waits before checkpointing the golden actor")
     p.add_argument("--json", default="")
+    p.add_argument("--adapter", default=DEFAULT_ADAPTER,
+                   help="OCILayerService adapter on the worker nodes (riptide, spegel, nydus-dragonfly); "
+                        "empty for none, which reads no adapter logs")
     args = p.parse_args()
 
     selector = args.worker_selector or f"ate.dev/worker-pool={args.worker_pool}"
@@ -305,7 +310,7 @@ def main():
     with LogStream("app=ate-api-server", ATE_SYSTEM) as api_stream, \
             LogStream("app=atelet", ATE_SYSTEM) as let_stream, \
             LogStream(selector, args.worker_namespace, prefix=True) as wrk_stream, \
-            LogStream(ADAPTER_SELECTOR, ATE_SYSTEM, prefix=True, container=ADAPTER_CONTAINER) as ada_stream:
+            adapter_stream(args.adapter) as ada_stream:
         t0, t1, out = build_template(args.script, args.instance, args.atespace, args.env)
         time.sleep(3)  # let lines up to t1 + 2 reach the followers
         streamed = api_stream.records(), let_stream.records(), wrk_stream.records(), ada_stream.records()
@@ -326,16 +331,18 @@ def main():
     wrk = sorted(window(merge_records(streamed[2], logs(selector, args.worker_namespace, since, prefix=True))), # worker logs
                  key=lambda r: r["_ts"])
     # Adapter logs: no trace ID, so selected by the build window and the template's digests.
-    ada = adapter_records(merge_records(streamed[3], logs(ADAPTER_SELECTOR, ATE_SYSTEM, since, prefix=True,
-                                                          container=ADAPTER_CONTAINER)),
+    ada = adapter_records(merge_records(streamed[3], adapter_logs(args.adapter, since)),
                           t0 - 2, t1 + 2, digests)
 
     golden_api, golden_let, match_notes = golden_records(api, let, wrk, uid)
     facts, notes = boot_path(golden_api)
     streaming, stream_notes, streamed = atelet_streaming(
-        sorted(golden_let + ada, key=lambda r: r["_ts"] or 0.0), digests)
+        sorted(golden_let + ada, key=lambda r: r["_ts"] or 0.0), digests,
+        ignore_declined=not args.adapter)
+    ada_notes, ada_facts = adapter_notes(ada)
+    streaming.update(ada_facts)
     pulls, pull_notes = cold_pull(golden_let, digests, sizes, streamed)
-    pull_notes += match_notes + stream_notes + ([level_note] if level_note else [])
+    pull_notes += match_notes + stream_notes + ada_notes + ([level_note] if level_note else [])
     phases, meta = ateom_timeline(wrk, "boot", uid)
     ckpt, ckpt_meta = ateom_timeline(wrk, "suspend", uid)
     # From placement, so the image fetch is included: on a fresh node this is
