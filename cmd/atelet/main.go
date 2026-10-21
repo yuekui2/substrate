@@ -1361,7 +1361,7 @@ func (s *Atelet) releaseStreamedLayersForActor(ctx context.Context, actorUID str
 		if err != nil || overlaySpec == nil {
 			continue
 		}
-		if overlaySpec.Streamed || isStreamedLayerSet(overlaySpec.Layers) {
+		if overlaySpec.Streamed {
 			ref := overlaySpec.ImageRef
 			if ref == "" {
 				ref = ctr.GetImage()
@@ -1369,7 +1369,7 @@ func (s *Atelet) releaseStreamedLayersForActor(ctx context.Context, actorUID str
 			releaseRef(ref)
 		}
 		for _, vol := range overlaySpec.ImageVolumes {
-			if vol.Streamed || isStreamedLayerSet(vol.Layers) {
+			if vol.Streamed {
 				releaseRef(vol.ImageRef)
 			}
 		}

@@ -42,7 +42,7 @@ Following the Adapter pattern—analogous to Kubernetes CSI (Container Storage I
 ### Isolating from Host `containerd` GC via the DaemonSet
 
 * When sharing the host Riptide Snapshotter and `gcfsd` daemon with Substrate, `containerd` GC interferes with both via gRPC calls though they do not share any underlying DB. See Appendix: [Host containerd GC Interferences](#host-containerd-gc-interferences) for detailed explanation.
-* **DaemonSet Isolation:** The `riptide-provider` container runs an isolated `gcfsd` + Riptide Snapshotter pair (using the preloaded binaries) inside a child mount namespace (`unshare -m --propagation unchanged`), marks `/run` as `rslave`, bind-mounts `/run/ate-image-streaming/gcfsd` onto `/run/gcfsd` (satisfying `gcfsd-v2`'s hardcoded `/run/gcfsd/keychain.sock` path without touching the host's `/run/gcfsd`), and mounts FUSE at `/var/lib/substrate/gcfs/mnt` (`Bidirectional` propagation). This works identically on both GKE Nodes with Streaming Disabled and GKE Nodes with Streaming Enabled with zero interference.
+* **DaemonSet Isolation:** The `riptide-provider` container runs an isolated `gcfsd` + Riptide Snapshotter pair (using the preloaded binaries) inside a child mount namespace (`unshare -m --propagation unchanged`), marks `/run` as `rslave`, bind-mounts `/run/ate/gcfsd` onto `/run/gcfsd` (satisfying `gcfsd-v2`'s hardcoded `/run/gcfsd/keychain.sock` path without touching the host's `/run/gcfsd`), and mounts FUSE at `/var/lib/ate/accelerator/riptide-gcfs/mnt` (`Bidirectional` propagation). This works identically on both GKE Nodes with Streaming Disabled and GKE Nodes with Streaming Enabled with zero interference.
 
 ### What Changes Across Components
 
@@ -51,13 +51,14 @@ Following the Adapter pattern—analogous to Kubernetes CSI (Container Storage I
 
 ### Separate On-Disk Folders & Dynamic Disabling
 
-* **Strict Directory Separation:** Locally unpacked layers, adapter streaming wrapper symlinks, and provider FUSE mounts / chunk caches live in completely separate directories on disk. See Appendix: [On-Disk Folder Structure](#on-disk-folder-structure) for details.
+* **Strict Directory Separation:** Locally unpacked layers, adapter streaming wrapper symlinks, and provider FUSE mounts / chunk caches live in completely separate directories under `/var/lib/ate`. See Appendix: [On-Disk Folder Structure](#on-disk-folder-structure) for details.
 * **Avoiding Streaming Layers on Disable:** Unlike GKE `containerd` (where disabling Riptide leaves dangling `gcfs` snapshot metadata tied to image records), when streaming is dynamically disabled on a Substrate node:
-  * **New & Resuming Actors:** `atelet` immediately stops routing new actors (`Run`) and resuming actors (`Restore`) to `/var/lib/ate/streaming/...` and instead pulls/unpacks layers into `/var/lib/ate/image-cache/layers/...`. Even an actor that was previously streaming seamlessly restores its checkpoint `upperdir` onto local `image-cache` layers on its next wakeup.
-  * **Releasing & GC-ing Streamed Layers:** Already-running streamed actors continue uninterrupted; as each one checkpoints or terminates, its `refCount` decrements and once `refCount` reaches 0, the `/var/lib/ate/streaming/...` wrapper directories and `/var/lib/substrate/gcfs` FUSE views are immediately unmounted and GC-ed.
+  * **New & Resuming Actors:** `atelet` immediately stops routing new actors (`Run`) and resuming actors (`Restore`) to `/var/lib/ate/accelerator/...` and instead pulls/unpacks layers into `/var/lib/ate/image-cache/layers/...`. Even an actor that was previously streaming seamlessly restores its checkpoint `upperdir` onto local `image-cache` layers on its next wakeup.
+  * **Releasing & GC-ing Streamed Layers:** Already-running streamed actors continue uninterrupted; as each one checkpoints or terminates, its `refCount` decrements and once `refCount` reaches 0, the `/var/lib/ate/accelerator/riptide/...` wrapper directories and `/var/lib/ate/accelerator/riptide-gcfs` FUSE views are immediately unmounted and GC-ed.
 * **Deployment Workflow:**
-  * **Cluster Install (Disabled by Default, or Auto-Enabled with Flag):** `./hack/install-ate.sh deploy ate-system` deploys `atelet` without installing any adapter DaemonSet; adding `--setup-image-accelerator=riptide` (or `ATE_IMAGE_ACCELERATOR_MANIFEST=<path-or-url>` for out-of-tree adapters) installs the adapter DaemonSet, labels the nodes `ate.dev/image-accelerator=riptide`, and automatically enables streaming across the cluster.
-  * **Disable on a Node:** `kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite` keeps the adapter pod alive for currently running actors while `atelet` stops using streaming for new and resuming actors; once existing actors checkpoint or terminate, `refCount` reaches 0 and the streamed layers are GC-ed (re-enable anytime with `ate.dev/image-accelerator=riptide`).
+  * **Substrate Cluster Install (Socket Endpoint Only):** `go run ./cmd/ate-setup deploy ate-system` (or `./hack/install-ate.sh deploy ate-system`) deploys `atelet` configured only with `--image-accelerator-socket=/run/ate/image-accelerator.sock`. Substrate has zero knowledge of any adapter DaemonSet or provider; when no adapter socket is present on a node, `atelet` uses local `image-cache`.
+  * **Separate Adapter Installation:** Installing an `ImageAccelerator` adapter is always a separate step outside Substrate's installer—apply the adapter DaemonSet manifest (`kubectl apply -f <adapter-manifest>.yaml`) and label the target nodes (`kubectl label node <node> ate.dev/image-accelerator=<provider>`, e.g. `riptide`, `soci`, `nydus-dragonfly`, `spegel`, or a custom adapter). Once the adapter pod binds `/run/ate/image-accelerator.sock`, `atelet` automatically talks to the socket without restarting.
+  * **Disable on a Node:** `kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite` keeps the adapter pod alive for currently running actors while `atelet` stops using streaming for new and resuming actors; once existing actors checkpoint or terminate, `refCount` reaches 0 and the streamed layers are GC-ed (re-enable anytime with `ate.dev/image-accelerator=<provider>`).
 
 ### Upgrading `atelet` and the Adapter DaemonSet
 
@@ -112,19 +113,28 @@ Following [`docs/upgrade.md`](upgrade.md) and [`docs/version-skew-policy.md`](ve
 │           ├── whiteouts.json
 │           └── finalized
 │
-├── streaming/                           <--- 2. ADAPTER STREAMING WRAPPERS (agent:v1)
-│   └── riptide/
-│       └── sha256-abcd1234/
-│           ├── lease.json               (Persisted lease state for ReconcileImages)
-│           ├── layer-0/
-│           │   ├── fs -> /var/lib/substrate/gcfs/snapshotter/snapshots/101/fs (Symlink to FUSE)
-│           │   └── finalized
-│           ├── layer-1/
-│           │   ├── fs -> /var/lib/substrate/gcfs/snapshotter/snapshots/102/fs (Symlink to FUSE)
-│           │   └── finalized
-│           └── layer-2/
-│               ├── fs -> /var/lib/substrate/gcfs/snapshotter/snapshots/103/fs (Symlink to FUSE)
-│               └── finalized
+├── accelerator/                         <--- 2. ADAPTER WRAPPERS & PROVIDER ROOTS (agent:v1)
+│   ├── riptide/
+│   │   └── sha256-abcd1234/
+│   │       ├── lease.json               (Persisted lease state for ReconcileImages)
+│   │       ├── layer-0/
+│   │       │   ├── fs -> /var/lib/ate/accelerator/riptide-gcfs/snapshotter/snapshots/101/fs (Symlink to FUSE)
+│   │       │   └── finalized
+│   │       ├── layer-1/
+│   │       │   ├── fs -> /var/lib/ate/accelerator/riptide-gcfs/snapshotter/snapshots/102/fs (Symlink to FUSE)
+│   │       │   └── finalized
+│   │       └── layer-2/
+│   │           ├── fs -> /var/lib/ate/accelerator/riptide-gcfs/snapshotter/snapshots/103/fs (Symlink to FUSE)
+│   │           └── finalized
+│   │
+│   └── riptide-gcfs/                    <--- ISOLATED RIPTIDE PROVIDER ROOT
+│       ├── mnt/views/<chainID>/fs/      (gcfsd-v2 FUSE virtual layer mounts)
+│       ├── snapshotter/
+│       │   ├── metadata.db              (containerd-gcfs-grpc BoltDB)
+│       │   ├── snapshots/<id>/fs -> ../../mnt/views/<chainID>/fs
+│       │   └── layers/                  (On-disk downloaded chunk cache)
+│       └── gcfsd/
+│           └── images_in_use.db         (gcfsd-v2 chunk cache metadata DB)
 │
 └── actors/                              <--- 3. RUNNING ACTOR BUNDLES (Source of Truth)
     ├── actor-pause-001/
@@ -142,13 +152,4 @@ Following [`docs/upgrade.md`](upgrade.md) and [`docs/version-skew-policy.md`](ve
             ├── work/                    (Overlayfs work directory)
             ├── rootfs/                  (Overlayfs mountpoint for runsc)
             └── rootfs-overlay.json      <-- OverlaySpec (streamed: true)
-
-/var/lib/substrate/gcfs/                 <--- 4. ISOLATED RIPTIDE PROVIDER ROOT
-├── mnt/views/<chainID>/fs/              (gcfsd-v2 FUSE virtual layer mounts)
-├── snapshotter/
-│   ├── metadata.db                      (containerd-gcfs-grpc BoltDB)
-│   ├── snapshots/<id>/fs -> ../../mnt/views/<chainID>/fs
-│   └── layers/                          (On-disk downloaded chunk cache)
-└── gcfsd/
-    └── images_in_use.db                 (gcfsd-v2 chunk cache metadata DB)
 ```

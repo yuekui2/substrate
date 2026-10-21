@@ -67,9 +67,9 @@ const (
 	// DefaultSpegelStoreDir is the default host directory where SpegelDriver
 	// stores content-addressed OCI blobs (blobs/sha256/<digest>) and unpacked
 	// layer trees (layers/sha256/<chainID>/fs). It sits under
-	// /var/lib/ate/streaming so symlinks from layer-<i>/fs resolve
+	// /var/lib/ate/accelerator so symlinks from layer-<i>/fs resolve
 	// inside atelet and ateworker pods without additional hostPath mounts.
-	DefaultSpegelStoreDir = "/var/lib/ate/streaming/spegel-store"
+	DefaultSpegelStoreDir = "/var/lib/ate/accelerator/spegel-store"
 
 	// DefaultDockerConfigPath is the default Docker config.json path used for
 	// credential synchronization.

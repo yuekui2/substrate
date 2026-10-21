@@ -27,9 +27,10 @@
 # 1. Node with GKE Image Streaming enabled (host gcfsd.service active):
 #    Runs an isolated gcfsd-v2 + containerd-gcfs-grpc pair in a child mount
 #    namespace where /run/gcfsd is privately bound to /run/ate/gcfsd
-#    and FUSE mounts under /var/lib/substrate/gcfs/mnt propagate bidirectionally
-#    to the host. This avoids both Snapshots.v1 BoltDB GC interference and
-#    gcfsd-v2 CreateView/DeleteView chainID collisions with host containerd.
+#    and FUSE mounts under /var/lib/ate/accelerator/riptide-gcfs/mnt propagate
+#    bidirectionally to the host. This avoids both Snapshots.v1 BoltDB GC
+#    interference and gcfsd-v2 CreateView/DeleteView chainID collisions with
+#    host containerd.
 # 2. Node with GKE Image Streaming disabled (host gcfsd.service inactive):
 #    Runs the exact same isolated gcfsd-v2 + containerd-gcfs-grpc pair using the
 #    preloaded /home/kubernetes/bin binaries.
@@ -95,7 +96,7 @@ spec:
         - /bin/bash
         - -ec
         - |
-          readonly gcfs_root="/var/lib/substrate/gcfs"
+          readonly gcfs_root="/var/lib/ate/accelerator/riptide-gcfs"
           readonly gcfs_run_dir="/run/ate/gcfsd"
           readonly gcfsd_mnt_dir="${gcfs_root}/mnt"
 
@@ -106,14 +107,14 @@ spec:
           fi
 
           for pid in $(pgrep -x containerd-gcfs || true) $(pgrep -x gcfsd-v2 || true); do
-            if tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null | grep -q "/var/lib/substrate/gcfs"; then
+            if tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null | grep -q "${gcfs_root}"; then
               kill -9 "${pid}" 2>/dev/null || true
             fi
           done
 
           umount -l "${gcfsd_mnt_dir}" 2>/dev/null || true
-          rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd" /var/lib/ate/streaming/riptide/* 2>/dev/null || true
-          mkdir -p /run/ate "${gcfs_run_dir}" "${gcfs_root}" "${gcfsd_mnt_dir}" /run/gcfsd /var/lib/ate/streaming/riptide
+          rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd" /var/lib/ate/accelerator/riptide/* 2>/dev/null || true
+          mkdir -p /run/ate "${gcfs_run_dir}" "${gcfs_root}" "${gcfsd_mnt_dir}" /run/gcfsd /var/lib/ate/accelerator/riptide
           rm -f "${gcfs_run_dir}/grpc.sock" "${gcfs_run_dir}/keychain.sock" "${gcfs_run_dir}/downloader.sock" /run/ate/gcfs-snapshotter.sock
 
           if ! mountpoint -q "${gcfs_root}"; then
@@ -122,7 +123,7 @@ spec:
           mount --make-rshared "${gcfs_root}"
 
           exec unshare -m --propagation unchanged -- /bin/bash -ec '
-            readonly gcfs_root="/var/lib/substrate/gcfs"
+            readonly gcfs_root="/var/lib/ate/accelerator/riptide-gcfs"
             readonly gcfsd_mnt_dir="${gcfs_root}/mnt"
             readonly gcfs_socket_path="/run/gcfsd/grpc.sock"
             readonly layer_cache_dir="${gcfs_root}/snapshotter/layers"
@@ -252,8 +253,8 @@ spec:
           readOnly: true
         - name: run-ate
           mountPath: /run/ate
-        - name: substrate-gcfs-root
-          mountPath: /var/lib/substrate/gcfs
+        - name: ate-base
+          mountPath: /var/lib/ate
           mountPropagation: Bidirectional
         - name: dev-fuse
           mountPath: /dev/fuse
@@ -263,7 +264,7 @@ spec:
         - --listen-socket=/run/ate/image-accelerator.sock
         - --snapshotter-socket=/run/ate/gcfs-snapshotter.sock
         - --keychain-socket=/run/ate/gcfsd/keychain.sock
-        - --work-dir=/var/lib/ate/streaming/riptide
+        - --work-dir=/var/lib/ate/accelerator/riptide
         - --idle-ttl=10m
         securityContext:
           privileged: true
@@ -274,8 +275,6 @@ spec:
           mountPath: /run/ate
         - name: ate-base
           mountPath: /var/lib/ate
-        - name: substrate-gcfs-root
-          mountPath: /var/lib/substrate/gcfs
           mountPropagation: HostToContainer
       volumes:
       - name: kube-home
@@ -289,10 +288,6 @@ spec:
       - name: ate-base
         hostPath:
           path: /var/lib/ate
-          type: DirectoryOrCreate
-      - name: substrate-gcfs-root
-        hostPath:
-          path: /var/lib/substrate/gcfs
           type: DirectoryOrCreate
       - name: dev-fuse
         hostPath:

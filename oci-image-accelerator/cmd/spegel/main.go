@@ -13,8 +13,7 @@
 // limitations under the License.
 
 // Command accelerator-spegel runs the out-of-process ImageAccelerator gRPC adapter
-// daemon for stateless P2P OCI layer distribution via Spegel
-// (--setup-image-streaming=spegel).
+// daemon for stateless P2P OCI layer distribution via Spegel.
 package main
 
 import (
@@ -32,7 +31,7 @@ import (
 func main() {
 	var (
 		listenSocket       = flag.String("listen-socket", adapter.DefaultListenSocket, "UNIX domain socket path where ImageAccelerator listens")
-		workDir            = flag.String("work-dir", "/var/lib/ate/streaming/spegel", "Base directory for Spegel layer wrapper symlinks")
+		workDir            = flag.String("work-dir", "/var/lib/ate/accelerator/spegel", "Base directory for Spegel layer wrapper symlinks")
 		storeDir           = flag.String("store-dir", DefaultSpegelStoreDir, "Base directory for content-addressed Spegel OCI blobs and unpacked layers")
 		dockerConfig       = flag.String("docker-config", DefaultDockerConfigPath, "Path to Docker config.json used for upstream registry credentials")
 		spegelMirrorAddr   = flag.String("spegel-mirror-addr", "", "Local Spegel OCI registry mirror endpoint (default http://127.0.0.1:5000 or $SPEGEL_MIRROR_ADDR)")

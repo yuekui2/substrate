@@ -29,7 +29,7 @@ flowchart TD
         NodeLabel["Node Label Watch<br/>ate.dev/image-accelerator"] -->|"Enable / Dynamic Drain"| Atelet
 
         Atelet -->|"1. CanProvide / PrepareImage /<br/>ReleaseImage / ReconcileImages"| Sock["/run/ate/image-accelerator.sock"]
-        Atelet -. "1b. Fallback on Disabled /<br/>CanProvide=false / Error" .-> ImageCache["internal/imagecache<br/>/var/lib/atelet/imagecache/layers/&lt;chainID&gt;"]
+        Atelet -. "1b. Fallback on Disabled /<br/>CanProvide=false / Error" .-> ImageCache["internal/imagecache<br/>/var/lib/ate/image-cache/layers/&lt;chainID&gt;"]
 
         subgraph AdapterPod["ImageAccelerator Adapter DaemonSet Pod (1 Active per Node)"]
             Sock --> Adapter["Adapter Server<br/>(oci-image-accelerator/cmd/riptide or soci)"]
@@ -37,7 +37,7 @@ flowchart TD
             Adapter -. "Materialize small layers (< min-layer-size)" .-> SmallLayers["Local Layer Fallback<br/>(SOCI Adapter only)"]
         end
 
-        Provider -->|"FUSE Mount (Bidirectional)"| FuseViews["Streamed Layer Views<br/>/var/lib/ate/streaming/&lt;provider&gt;/.../layer-N"]
+        Provider -->|"FUSE Mount (Bidirectional)"| FuseViews["Streamed Layer Views<br/>/var/lib/ate/accelerator/&lt;provider&gt;/.../layer-N"]
         SmallLayers -.-> FuseViews
     end
 
@@ -105,7 +105,7 @@ service ImageAccelerator {
 
 ### 4.1 Per-Image Lease Reference Counting & Cross-Image Layer Deduplication
 Inside the shared adapter engine (`oci-image-accelerator/pkg/adapter/server.go`):
-* **Image Lease (`imageLease`):** Keyed by normalized `imageRef`. Tracks `refCount`, `imageDigest`, the ordered list of `layerRecord`s, wrapper directory paths (`/var/lib/ate/streaming/<provider>/<sanitized-imageRef>/layer-<i>`), and an optional idle expiration timer (`idleTimer`).
+* **Image Lease (`imageLease`):** Keyed by normalized `imageRef`. Tracks `refCount`, `imageDigest`, the ordered list of `layerRecord`s, wrapper directory paths (`/var/lib/ate/accelerator/<provider>/<sanitized-imageRef>/layer-<i>`), and an optional idle expiration timer (`idleTimer`).
 * **Cross-Image Layer Deduplication (`chainUsers`):** Underlying snapshotter views are keyed by content-addressed `chainID` (`view-<chainID-hex>`). If Image A and Image B share common base layers, both image leases point their respective `layer-<i>` symlinks to the shared FUSE view directory and increment `chainUsers[chainID]`. A `chainID`'s underlying snapshotter view (`Snapshots.Remove("view-<chainID>")`) is only removed when **all** image leases referencing that `chainID` have been torn down.
 * **Idle Lease TTL (`--idle-ttl`, default `10m` in DaemonSet / `2m` in library):**
   * When an actor checkpoints or terminates during normal operation (`bypass_idle_ttl = false`), `ReleaseImage` decrements `refCount`.
@@ -114,8 +114,8 @@ Inside the shared adapter engine (`oci-image-accelerator/pkg/adapter/server.go`)
 
 ### 4.2 `atelet` Startup Reconciliation (`ReconcileImages`)
 Because the adapter runs in its own DaemonSet pod (`ate-accelerator-<adapter>`), it survives `atelet` restarts. When `atelet` starts up (`cmd/atelet/imageaccel_reconcile.go:reconcileImageAcceleratorOnStartup`):
-1. `atelet` scans `/var/lib/ate/sandboxes/*/rootfs-overlay.json` for all surviving actor sandboxes on the node.
-2. For each `rootfs-overlay.json` whose `LayerDirs` reside under the streaming root (`/var/lib/ate/streaming/`) rather than `/var/lib/atelet/imagecache/layers/`, `atelet` records the active `ImageRef` and its count of active sandboxes (`activeCount[imageRef]++`).
+1. `atelet` scans `/var/lib/ate/actors/*/rootfs-overlay.json` for all surviving actor sandboxes on the node.
+2. For each `rootfs-overlay.json` where `OverlaySpec.Streamed` is `true`, `atelet` records the active `ImageRef` and its count of active sandboxes (`activeCount[imageRef]++`).
 3. `atelet` calls `ReconcileImages(ctx, &ReconcileImagesRequest{ActiveImages: activeImages})` (repeating for each active sandbox reference or setting the active set).
 4. The adapter resets its in-memory `refCount` for every image in `active_images` and immediately tears down any leased or on-disk image directory under `--work-dir` that is not in `active_images`.
 
@@ -127,7 +127,7 @@ Because the adapter runs in its own DaemonSet pod (`ate-accelerator-<adapter>`),
   * `ReleaseImage` uses normal idle TTL (`bypass_idle_ttl = false`).
 * **Draining / Disabled State (`ate.dev/image-accelerator=disabled`):**
   * `imageAccelClient.SetDraining(true)`
-  * **New & Restoring Actors (`Run` / `Restore`):** `atelet` immediately skips `ImageAccelerator` and pulls/unpacks layers into `/var/lib/atelet/imagecache/layers/...`. Even an actor that was previously checkpointed while using streamed layers seamlessly restores its writable checkpoint `upperdir` onto local `imagecache` `lowerdir` layers on its next `Restore`.
+  * **New & Restoring Actors (`Run` / `Restore`):** `atelet` immediately skips `ImageAccelerator` and pulls/unpacks layers into `/var/lib/ate/image-cache/layers/...`. Even an actor that was previously checkpointed while using streamed layers seamlessly restores its writable checkpoint `upperdir` onto local `imagecache` `lowerdir` layers on its next `Restore`.
   * **Existing Running Streamed Actors:** Because the adapter DaemonSet uses `nodeAffinity` matching `ate.dev/image-accelerator In [<adapter>, disabled]`, Kubernetes **does not terminate the adapter pod** when the node is relabeled to `disabled`. Active FUSE mounts stay alive for running actors.
   * **Immediate Lease Eviction on Teardown:** Whenever a running streamed actor checkpoints or terminates while `atelet` is draining (`IsDraining() == true`), `atelet` calls `ReleaseImage` with `bypass_idle_ttl = true`, immediately unmounting the FUSE view as soon as `refCount` reaches `0`.
   * **Full Pod Removal (Optional):** Once all streamed actors have drained (`0` active views), removing the label (`kubectl label node <node> ate.dev/image-accelerator-`) causes Kubernetes to terminate the adapter DaemonSet pod on that node.
@@ -151,7 +151,7 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
 1. Enters a dedicated mount namespace via `unshare -m --propagation unchanged`.
 2. Marks `/run` as `mount --make-rslave /run` so private mounts inside `/run` do not propagate back to the host.
 3. Bind-mounts `/run/ate-image-streaming/gcfsd` onto `/run/gcfsd` inside the child mount namespace. This satisfies `gcfsd-v2`'s hardcoded `/run/gcfsd/keychain.sock` socket path while keeping the host's `/run/gcfsd` untouched on nodes where host GKE Image Streaming is active, and exposing `/run/ate-image-streaming/gcfsd/keychain.sock` to the sibling `riptide` adapter container.
-4. Starts `containerd-gcfs-grpc --enable-v2` (which manages `gcfsd-v2`) rooted at `/var/lib/substrate/gcfs` with its FUSE mount at `/var/lib/substrate/gcfs/mnt` (`mountPropagation: Bidirectional`), making FUSE layer views at `/var/lib/substrate/gcfs/mnt/views/<chainID>/fs` visible to the host and `ateom` pods.
+4. Starts `containerd-gcfs-grpc --enable-v2` (which manages `gcfsd-v2`) rooted at `/var/lib/ate/accelerator/riptide-gcfs` with its FUSE mount at `/var/lib/ate/accelerator/riptide-gcfs/mnt` (`mountPropagation: Bidirectional`), making FUSE layer views at `/var/lib/ate/accelerator/riptide-gcfs/mnt/views/<chainID>/fs` visible to the host and `ateom` pods via `/var/lib/ate`.
 
 #### Credential Push & Layer Preparation Flow
 1. `CanProvide`: Checks that the image registry host is Google Artifact Registry (`*.pkg.dev` or `*.gcr.io`) and pings `Snapshots.Stat` on `/run/ate-image-streaming/gcfs-snapshotter.sock`.
@@ -161,16 +161,16 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
    * For each layer `i = 0 .. N-1`:
      * Ensures the committed parent snapshot `<chainID>` is registered in `containerd-gcfs-grpc` via `Snapshots.Stat` / `Snapshots.Prepare` with Riptide remote snapshot labels (`containerd.io/snapshot.ref`, `containerd.io/snapshot/image-ref`, `containerd.io/snapshot/cri.image-ref`, `containerd.io/snapshot/cri.layer-digest`, `containerd.io/snapshot/gcfs.layer-size`).
      * Creates or reuses the read-only snapshot view `view-<chainID>` via `Snapshots.View` / `Snapshots.Mounts`.
-     * Polls until the FUSE view directory (`/var/lib/substrate/gcfs/mnt/views/<chainID>/fs`) is mounted and listable.
-     * Creates a stable symlink `/var/lib/ate/streaming/riptide/<sanitized-imageRef>/layer-<i>` $\to$ `/var/lib/substrate/gcfs/mnt/views/<chainID>/fs`.
+     * Polls until the FUSE view directory (`/var/lib/ate/accelerator/riptide-gcfs/mnt/views/<chainID>/fs`) is mounted and listable.
+     * Creates a stable symlink `/var/lib/ate/accelerator/riptide/<sanitized-imageRef>/layer-<i>` $\to$ `/var/lib/ate/accelerator/riptide-gcfs/mnt/views/<chainID>/fs`.
 
 ### 5.2 AWS SOCI Adapter (`oci-image-accelerator/cmd/soci`)
-* Connects to `soci-snapshotter-grpc` over `/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock` (isolated root `/var/lib/soci-snapshotter-grpc` with both `pull_modes.soci_v1` and `pull_modes.soci_v2` enabled).
+* Connects to `soci-snapshotter-grpc` over `/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock` (isolated root `/var/lib/ate/accelerator/soci-snapshotter` with both `pull_modes.soci_v1` and `pull_modes.soci_v2` enabled).
 * Synchronizes resolved registry credentials (`PrepareImageRequest.AuthConfig` or node keychain) to `/run/soci-snapshotter-grpc/docker/config.json` (`DOCKER_CONFIG=/run/soci-snapshotter-grpc/docker`) via `PrePrepareHook` before `Snapshots.Prepare`.
 * **Small-Layer Materialization (`materializeSmallLayer`):** When `soci-snapshotter-grpc` skips streaming a small layer (`< min-layer-size`, default `10 MiB`) and returns `codes.OK` with a local active snapshot mount instead of `codes.AlreadyExists`, the SOCI adapter verifies the layer's compressed size is `<= --max-local-layer-size` (default `10 MiB`), downloads and extracts that layer blob into the active snapshot mount directory, and commits it under `<chainID>` (`Snapshots.Commit`), satisfying the `ImageAccelerator` per-image contract while failing fast with `ErrNotSupported` on large unindexed layers.
 
 ### 5.3 Nydus RAFS v6 + Kernel EROFS/`fscache` Architecture (`oci-image-accelerator/cmd/nydus-dragonfly`)
-* Connects to `containerd-nydus-grpc` (`--fs-driver=fscache --daemon-mode=shared`) over `/run/containerd-nydus/containerd-nydus-grpc.sock`, backed by a singleton `nydusd` daemon (`nydusd singleton --fscache /var/lib/containerd-nydus/cache`) and a local HTTP range/piece-caching proxy configured via `DRAGONFLY_PROXY_ADDR` (default `http://127.0.0.1:65001`, `fallback: false`, `use_http: true`).
+* Connects to `containerd-nydus-grpc` (`--fs-driver=fscache --daemon-mode=shared`) over `/run/containerd-nydus/containerd-nydus-grpc.sock`, backed by a singleton `nydusd` daemon (`nydusd singleton --fscache /var/lib/ate/accelerator/nydus-snapshotter/cache`) and a local HTTP range/piece-caching proxy configured via `DRAGONFLY_PROXY_ADDR` (default `http://127.0.0.1:65001`, `fallback: false`, `use_http: true`).
 * **Strict No-Fallback Enforcement (`fusedev` Disabled):**
   * At startup, `VerifyKernelEROFSSupport` verifies that `erofs` is registered in `/proc/filesystems` and `/dev/cachefiles` exists, failing fast with an explicit error (`fusedev fallback is disabled`) on non-EROFS kernels such as GKE `COS_CONTAINERD`.
   * On every mounted snapshot view, `verifyMountIsEROFS` verifies via `syscall.Statfs` that `statfs.Type == EROFS_SUPER_MAGIC (0xE0F5E1E2)` and explicitly rejects `FUSE_SUPER_MAGIC (0x65735546)`.
@@ -179,23 +179,25 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
   * `oci-image-accelerator/cmd/nydus-dragonfly` skips intermediate `Snapshots.View` calls on `nydus-blob` layers, unpacks `image/image.boot` from the bootstrap layer when `Snapshots.Prepare` returns `codes.OK`, commits the bootstrap snapshot with Nydus annotations, mounts the resulting `erofs` (`fsid=...`) filesystem, and returns the single merged Kernel EROFS root directory in `PrepareImageResponse.layer_dirs`.
 
 ### 5.4 Cross-Node Nydus + Dragonfly v2 P2P Adapter (`oci-image-accelerator/cmd/nydus-dragonfly`)
-* Pairs the Nydus RAFS v6 + Kernel EROFS/`fscache` stack with the full cross-node Dragonfly v2 (`d7y`) P2P control plane and data plane (`--setup-image-accelerator=nydus-dragonfly`):
+* Pairs the Nydus RAFS v6 + Kernel EROFS/`fscache` stack with the full cross-node Dragonfly v2 (`d7y`) P2P control plane and data plane (`oci-image-accelerator/manifests/nydus-dragonfly.yaml`):
   * **Control Plane (`ate-system`):** Deploys `dragonfly-mysql`, `dragonfly-redis`, `dragonfly-manager` (`:8080` REST / `:65003` gRPC), and `dragonfly-scheduler` (`:8002` gRPC) to coordinate sub-blob HTTP `Range` piece tasks across worker nodes.
   * **Per-Node Data Plane (`ate-accelerator-nydus-dragonfly` DaemonSet):** Runs `dfdaemon` (`:65001` local proxy for `nydusd`, `:65000` upload server, and `:65002` peer gRPC server over `hostNetwork`), `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd`), and `nydus-dragonfly` (`provider="nydus-dragonfly"`).
   * **Active Dragonfly Health Probing:** In addition to verifying Kernel EROFS and `/dev/cachefiles`, `nydus-dragonfly` probes `<DRAGONFLY_PROXY_ADDR>/server/ping` during `CanProvide` and `PrepareImage` (`--verify-dragonfly-ping=true`) to ensure the local `dfdaemon` peer is online before mounting RAFS v6 layers.
 
 ### 5.5 Stateless Spegel P2P OCI Layer Adapter (`oci-image-accelerator/cmd/spegel`)
-* Provides stateless node-to-node P2P OCI layer blob distribution (`--setup-image-accelerator=spegel`, Mode A) for **100% standard unconverted OCI images** (`tar+gzip`, `tar+zstd`, plain `tar`) on any Linux kernel (including standard GKE `COS_CONTAINERD` and `UBUNTU_CONTAINERD`) with **zero central control plane**:
+* Provides stateless node-to-node P2P OCI layer blob distribution (`oci-image-accelerator/manifests/spegel.yaml`, Mode A) for **100% standard unconverted OCI images** (`tar+gzip`, `tar+zstd`, plain `tar`) on any Linux kernel (including standard GKE `COS_CONTAINERD` and `UBUNTU_CONTAINERD`) with **zero central control plane**:
   * **Stateless Peer Discovery (`spegel-bootstrap` Headless `Service`):** Nodes discover peer Spegel mirrors via the headless `spegel-bootstrap` `Service` in `ate-system` (`:5000` local mirror / `:5001` peer registry) without requiring `mysql`, `redis`, `manager`, or `scheduler` pods.
   * **P2P-First Blob Fetch with Cryptographic Verification & Upstream Fallback:** On `PrepareImage`, `spegel` queries the local Spegel OCI registry mirror (`GET <SPEGEL_MIRROR_ADDR>/v2/<repo>/blobs/sha256:<hex>?ns=<registry>`), which checks the local blob store and fans out `HEAD`/`GET` requests (`X-Spegel-External-Request: true`) across peer nodes. Only on a cluster-cold miss does `spegel` pull the blob from the upstream registry.
-  * **Content-Addressed Blob & Unpacked Layer Store (`/var/lib/substrate/spegel`):** Every compressed blob is verified against its expected `sha256:<hex>` digest before being atomically committed to `blobs/sha256/<digestHex>` (making it immediately servable to all peer nodes) and unpacked into `layers/sha256/<chainIDHex>/fs` for instant cross-image layer deduplication and `ateom` bind-mounting.
+  * **Content-Addressed Blob & Unpacked Layer Store (`/var/lib/ate/accelerator/spegel-store`):** Every compressed blob is verified against its expected `sha256:<hex>` digest before being atomically committed to `blobs/sha256/<digestHex>` (making it immediately servable to all peer nodes) and unpacked into `layers/sha256/<chainIDHex>/fs` for instant cross-image layer deduplication and `ateom` bind-mounting.
 
 ---
 
 ## 6. Decoupled Plugin Architecture, Deployment & Upgrade Workflow
 
 ### 6.1 Architectural Boundary & DaemonSet Binary Delivery
-Core Substrate (`cmd/atelet`, `internal/imagecache`, `cmd/ate-setup`, `manifests/ate-install`) is 100% agnostic to specific streaming providers. All provider drivers, shared lease management, and DaemonSet manifests live under the self-contained `oci-image-accelerator/` subtree (structured for standalone extraction to `github.com/agent-substrate/oci-image-accelerator`):
+Core Substrate (`cmd/atelet`, `cmd/atecontroller`, `internal/nodepath`, `internal/imagecache`, `cmd/ate-setup`, `manifests/ate-install`, `hack/install-ate.sh`) has zero knowledge of any specific image accelerator adapter. `atelet` only knows the socket endpoint (`/run/ate/image-accelerator.sock`) and the `ate.dev/image-accelerator=disabled` node drain label. Because `atelet` and `ateworker` pods already mount `/var/lib/ate` with host-to-container mount propagation, placing all adapter directories under `/var/lib/ate/accelerator/` requires no provider-specific volume mounts in `atecontroller`.
+
+All provider drivers, shared lease management, and DaemonSet manifests live under the self-contained `oci-image-accelerator/` subtree (structured for standalone extraction to `github.com/agent-substrate/oci-image-accelerator`):
 ```text
 oci-image-accelerator/
 ├── proto/v1/            (ImageAccelerator gRPC service contract)
@@ -217,12 +219,12 @@ Each `ate-accelerator-<provider>` DaemonSet runs a multi-container pod combining
 
 | Provider (`manifests/*.yaml`) | Container 1: Engine / Snapshotter | Container 2: `ImageAccelerator` Adapter | `updateStrategy` & Host Volume Contracts |
 | :--- | :--- | :--- | :--- |
-| **GKE Riptide** (`riptide.yaml`) | `riptide-provider`: Mounts pre-installed `/home/kubernetes/bin/{gcfsd-v2,containerd-gcfs-grpc}` read-only from COS host in an isolated `unshare -m` child mount namespace | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/riptide` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/substrate/gcfs/mnt` (`Bidirectional`), `/var/lib/ate/streaming` |
-| **AWS SOCI** (`soci.yaml`) | `soci-snapshotter-grpc` FUSE snapshotter | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/soci` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/soci-snapshotter-grpc` (`Bidirectional`), `/var/lib/ate/streaming` |
-| **Nydus + Dragonfly** (`nydus-dragonfly.yaml`) | `dfdaemon` P2P peer + `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd` with Kernel EROFS/`fscache`) | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly` | `OnDelete`; `/dev/cachefiles`, `/run/ate`, `/var/lib/containerd-nydus` (`Bidirectional`), `/var/lib/ate/streaming` |
-| **Spegel P2P** (`spegel.yaml`) | Built-in Spegel-compatible OCI registry mirror (`:5000`) + peer router | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel` | `RollingUpdate`; `/run/ate`, `/var/lib/substrate/spegel`, `/var/lib/ate/streaming` |
+| **GKE Riptide** (`riptide.yaml`) | `riptide-provider`: Mounts pre-installed `/home/kubernetes/bin/{gcfsd-v2,containerd-gcfs-grpc}` read-only from COS host in an isolated `unshare -m` child mount namespace | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/riptide` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/ate` (`Bidirectional`; uses `/var/lib/ate/accelerator/riptide-gcfs` and `/var/lib/ate/accelerator/riptide`) |
+| **AWS SOCI** (`soci.yaml`) | `soci-snapshotter-grpc` FUSE snapshotter | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/soci` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/ate` (`Bidirectional`; uses `/var/lib/ate/accelerator/soci-snapshotter` and `/var/lib/ate/accelerator/soci`) |
+| **Nydus + Dragonfly** (`nydus-dragonfly.yaml`) | `dfdaemon` P2P peer + `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd` with Kernel EROFS/`fscache`) | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly` | `OnDelete`; `/dev/cachefiles`, `/run/ate`, `/var/lib/ate` (`Bidirectional`; uses `/var/lib/ate/accelerator/nydus-snapshotter` and `/var/lib/ate/accelerator/nydus-dragonfly`) |
+| **Spegel P2P** (`spegel.yaml`) | Built-in Spegel-compatible OCI registry mirror (`:5000`) + peer router | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel` | `RollingUpdate`; `/run/ate`, `/var/lib/ate` (uses `/var/lib/ate/accelerator/spegel-store` and `/var/lib/ate/accelerator/spegel`) |
 
-Because `go run ./cmd/ate-setup deploy ate-system` only applies `manifests/ate-install/*.yaml`, **a default cluster installation does not deploy any image-accelerator DaemonSet**.
+Because `go run ./cmd/ate-setup deploy ate-system` only applies `manifests/ate-install/*.yaml`, **a cluster installation never deploys an image-accelerator DaemonSet**.
 
 ### 6.2 End-to-End Operator Workflow
 
@@ -231,48 +233,33 @@ Because `go run ./cmd/ate-setup deploy ate-system` only applies `manifests/ate-i
 go run ./cmd/ate-setup deploy ate-system
 ```
 * Deploys `atelet` configured with `--image-accelerator-socket=/run/ate/image-accelerator.sock`.
-* Since no adapter DaemonSet is installed and no node is labeled, `/run/ate/image-accelerator.sock` does not exist and `atelet` uses `internal/imagecache` (`0` overhead).
+* Since no adapter DaemonSet is installed, `/run/ate/image-accelerator.sock` does not exist and `atelet` uses `internal/imagecache` (`0` overhead).
 
-#### Step 2: Deploy and Enable an Accelerator Plugin (Decoupled or via `hack/install-ate.sh`)
+#### Step 2: Separately Deploy and Enable an Accelerator Plugin
+Installing an image accelerator is always a separate step outside Substrate's installer:
 ```bash
-# Option A: Direct decoupled plugin deployment
 ko resolve -f oci-image-accelerator/manifests/riptide.yaml | kubectl apply -f -
 kubectl label nodes --all ate.dev/image-accelerator=riptide --overwrite
-
-# Option B: Via the hack/install-ate.sh convenience flag
-./hack/install-ate.sh --setup-image-accelerator=riptide
 ```
-* Builds `oci-image-accelerator/cmd/riptide` with `ko` (when using the in-tree manifest) and applies `oci-image-accelerator/manifests/riptide.yaml`.
-* Labels cluster nodes `ate.dev/image-accelerator=riptide` and waits for the `ate-accelerator-riptide` DaemonSet rollout.
+* Builds `oci-image-accelerator/cmd/riptide` with `ko` (or applies a pre-built release manifest) and deploys `ate-accelerator-riptide`.
+* Labels target nodes `ate.dev/image-accelerator=riptide` so the DaemonSet schedules onto them.
 * Once each pod creates `/run/ate/image-accelerator.sock`, `atelet` automatically begins streaming eligible images on that node without restarting `atelet`.
 
 #### Step 3: Dynamically Disable / Drain Image Acceleration on a Node (or Re-Enable)
 ```bash
-# Drain and disable acceleration on a specific node:
 kubectl label node <node-name> ate.dev/image-accelerator=disabled --overwrite
-
-# Or drain across all nodes via install-ate.sh:
-./hack/install-ate.sh --setup-image-accelerator=disabled
 ```
 * `atelet`'s node-label watcher immediately marks the `ImageAccelerator` client as draining (`SetDraining(true)`).
-* All new (`Run`) and restoring (`Restore`) actors immediately use `/var/lib/atelet/imagecache/layers/...`.
+* All new (`Run`) and restoring (`Restore`) actors immediately use `/var/lib/ate/image-cache/layers/...`.
 * Because the DaemonSet's `nodeAffinity` matches `ate.dev/image-accelerator In [<adapter>, disabled]`, the adapter pod stays running while active actors finish reading their FUSE mounts and unmounts each streamed image immediately (`bypass_idle_ttl=true`) when its `refCount` reaches `0`.
 * Re-enable on a node anytime via `kubectl label node <node-name> ate.dev/image-accelerator=riptide --overwrite`, or remove the label (`kubectl label node <node-name> ate.dev/image-accelerator-`) to terminate the adapter pod.
 
 ### 6.3 Out-of-Tree & Custom Customer Adapter Extensibility
-Neither `atelet` nor `hack/install-ate.sh` hardcodes a closed list of adapter names:
-* **`atelet`** checks only whether `ate.dev/image-accelerator` is `"disabled"` (draining) vs. any other value (enabled whenever `/run/ate/image-accelerator.sock` exists).
-* **`hack/install-ate.sh --setup-image-accelerator=<adapter>`** resolves the adapter manifest using a 3-tier lookup and fails fast with a clear error if none is found:
-  1. **`ATE_IMAGE_ACCELERATOR_MANIFEST`** — an explicit file path or HTTPS URL (e.g., a release YAML from `github.com/agent-substrate/oci-image-accelerator` or a customer's internal repository).
-  2. **`ATE_IMAGE_ACCELERATOR_PATH`** — a local checkout of an external adapter repository containing `manifests/${adapter}.yaml` and `cmd/${adapter}` (built via `ko resolve`).
-  3. **In-tree fallback** — `oci-image-accelerator/manifests/${adapter}.yaml`.
-
-This allows a customer to implement their own `ImageAccelerator` adapter in their own repository and deploy and auto-enable it via:
+Because `atelet` only knows the socket endpoint (`/run/ate/image-accelerator.sock`) and checks only whether `ate.dev/image-accelerator` is `"disabled"` (draining) vs. any other value (enabled whenever `/run/ate/image-accelerator.sock` exists), any out-of-tree or customer-built `ImageAccelerator` DaemonSet works without modifying Substrate:
 ```bash
-ATE_IMAGE_ACCELERATOR_MANIFEST=https://internal.example.com/manifests/mycompany.yaml \
-  ./hack/install-ate.sh --setup-image-accelerator=mycompany
+kubectl apply -f https://internal.example.com/manifests/mycompany-accelerator.yaml
+kubectl label node <node-name> ate.dev/image-accelerator=mycompany --overwrite
 ```
-without forking or modifying `substrate`.
 
 ### 6.4 Upgrade & Version-Skew Lifecycle ([`docs/upgrade.md`](upgrade.md) & [`docs/version-skew-policy.md`](version-skew-policy.md))
 

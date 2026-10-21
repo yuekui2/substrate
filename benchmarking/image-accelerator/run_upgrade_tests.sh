@@ -129,7 +129,7 @@ kubectl -n ate-system exec "${HELPER_POD}" -- /home/kubernetes/bin/bench-runner 
   --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" \
   --atespace=ate-bench-stream --template=tmpl-cos-oci --actor=upgrade-actor-a | tee -a "${UPGRADE_LOG}"
 
-log "--- [Scenario A.2] Verifying rootfs-overlay.json records streamed=true and /var/lib/ate/streaming/riptide layers on ${COS_NODE} ---"
+log "--- [Scenario A.2] Verifying rootfs-overlay.json records streamed=true and /var/lib/ate/accelerator/riptide layers on ${COS_NODE} ---"
 kubectl -n ate-system exec "${HELPER_POD}" -- nsenter -t 1 -m -u -i -n -- sh -c '
   cat /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; echo ""
 ' | tee -a "${UPGRADE_LOG}"
@@ -223,7 +223,7 @@ kubectl -n ate-system exec "${HELPER_POD}" -- /home/kubernetes/bin/bench-runner 
   --atespace=ate-bench-stream --actor=upgrade-actor-b | tee -a "${UPGRADE_LOG}"
 
 kubectl -n ate-system exec "${HELPER_POD}" -- nsenter -t 1 -m -u -i -n -- sh -c '
-  echo "Remaining workdirs in /var/lib/ate/streaming/riptide after ReleaseImage(bypass_ttl=true): [$(ls -A /var/lib/ate/streaming/riptide)]"
+  echo "Remaining workdirs in /var/lib/ate/accelerator/riptide after ReleaseImage(bypass_ttl=true): [$(ls -A /var/lib/ate/accelerator/riptide)]"
 ' | tee -a "${UPGRADE_LOG}"
 
 log "--- [Scenario B.5] Verifying new actor on disabled node falls back to local imagecache ---"

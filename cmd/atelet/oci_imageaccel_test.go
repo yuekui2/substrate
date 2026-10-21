@@ -118,7 +118,7 @@ func TestDynamicDrain_SkipsStreamingAndBypassesTTLOnRelease(t *testing.T) {
 	pushTestImage(t, ref, singleFileLayer(t, "bin/run", "#!/bin/sh\n"))
 
 	store := newImageVolumeStore(t)
-	fakeLayerDir := filepath.Join(tmpBase, "streaming", "layer-0")
+	fakeLayerDir := filepath.Join(tmpBase, "accelerator", "layer-0")
 	if err := os.MkdirAll(filepath.Join(fakeLayerDir, "fs"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

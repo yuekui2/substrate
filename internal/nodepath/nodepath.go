@@ -26,38 +26,7 @@ import (
 
 // BasePath is the root shared folder on the host filesystem, mounted at the
 // same path into the atelet and worker containers.
-const (
-	BasePath = "/var/lib/ate"
-
-	// RiptideSnapshotterRoot is the host root directory of the dedicated
-	// Substrate Riptide remote snapshotter (containerd-gcfs-grpc), under which
-	// it creates snapshot directories (snapshotter/snapshots/<id>/fs ->
-	// /run/gcfsd/mnt/views/<diffID>/fs). Kept separate from kubelet's
-	// /var/lib/containerd/io.containerd.snapshotter.v1.gcfs so host containerd
-	// GC never walks or removes Substrate's layers. Mounted into workers with
-	// HostToContainer mount propagation.
-	RiptideSnapshotterRoot = "/var/lib/substrate/gcfs"
-
-	// RiptideFUSERoot is the host directory where the Riptide FUSE daemon
-	// (gcfsd) mounts /run/gcfsd/mnt/views/<diffID>/fs, which
-	// RiptideSnapshotterRoot's snapshots/<id>/fs symlinks point into.
-	// Mounted into workers with HostToContainer mount propagation.
-	RiptideFUSERoot = "/run/gcfsd"
-
-	// SOCISnapshotterRoot is the host root directory of the AWS SOCI remote
-	// snapshotter (soci-snapshotter-grpc), under which it mounts FUSE layer
-	// views (snapshotter/snapshots/<id>/fs). Mounted into workers with
-	// HostToContainer mount propagation.
-	SOCISnapshotterRoot = "/var/lib/soci-snapshotter-grpc"
-)
-
-// ImageStreamingDir is the base directory where the ImageAccelerator adapter
-// writes per-layer wrapper directories (containing fs -> snapshotter mount
-// symlinks and finalized markers) for streamed images. It lives under
-// BasePath so the wrapper directories are visible at the same path in
-// atelet and in every worker pod, while staying strictly separate from
-// the image cache.
-var ImageStreamingDir = filepath.Join(BasePath, "streaming")
+const BasePath = "/var/lib/ate"
 
 // ActorsDir is the parent of the per-actor directories atelet prepares.
 var ActorsDir = filepath.Join(BasePath, "actors")

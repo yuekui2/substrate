@@ -31,7 +31,7 @@ By moving container image preparation out of the container runtime critical path
 │              └────────────┬─────────────┘              │
 │                           │                            │
 │                 FUSE Layer Views Mount                 │
-│              (/var/lib/substrate/streaming)            │
+│               (/var/lib/ate/accelerator)               │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -85,11 +85,15 @@ Deployment manifests for all supported drivers are available under `manifests/`:
 - `manifests/nydus-dragonfly.yaml` (Nydus + Dragonfly P2P DaemonSet)
 - `manifests/spegel.yaml` (Spegel P2P DaemonSet)
 
-Deploying a driver:
+Deploying a driver (always a separate step from Substrate installation):
 ```bash
 ko resolve -f oci-image-accelerator/manifests/riptide.yaml | kubectl apply -f -
 kubectl label nodes --all ate.dev/image-accelerator=riptide --overwrite
 ```
-(or via `./hack/install-ate.sh --setup-image-accelerator=riptide`).
+
+To dynamically drain and disable acceleration on a node:
+```bash
+kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite
+```
 
 Once ready, the driver publishes the accelerator socket at `/run/ate/image-accelerator.sock`, and connected runtimes begin accelerating container startup immediately.

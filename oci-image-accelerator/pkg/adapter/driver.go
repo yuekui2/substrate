@@ -32,7 +32,6 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/google"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"go.ate.dev/substrate/internal/nodepath"
 	"go.ate.dev/substrate/oci-image-accelerator/internal/proto/snapshots"
 	"go.ate.dev/substrate/oci-image-accelerator/pkg/client"
 	"google.golang.org/grpc"
@@ -43,6 +42,11 @@ import (
 )
 
 const (
+	// DefaultBaseWorkDir is the default root directory where ImageAccelerator
+	// adapters write per-layer wrapper directories and provider state under
+	// /var/lib/ate.
+	DefaultBaseWorkDir = "/var/lib/ate/accelerator"
+
 	// DefaultNamespace is the default containerd namespace passed to the snapshotter.
 	DefaultNamespace = "default"
 
@@ -312,7 +316,7 @@ func NewDriver(name, defaultSocket, snapshotterName string, opts ...Option) (*Dr
 	d := &Driver{
 		name:             name,
 		socket:           defaultSocket,
-		workDir:          filepath.Join(nodepath.ImageStreamingDir, name),
+		workDir:          filepath.Join(DefaultBaseWorkDir, name),
 		namespace:        DefaultNamespace,
 		snapshotterName:  snapshotterName,
 		listableTimeout:  DefaultListableTimeout,

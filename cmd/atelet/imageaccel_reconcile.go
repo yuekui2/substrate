@@ -21,7 +21,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"go.ate.dev/substrate/internal/imagecache"
 	"go.ate.dev/substrate/oci-image-accelerator/pkg/client"
@@ -43,7 +42,7 @@ func scanActiveStreamedLeases(actorsDir string) ([]*imageaccel.ActiveImageLayers
 
 	activeMap := make(map[string]*imageaccel.ActiveImageLayers)
 	recordLease := func(imageRef, imageDigest string, streamed bool, layers []string) {
-		if len(layers) == 0 || (!streamed && !isStreamedLayerSet(layers)) {
+		if len(layers) == 0 || !streamed {
 			return
 		}
 		key := imageRef
@@ -100,18 +99,6 @@ func scanActiveStreamedLeases(actorsDir string) ([]*imageaccel.ActiveImageLayers
 		result = append(result, l)
 	}
 	return result, nil
-}
-
-func isStreamedLayerSet(layers []string) bool {
-	for _, l := range layers {
-		if strings.Contains(l, "gcfs") ||
-			strings.Contains(l, "soci") ||
-			strings.Contains(l, "stream") ||
-			strings.HasPrefix(l, "/run/") {
-			return true
-		}
-	}
-	return false
 }
 
 // reconcileStreamingLeases discovers all active streamed images mounted by

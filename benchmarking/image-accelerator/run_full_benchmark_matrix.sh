@@ -207,8 +207,8 @@ wipe_node_cache() {
         --image='${image_ref}' >/dev/null 2>&1 || true
     fi
     if [ '${adapter}' = 'spegel' ]; then
-      rm -rf /var/lib/ate/streaming/spegel-store/blobs/sha256/* /var/lib/ate/streaming/spegel-store/layers/sha256/* 2>/dev/null || true
-      mkdir -p /var/lib/ate/streaming/spegel-store/blobs/sha256 /var/lib/ate/streaming/spegel-store/layers/sha256
+      rm -rf /var/lib/ate/accelerator/spegel-store/blobs/sha256/* /var/lib/ate/accelerator/spegel-store/layers/sha256/* 2>/dev/null || true
+      mkdir -p /var/lib/ate/accelerator/spegel-store/blobs/sha256 /var/lib/ate/accelerator/spegel-store/layers/sha256
     fi
     sync
     echo 3 > /proc/sys/vm/drop_caches || true

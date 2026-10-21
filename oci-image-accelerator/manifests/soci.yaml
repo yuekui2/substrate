@@ -83,7 +83,7 @@ spec:
         - /bin/bash
         - -ec
         - |
-          readonly soci_root="/var/lib/soci-snapshotter-grpc"
+          readonly soci_root="/var/lib/ate/accelerator/soci-snapshotter"
           readonly soci_run="/run/soci-snapshotter-grpc"
           readonly soci_bin="${KUBE_HOME}/bin/soci-snapshotter-grpc"
 
@@ -138,8 +138,8 @@ spec:
           mountPath: /home/kubernetes
         - name: run-soci
           mountPath: /run/soci-snapshotter-grpc
-        - name: var-lib-soci
-          mountPath: /var/lib/soci-snapshotter-grpc
+        - name: ate-base
+          mountPath: /var/lib/ate
           mountPropagation: Bidirectional
         - name: dev-fuse
           mountPath: /dev/fuse
@@ -149,7 +149,7 @@ spec:
         - --listen-socket=/run/ate/image-accelerator.sock
         - --snapshotter-socket=/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock
         - --docker-config=/run/soci-snapshotter-grpc/docker/config.json
-        - --work-dir=/var/lib/ate/streaming/soci
+        - --work-dir=/var/lib/ate/accelerator/soci
         - --idle-ttl=10m
         securityContext:
           privileged: true
@@ -160,11 +160,9 @@ spec:
           mountPath: /run/ate
         - name: ate-base
           mountPath: /var/lib/ate
+          mountPropagation: HostToContainer
         - name: run-soci
           mountPath: /run/soci-snapshotter-grpc
-        - name: var-lib-soci
-          mountPath: /var/lib/soci-snapshotter-grpc
-          mountPropagation: HostToContainer
       volumes:
       - name: kube-home
         hostPath:
@@ -181,10 +179,6 @@ spec:
       - name: run-soci
         hostPath:
           path: /run/soci-snapshotter-grpc
-          type: DirectoryOrCreate
-      - name: var-lib-soci
-        hostPath:
-          path: /var/lib/soci-snapshotter-grpc
           type: DirectoryOrCreate
       - name: dev-fuse
         hostPath:

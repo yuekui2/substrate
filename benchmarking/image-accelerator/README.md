@@ -188,7 +188,7 @@ For each `(adapter, workload)` pair:
 Both decoupled upgrade workflows defined in `docs/proposals/image-streaming/design.md` (§5.12) passed on the live cluster:
 
 1. **Scenario A — Substrate `atelet` Rolling Upgrade (`RollingUpdate`) with Active Streamed Actor**:
-   - Booted `ate-bench-stream/upgrade-actor-a` on `riptide` (`rootfs-overlay.json` persisted `"streamed": true` and 10 `/var/lib/ate/streaming/riptide/...` layer paths).
+   - Booted `ate-bench-stream/upgrade-actor-a` on `riptide` (`rootfs-overlay.json` persisted `"streamed": true` and 10 `/var/lib/ate/accelerator/riptide/...` layer paths).
    - Rolled `ds/atelet` (`atelet-sggpj` -> `atelet-tpc5g`) while `upgrade-actor-a` remained `RUNNING`.
    - Verified `ate-accelerator-riptide-z98mc` did **not** restart (`restarts=0`, unchanged pod UID).
    - Verified `upgrade-actor-a` read uncached files from the FUSE mount after `atelet` restarted (`FUSE_READ_OK bytes= 131407`, zero `ENOTCONN`).
@@ -199,7 +199,7 @@ Both decoupled upgrade workflows defined in `docs/proposals/image-streaming/desi
    - Booted `ate-bench-stream/upgrade-actor-b` on `riptide`.
    - Patched `ds/ate-accelerator-riptide` pod template (`updateStrategy.type: OnDelete`) and verified `ate-accelerator-riptide-z98mc` remained running while `upgrade-actor-b` was active.
    - Labeled the node `ate.dev/image-accelerator=disabled`; verified `atelet` logged `"ImageAccelerator node drain state changed" draining=true` and `ate-accelerator-riptide-z98mc` stayed `Running` (covered by `nodeAffinity` `In: [riptide, disabled]`) with `DRAIN_FUSE_READ_OK bytes= 131407`.
-   - Deleted `upgrade-actor-b`; verified `atelet` called `ReleaseImage(bypass_ttl=true)` and evicted `/var/lib/ate/streaming/riptide/*` (`Remaining workdirs: []`).
+   - Deleted `upgrade-actor-b`; verified `atelet` called `ReleaseImage(bypass_ttl=true)` and evicted `/var/lib/ate/accelerator/riptide/*` (`Remaining workdirs: []`).
    - Booted `upgrade-actor-fallback` while the node was labeled `disabled` and verified `rootfs-overlay.json` fell back to `/var/lib/ate/image-cache/layers/sha256/...`.
    - Deleted the drained adapter pod `ate-accelerator-riptide-z98mc`, relabeled the node `ate.dev/image-accelerator=riptide`, and verified the new adapter pod `ate-accelerator-riptide-w59dq` (`rev=v2`) started and passed `e2e-stream-probe` (`verifiedLayers: 10`).
 
