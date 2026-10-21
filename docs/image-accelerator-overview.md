@@ -53,8 +53,8 @@ Following the Adapter pattern—analogous to Kubernetes CSI (Container Storage I
 
 * **Strict Directory Separation:** Locally unpacked layers, adapter streaming wrapper symlinks, and provider FUSE mounts / chunk caches live in completely separate directories on disk. See Appendix: [On-Disk Folder Structure](#on-disk-folder-structure) for details.
 * **Avoiding Streaming Layers on Disable:** Unlike GKE `containerd` (where disabling Riptide leaves dangling `gcfs` snapshot metadata tied to image records), when streaming is dynamically disabled on a Substrate node:
-  * **New & Resuming Actors:** `atelet` immediately stops routing new actors (`Run`) and resuming actors (`Restore`) to `/var/lib/ateom-gvisor/streaming/...` and instead pulls/unpacks layers into `/var/lib/ateom-gvisor/image-cache/layers/...`. Even an actor that was previously streaming seamlessly restores its checkpoint `upperdir` onto local `image-cache` layers on its next wakeup.
-  * **Releasing & GC-ing Streamed Layers:** Already-running streamed actors continue uninterrupted; as each one checkpoints or terminates, its `refCount` decrements and once `refCount` reaches 0, the `/var/lib/ateom-gvisor/streaming/...` wrapper directories and `/var/lib/substrate/gcfs` FUSE views are immediately unmounted and GC-ed.
+  * **New & Resuming Actors:** `atelet` immediately stops routing new actors (`Run`) and resuming actors (`Restore`) to `/var/lib/ate/streaming/...` and instead pulls/unpacks layers into `/var/lib/ate/image-cache/layers/...`. Even an actor that was previously streaming seamlessly restores its checkpoint `upperdir` onto local `image-cache` layers on its next wakeup.
+  * **Releasing & GC-ing Streamed Layers:** Already-running streamed actors continue uninterrupted; as each one checkpoints or terminates, its `refCount` decrements and once `refCount` reaches 0, the `/var/lib/ate/streaming/...` wrapper directories and `/var/lib/substrate/gcfs` FUSE views are immediately unmounted and GC-ed.
 * **Deployment Workflow:**
   * **Cluster Install (Disabled by Default, or Auto-Enabled with Flag):** `./hack/install-ate.sh deploy ate-system` deploys `atelet` without installing any adapter DaemonSet; adding `--setup-image-accelerator=riptide` (or `ATE_IMAGE_ACCELERATOR_MANIFEST=<path-or-url>` for out-of-tree adapters) installs the adapter DaemonSet, labels the nodes `ate.dev/image-accelerator=riptide`, and automatically enables streaming across the cluster.
   * **Disable on a Node:** `kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite` keeps the adapter pod alive for currently running actors while `atelet` stops using streaming for new and resuming actors; once existing actors checkpoint or terminate, `refCount` reaches 0 and the streamed layers are GC-ed (re-enable anytime with `ate.dev/image-accelerator=riptide`).
@@ -99,7 +99,7 @@ Following [`docs/upgrade.md`](upgrade.md) and [`docs/version-skew-policy.md`](ve
 ### On-Disk Folder Structure
 
 ```
-/var/lib/ateom-gvisor/
+/var/lib/ate/
 │
 ├── image-cache/                         <--- 1. LOCAL UNPACK POOL (pause:3.9)
 │   ├── version                          (Layout version marker)

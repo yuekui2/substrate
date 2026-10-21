@@ -177,9 +177,15 @@ func ServeUnixSocket(ctx context.Context, listenSocket string, driver *Driver) e
 	if err != nil {
 		return fmt.Errorf("listening on %s: %w", sockPath, err)
 	}
+	if ul, ok := lis.(*net.UnixListener); ok {
+		ul.SetUnlinkOnClose(false)
+	}
+	createdFi, _ := os.Stat(sockPath)
 	defer func() {
 		_ = lis.Close()
-		_ = os.Remove(sockPath)
+		if curFi, err := os.Stat(sockPath); err == nil && createdFi != nil && os.SameFile(createdFi, curFi) {
+			_ = os.Remove(sockPath)
+		}
 	}()
 
 	grpcServer := grpc.NewServer()

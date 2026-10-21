@@ -112,8 +112,9 @@ spec:
           done
 
           umount -l "${gcfsd_mnt_dir}" 2>/dev/null || true
-          mkdir -p /run/ate "${gcfs_run_dir}" "${gcfs_root}" "${gcfsd_mnt_dir}" /run/gcfsd
-          rm -f "${gcfs_run_dir}/grpc.sock" "${gcfs_run_dir}/keychain.sock" "${gcfs_run_dir}/downloader.sock"
+          rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd" /var/lib/ate/streaming/riptide/* 2>/dev/null || true
+          mkdir -p /run/ate "${gcfs_run_dir}" "${gcfs_root}" "${gcfsd_mnt_dir}" /run/gcfsd /var/lib/ate/streaming/riptide
+          rm -f "${gcfs_run_dir}/grpc.sock" "${gcfs_run_dir}/keychain.sock" "${gcfs_run_dir}/downloader.sock" /run/ate/gcfs-snapshotter.sock
 
           if ! mountpoint -q "${gcfs_root}"; then
             mount --bind "${gcfs_root}" "${gcfs_root}"
@@ -235,6 +236,14 @@ spec:
             snapshotter_pid=$!
             wait -n "${gcfsd_pid}" "${snapshotter_pid}"
           '
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - test -S /run/ate/gcfs-snapshotter.sock && test -S /run/ate/image-accelerator.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
         securityContext:
           privileged: true
         volumeMounts:
@@ -254,7 +263,7 @@ spec:
         - --listen-socket=/run/ate/image-accelerator.sock
         - --snapshotter-socket=/run/ate/gcfs-snapshotter.sock
         - --keychain-socket=/run/ate/gcfsd/keychain.sock
-        - --work-dir=/var/lib/ateom-gvisor/streaming/riptide
+        - --work-dir=/var/lib/ate/streaming/riptide
         - --idle-ttl=10m
         securityContext:
           privileged: true
@@ -263,8 +272,8 @@ spec:
         volumeMounts:
         - name: run-ate
           mountPath: /run/ate
-        - name: run-ateom
-          mountPath: /var/lib/ateom-gvisor
+        - name: ate-base
+          mountPath: /var/lib/ate
         - name: substrate-gcfs-root
           mountPath: /var/lib/substrate/gcfs
           mountPropagation: HostToContainer
@@ -277,9 +286,9 @@ spec:
         hostPath:
           path: /run/ate
           type: DirectoryOrCreate
-      - name: run-ateom
+      - name: ate-base
         hostPath:
-          path: /var/lib/ateom-gvisor
+          path: /var/lib/ate
           type: DirectoryOrCreate
       - name: substrate-gcfs-root
         hostPath:

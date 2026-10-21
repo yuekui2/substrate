@@ -33,7 +33,7 @@ func main() {
 		snapshotterSocket = flag.String("snapshotter-socket", DefaultSOCISocket, "Unix domain socket path for soci-snapshotter-grpc")
 		dockerConfigPath  = flag.String("docker-config", DefaultSOCIDockerConfigPath, "Path to Docker config.json shared with soci-snapshotter-grpc for registry credentials")
 		maxLocalLayerSize = flag.Int64("max-local-layer-size", DefaultSOCIMaxLocalLayerSize, "Maximum compressed size in bytes for small layers (< min-layer-size) materialized locally")
-		workDir           = flag.String("work-dir", "", "Directory for layer wrapper symlinks (defaults to /var/lib/ateom-gvisor/streaming/soci)")
+		workDir           = flag.String("work-dir", "", "Directory for layer wrapper symlinks (defaults to /var/lib/ate/streaming/soci)")
 		namespace         = flag.String("namespace", adapter.DefaultNamespace, "containerd namespace header sent to soci-snapshotter-grpc")
 		snapshotterName   = flag.String("snapshotter-name", "soci", "Snapshotter plugin name sent in Prepare/View requests")
 		idleTTL           = flag.Duration("idle-ttl", adapter.DefaultLeaseIdleTTL, "Duration to keep layer views mounted after refCount drops to 0")

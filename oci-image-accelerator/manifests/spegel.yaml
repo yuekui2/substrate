@@ -99,8 +99,8 @@ spec:
           value: "spegel-bootstrap.ate-system.svc.cluster.local"
         args:
         - --listen-socket=/run/ate/image-accelerator.sock
-        - --store-dir=/var/lib/ateom-gvisor/streaming/spegel-store
-        - --work-dir=/var/lib/ateom-gvisor/streaming/spegel
+        - --store-dir=/var/lib/ate/streaming/spegel-store
+        - --work-dir=/var/lib/ate/streaming/spegel
         - --docker-config=/run/ate/spegel/docker/config.json
         - --enable-p2p-server=true
         - --p2p-listen-addr=:5000
@@ -132,8 +132,8 @@ spec:
           readOnly: true
         - name: run-ate
           mountPath: /run/ate
-        - name: run-ateom
-          mountPath: /var/lib/ateom-gvisor
+        - name: ate-base
+          mountPath: /var/lib/ate
           mountPropagation: Bidirectional
       volumes:
       - name: kube-home
@@ -148,7 +148,28 @@ spec:
         hostPath:
           path: /run/ate
           type: DirectoryOrCreate
-      - name: run-ateom
+      - name: ate-base
         hostPath:
-          path: /var/lib/ateom-gvisor
+          path: /var/lib/ate
           type: DirectoryOrCreate
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spegel-p2p
+  namespace: ate-system
+  labels:
+    ate.dev/image-accelerator: spegel
+spec:
+  podSelector:
+    matchLabels:
+      app: ate-image-accelerator
+      ate.dev/image-accelerator: spegel
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 5000
+    - protocol: TCP
+      port: 5001

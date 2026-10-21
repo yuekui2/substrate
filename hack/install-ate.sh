@@ -52,6 +52,11 @@ setup_image_accelerator() {
 
   echo "=== [setup_image_accelerator (${adapter})] ==="
 
+  if [[ -z "${KO_DOCKER_REPO:-}" && -z "${NO_DEV_ENV:-}" && -f "${ROOT}/.ate-dev-env.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "${ROOT}/.ate-dev-env.sh"
+  fi
+
   # Resolve the accelerator manifest in priority order:
   # 1. Explicit manifest file or URL override (ATE_IMAGE_ACCELERATOR_MANIFEST)
   # 2. Local accelerator repository checkout (ATE_IMAGE_ACCELERATOR_PATH/manifests/${adapter}.yaml)
@@ -78,7 +83,7 @@ setup_image_accelerator() {
   if [[ "${manifest}" == http://* || "${manifest}" == https://* ]]; then
     rendered="$(curl -fsSL "${manifest}")"
   elif grep -q "ko://" "${manifest}"; then
-    rendered="$(ko resolve -f "${manifest}")"
+    rendered="$("${ROOT}/hack/run-tool.sh" ko resolve -f "${manifest}")"
   else
     rendered="$(cat "${manifest}")"
   fi

@@ -34,7 +34,7 @@ func main() {
 		listenSocket      = flag.String("listen-socket", adapter.DefaultListenSocket, "Unix domain socket path for ImageAccelerator")
 		snapshotterSocket = flag.String("snapshotter-socket", DefaultRiptideSocket, "Unix domain socket path for containerd-gcfs-grpc")
 		keychainSocket    = flag.String("keychain-socket", DefaultRiptideKeychainSocket, "Unix domain socket path for Riptide gcfsd Keychain service")
-		workDir           = flag.String("work-dir", "", "Directory for layer wrapper symlinks (defaults to /var/lib/ateom-gvisor/streaming/riptide)")
+		workDir           = flag.String("work-dir", "", "Directory for layer wrapper symlinks (defaults to /var/lib/ate/streaming/riptide)")
 		namespace         = flag.String("namespace", adapter.DefaultNamespace, "containerd namespace header sent to containerd-gcfs-grpc")
 		snapshotterName   = flag.String("snapshotter-name", "gcfs", "Snapshotter plugin name sent in Prepare/View requests")
 		idleTTL           = flag.Duration("idle-ttl", adapter.DefaultLeaseIdleTTL, "Duration to keep layer views mounted after refCount drops to 0")

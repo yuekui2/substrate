@@ -49,26 +49,26 @@ func TestReconcileStreamingLeases(t *testing.T) {
 		ImageRef:    streamRef,
 		ImageDigest: "sha256:aaa",
 		Streamed:    true,
-		Layers:      []string{"/var/lib/ateom-gvisor/streaming/img1/layer-0"},
+		Layers:      []string{"/var/lib/ate/streaming/img1/layer-0"},
 		ImageVolumes: []imagecache.ImageVolumeOverlay{{
 			Name:        "tools",
 			ImageRef:    volStreamRef,
 			ImageDigest: "sha256:bbb",
 			Streamed:    true,
-			Layers:      []string{"/var/lib/ateom-gvisor/streaming/vol1/layer-0"},
+			Layers:      []string{"/var/lib/ate/streaming/vol1/layer-0"},
 		}},
 	})
 	writeBundle("actor-2", "main", &imagecache.OverlaySpec{
 		ImageRef:    streamRef,
 		ImageDigest: "sha256:aaa",
 		Streamed:    true,
-		Layers:      []string{"/var/lib/ateom-gvisor/streaming/img1/layer-0"},
+		Layers:      []string{"/var/lib/ate/streaming/img1/layer-0"},
 	})
 	writeBundle("actor-3", "main", &imagecache.OverlaySpec{
 		ImageRef:    localRef,
 		ImageDigest: "sha256:ccc",
 		Streamed:    false,
-		Layers:      []string{"/var/lib/ateom-gvisor/image-cache/layers/sha256/ccc"},
+		Layers:      []string{"/var/lib/ate/image-cache/layers/sha256/ccc"},
 	})
 
 	client := mock.New("riptide")

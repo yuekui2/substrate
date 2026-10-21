@@ -123,6 +123,14 @@ spec:
             --config="${soci_root}/config.toml" \
             --address="${soci_run}/soci-snapshotter-grpc.sock" \
             --root="${soci_root}"
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - test -S /run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock && test -S /run/ate/image-accelerator.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
         securityContext:
           privileged: true
         volumeMounts:
@@ -141,7 +149,7 @@ spec:
         - --listen-socket=/run/ate/image-accelerator.sock
         - --snapshotter-socket=/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock
         - --docker-config=/run/soci-snapshotter-grpc/docker/config.json
-        - --work-dir=/var/lib/ateom-gvisor/streaming/soci
+        - --work-dir=/var/lib/ate/streaming/soci
         - --idle-ttl=10m
         securityContext:
           privileged: true
@@ -150,8 +158,8 @@ spec:
         volumeMounts:
         - name: run-ate
           mountPath: /run/ate
-        - name: run-ateom
-          mountPath: /var/lib/ateom-gvisor
+        - name: ate-base
+          mountPath: /var/lib/ate
         - name: run-soci
           mountPath: /run/soci-snapshotter-grpc
         - name: var-lib-soci
@@ -166,9 +174,9 @@ spec:
         hostPath:
           path: /run/ate
           type: DirectoryOrCreate
-      - name: run-ateom
+      - name: ate-base
         hostPath:
-          path: /var/lib/ateom-gvisor
+          path: /var/lib/ate
           type: DirectoryOrCreate
       - name: run-soci
         hostPath:

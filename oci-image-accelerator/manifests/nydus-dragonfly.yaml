@@ -507,7 +507,7 @@ spec:
         - /bin/bash
         - -ec
         - |
-          readonly nydus_root="/var/lib/containerd-nydus"
+          readonly nydus_root="/var/lib/ate/containerd-nydus"
           readonly nydus_run="/run/containerd-nydus"
           readonly nydusd_bin="${KUBE_HOME}/bin/nydusd"
           readonly snapshotter_bin="${KUBE_HOME}/bin/containerd-nydus-grpc"
@@ -565,6 +565,13 @@ spec:
             echo '{"auths":{}}' > "${DOCKER_CONFIG}/config.json"
           fi
 
+          # Clean up any stale EROFS mounts or orphaned snapshotter metadata from previous runs
+          for mnt in $(awk '$3 == "erofs" {print $2}' /proc/mounts); do
+            umount -l "${mnt}" 2>/dev/null || true
+          done
+          rm -rf "${nydus_root:?}"/* /var/lib/ateom-gvisor/containerd-nydus 2>/dev/null || true
+          mkdir -p "${nydus_root}/snapshots" "${nydus_root}/cache/metadata" "${nydus_root}/mnt"
+
           cat > "${nydus_root}/nydusd-config.json" <<EOF
           {
             "type": "bootstrap",
@@ -602,6 +609,14 @@ spec:
             --nydusd-config="${nydus_root}/nydusd-config.json" \
             --address="${nydus_run}/containerd-nydus-grpc.sock" \
             --root="${nydus_root}"
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - test -S /run/containerd-nydus/containerd-nydus-grpc.sock && test -S /run/ate/image-accelerator.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
         securityContext:
           privileged: true
         volumeMounts:
@@ -609,8 +624,10 @@ spec:
           mountPath: /home/kubernetes
         - name: run-nydus
           mountPath: /run/containerd-nydus
-        - name: var-lib-nydus
-          mountPath: /var/lib/containerd-nydus
+        - name: run-ate
+          mountPath: /run/ate
+        - name: ate-base
+          mountPath: /var/lib/ate
           mountPropagation: Bidirectional
       - name: accelerator-dragonfly
         image: ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly
@@ -625,7 +642,7 @@ spec:
         - --listen-socket=/run/ate/image-accelerator.sock
         - --snapshotter-socket=/run/containerd-nydus/containerd-nydus-grpc.sock
         - --docker-config=/run/containerd-nydus/docker/config.json
-        - --work-dir=/var/lib/ateom-gvisor/streaming/nydus-dragonfly
+        - --work-dir=/var/lib/ate/streaming/nydus-dragonfly
         - --verify-dragonfly-ping=true
         - --idle-ttl=10m
         securityContext:
@@ -635,14 +652,11 @@ spec:
         volumeMounts:
         - name: run-ate
           mountPath: /run/ate
-        - name: run-ateom
-          mountPath: /var/lib/ateom-gvisor
+        - name: ate-base
+          mountPath: /var/lib/ate
           mountPropagation: Bidirectional
         - name: run-nydus
           mountPath: /run/containerd-nydus
-        - name: var-lib-nydus
-          mountPath: /var/lib/containerd-nydus
-          mountPropagation: HostToContainer
       volumes:
       - name: kube-home
         hostPath:
@@ -652,19 +666,80 @@ spec:
         hostPath:
           path: /run/ate
           type: DirectoryOrCreate
-      - name: run-ateom
+      - name: ate-base
         hostPath:
-          path: /var/lib/ateom-gvisor
+          path: /var/lib/ate
           type: DirectoryOrCreate
       - name: run-nydus
         hostPath:
           path: /run/containerd-nydus
           type: DirectoryOrCreate
-      - name: var-lib-nydus
-        hostPath:
-          path: /var/lib/containerd-nydus
-          type: DirectoryOrCreate
       - name: var-lib-dragonfly
         hostPath:
           path: /var/lib/dragonfly
           type: DirectoryOrCreate
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dragonfly-backing-stores
+  namespace: ate-system
+  labels:
+    ate.dev/image-accelerator: nydus-dragonfly
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - dragonfly-redis
+      - dragonfly-mysql
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - dragonfly-manager
+          - dragonfly-scheduler
+    ports:
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 3306
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dragonfly-controlplane-and-peers
+  namespace: ate-system
+  labels:
+    ate.dev/image-accelerator: nydus-dragonfly
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - dragonfly-manager
+      - dragonfly-scheduler
+      - ate-image-accelerator
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 65003
+    - protocol: TCP
+      port: 8002
+    - protocol: TCP
+      port: 65000
+    - protocol: TCP
+      port: 65001
+    - protocol: TCP
+      port: 65002

@@ -37,7 +37,7 @@ flowchart TD
             Adapter -. "Materialize small layers (< min-layer-size)" .-> SmallLayers["Local Layer Fallback<br/>(SOCI Adapter only)"]
         end
 
-        Provider -->|"FUSE Mount (Bidirectional)"| FuseViews["Streamed Layer Views<br/>/var/lib/ateom-gvisor/streaming/&lt;provider&gt;/.../layer-N"]
+        Provider -->|"FUSE Mount (Bidirectional)"| FuseViews["Streamed Layer Views<br/>/var/lib/ate/streaming/&lt;provider&gt;/.../layer-N"]
         SmallLayers -.-> FuseViews
     end
 
@@ -105,7 +105,7 @@ service ImageAccelerator {
 
 ### 4.1 Per-Image Lease Reference Counting & Cross-Image Layer Deduplication
 Inside the shared adapter engine (`oci-image-accelerator/pkg/adapter/server.go`):
-* **Image Lease (`imageLease`):** Keyed by normalized `imageRef`. Tracks `refCount`, `imageDigest`, the ordered list of `layerRecord`s, wrapper directory paths (`/var/lib/ateom-gvisor/streaming/<provider>/<sanitized-imageRef>/layer-<i>`), and an optional idle expiration timer (`idleTimer`).
+* **Image Lease (`imageLease`):** Keyed by normalized `imageRef`. Tracks `refCount`, `imageDigest`, the ordered list of `layerRecord`s, wrapper directory paths (`/var/lib/ate/streaming/<provider>/<sanitized-imageRef>/layer-<i>`), and an optional idle expiration timer (`idleTimer`).
 * **Cross-Image Layer Deduplication (`chainUsers`):** Underlying snapshotter views are keyed by content-addressed `chainID` (`view-<chainID-hex>`). If Image A and Image B share common base layers, both image leases point their respective `layer-<i>` symlinks to the shared FUSE view directory and increment `chainUsers[chainID]`. A `chainID`'s underlying snapshotter view (`Snapshots.Remove("view-<chainID>")`) is only removed when **all** image leases referencing that `chainID` have been torn down.
 * **Idle Lease TTL (`--idle-ttl`, default `10m` in DaemonSet / `2m` in library):**
   * When an actor checkpoints or terminates during normal operation (`bypass_idle_ttl = false`), `ReleaseImage` decrements `refCount`.
@@ -114,8 +114,8 @@ Inside the shared adapter engine (`oci-image-accelerator/pkg/adapter/server.go`)
 
 ### 4.2 `atelet` Startup Reconciliation (`ReconcileImages`)
 Because the adapter runs in its own DaemonSet pod (`ate-accelerator-<adapter>`), it survives `atelet` restarts. When `atelet` starts up (`cmd/atelet/imageaccel_reconcile.go:reconcileImageAcceleratorOnStartup`):
-1. `atelet` scans `/var/lib/ateom-gvisor/sandboxes/*/rootfs-overlay.json` for all surviving actor sandboxes on the node.
-2. For each `rootfs-overlay.json` whose `LayerDirs` reside under the streaming root (`/var/lib/ateom-gvisor/streaming/`) rather than `/var/lib/atelet/imagecache/layers/`, `atelet` records the active `ImageRef` and its count of active sandboxes (`activeCount[imageRef]++`).
+1. `atelet` scans `/var/lib/ate/sandboxes/*/rootfs-overlay.json` for all surviving actor sandboxes on the node.
+2. For each `rootfs-overlay.json` whose `LayerDirs` reside under the streaming root (`/var/lib/ate/streaming/`) rather than `/var/lib/atelet/imagecache/layers/`, `atelet` records the active `ImageRef` and its count of active sandboxes (`activeCount[imageRef]++`).
 3. `atelet` calls `ReconcileImages(ctx, &ReconcileImagesRequest{ActiveImages: activeImages})` (repeating for each active sandbox reference or setting the active set).
 4. The adapter resets its in-memory `refCount` for every image in `active_images` and immediately tears down any leased or on-disk image directory under `--work-dir` that is not in `active_images`.
 
@@ -162,7 +162,7 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
      * Ensures the committed parent snapshot `<chainID>` is registered in `containerd-gcfs-grpc` via `Snapshots.Stat` / `Snapshots.Prepare` with Riptide remote snapshot labels (`containerd.io/snapshot.ref`, `containerd.io/snapshot/image-ref`, `containerd.io/snapshot/cri.image-ref`, `containerd.io/snapshot/cri.layer-digest`, `containerd.io/snapshot/gcfs.layer-size`).
      * Creates or reuses the read-only snapshot view `view-<chainID>` via `Snapshots.View` / `Snapshots.Mounts`.
      * Polls until the FUSE view directory (`/var/lib/substrate/gcfs/mnt/views/<chainID>/fs`) is mounted and listable.
-     * Creates a stable symlink `/var/lib/ateom-gvisor/streaming/riptide/<sanitized-imageRef>/layer-<i>` $\to$ `/var/lib/substrate/gcfs/mnt/views/<chainID>/fs`.
+     * Creates a stable symlink `/var/lib/ate/streaming/riptide/<sanitized-imageRef>/layer-<i>` $\to$ `/var/lib/substrate/gcfs/mnt/views/<chainID>/fs`.
 
 ### 5.2 AWS SOCI Adapter (`oci-image-accelerator/cmd/soci`)
 * Connects to `soci-snapshotter-grpc` over `/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock` (isolated root `/var/lib/soci-snapshotter-grpc` with both `pull_modes.soci_v1` and `pull_modes.soci_v2` enabled).
@@ -217,10 +217,10 @@ Each `ate-accelerator-<provider>` DaemonSet runs a multi-container pod combining
 
 | Provider (`manifests/*.yaml`) | Container 1: Engine / Snapshotter | Container 2: `ImageAccelerator` Adapter | `updateStrategy` & Host Volume Contracts |
 | :--- | :--- | :--- | :--- |
-| **GKE Riptide** (`riptide.yaml`) | `riptide-provider`: Mounts pre-installed `/home/kubernetes/bin/{gcfsd-v2,containerd-gcfs-grpc}` read-only from COS host in an isolated `unshare -m` child mount namespace | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/riptide` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/substrate/gcfs/mnt` (`Bidirectional`), `/var/lib/ateom-gvisor/streaming` |
-| **AWS SOCI** (`soci.yaml`) | `soci-snapshotter-grpc` FUSE snapshotter | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/soci` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/soci-snapshotter-grpc` (`Bidirectional`), `/var/lib/ateom-gvisor/streaming` |
-| **Nydus + Dragonfly** (`nydus-dragonfly.yaml`) | `dfdaemon` P2P peer + `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd` with Kernel EROFS/`fscache`) | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly` | `OnDelete`; `/dev/cachefiles`, `/run/ate`, `/var/lib/containerd-nydus` (`Bidirectional`), `/var/lib/ateom-gvisor/streaming` |
-| **Spegel P2P** (`spegel.yaml`) | Built-in Spegel-compatible OCI registry mirror (`:5000`) + peer router | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel` | `RollingUpdate`; `/run/ate`, `/var/lib/substrate/spegel`, `/var/lib/ateom-gvisor/streaming` |
+| **GKE Riptide** (`riptide.yaml`) | `riptide-provider`: Mounts pre-installed `/home/kubernetes/bin/{gcfsd-v2,containerd-gcfs-grpc}` read-only from COS host in an isolated `unshare -m` child mount namespace | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/riptide` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/substrate/gcfs/mnt` (`Bidirectional`), `/var/lib/ate/streaming` |
+| **AWS SOCI** (`soci.yaml`) | `soci-snapshotter-grpc` FUSE snapshotter | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/soci` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/soci-snapshotter-grpc` (`Bidirectional`), `/var/lib/ate/streaming` |
+| **Nydus + Dragonfly** (`nydus-dragonfly.yaml`) | `dfdaemon` P2P peer + `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd` with Kernel EROFS/`fscache`) | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly` | `OnDelete`; `/dev/cachefiles`, `/run/ate`, `/var/lib/containerd-nydus` (`Bidirectional`), `/var/lib/ate/streaming` |
+| **Spegel P2P** (`spegel.yaml`) | Built-in Spegel-compatible OCI registry mirror (`:5000`) + peer router | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel` | `RollingUpdate`; `/run/ate`, `/var/lib/substrate/spegel`, `/var/lib/ate/streaming` |
 
 Because `go run ./cmd/ate-setup deploy ate-system` only applies `manifests/ate-install/*.yaml`, **a default cluster installation does not deploy any image-accelerator DaemonSet**.
 
