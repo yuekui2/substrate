@@ -30,6 +30,7 @@ import (
 	"go.ate.dev/substrate/internal/proto/grpcechopb"
 	"go.ate.dev/substrate/internal/proto/objectstoreexchangepb"
 	"go.ate.dev/substrate/internal/protoredact"
+	imageaccelv1 "go.ate.dev/substrate/oci-image-accelerator/proto/v1"
 	"go.ate.dev/substrate/pkg/proto/ateapipb"
 	"go.ate.dev/substrate/pkg/proto/ateconfigpb"
 	"go.ate.dev/substrate/pkg/proto/credproviderpb"
@@ -367,6 +368,7 @@ var ourProtoFiles = []protoreflect.FileDescriptor{
 	credproviderpb.File_credprovider_proto,
 	glutton.File_glutton_proto,
 	grpcechopb.File_grpcecho_proto,
+	imageaccelv1.File_accelerator_proto,
 	objectstoreexchangepb.File_exchange_proto,
 	objectstorev1.File_objectstore_proto,
 }
@@ -411,6 +413,10 @@ func TestDebugRedactFieldsArePinned(t *testing.T) {
 		"objectstore.v1.UploadSnapshotRequest.actor_jwt":            true,
 		"objectstoreexchange.ExchangeActorJwtRequest.actor_jwt":     true,
 		"objectstoreexchange.ExchangeActorJwtResponse.access_token": true,
+		"substrate.imageaccel.v1.RegistryAuth.auth":                 true,
+		"substrate.imageaccel.v1.RegistryAuth.identity_token":       true,
+		"substrate.imageaccel.v1.RegistryAuth.password":             true,
+		"substrate.imageaccel.v1.RegistryAuth.registry_token":       true,
 	}
 	got := map[string]bool{}
 	forEachField(func(fd protoreflect.FieldDescriptor) {
