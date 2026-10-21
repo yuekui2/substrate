@@ -192,12 +192,16 @@ To work identically on both **Case 1 (GKE Image Streaming disabled)** and **Case
 
 ---
 
-## 6. Deployment Workflow & Adapter Extensibility
+## 6. Decoupled Plugin Architecture, Deployment & Upgrade Workflow
 
-### 6.1 Directory Layout & Decoupled Manifests
-Adapter binaries and DaemonSet manifests live under the self-contained `oci-image-accelerator/` directory:
+### 6.1 Architectural Boundary & DaemonSet Binary Delivery
+Core Substrate (`cmd/atelet`, `internal/imagecache`, `cmd/ate-setup`, `manifests/ate-install`) is 100% agnostic to specific streaming providers. All provider drivers, shared lease management, and DaemonSet manifests live under the self-contained `oci-image-accelerator/` subtree (structured for standalone extraction to `github.com/agent-substrate/oci-image-accelerator`):
 ```text
 oci-image-accelerator/
+├── proto/v1/            (ImageAccelerator gRPC service contract)
+├── pkg/
+│   ├── client/          (Thin gRPC client & fallback helper imported by atelet)
+│   └── adapter/         (Shared gRPC server, singleflight, refCount & idleTTL leases)
 ├── cmd/
 │   ├── nydus-dragonfly/
 │   ├── riptide/
@@ -209,27 +213,38 @@ oci-image-accelerator/
     ├── soci.yaml
     └── spegel.yaml
 ```
-Because `./hack/install-ate.sh deploy ate-system` only applies `manifests/ate-install/*.yaml` at the top level, **a default cluster installation does not deploy any image-accelerator DaemonSet**.
+Each `ate-accelerator-<provider>` DaemonSet runs a multi-container pod combining the underlying streaming/mirror engine with the Go `ImageAccelerator` adapter—delivering binaries via container images (or pre-installed GKE COS binaries in an isolated mount namespace) without host installer scripts:
+
+| Provider (`manifests/*.yaml`) | Container 1: Engine / Snapshotter | Container 2: `ImageAccelerator` Adapter | `updateStrategy` & Host Volume Contracts |
+| :--- | :--- | :--- | :--- |
+| **GKE Riptide** (`riptide.yaml`) | `riptide-provider`: Mounts pre-installed `/home/kubernetes/bin/{gcfsd-v2,containerd-gcfs-grpc}` read-only from COS host in an isolated `unshare -m` child mount namespace | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/riptide` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/substrate/gcfs/mnt` (`Bidirectional`), `/var/lib/ateom-gvisor/streaming` |
+| **AWS SOCI** (`soci.yaml`) | `soci-snapshotter-grpc` FUSE snapshotter | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/soci` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/soci-snapshotter-grpc` (`Bidirectional`), `/var/lib/ateom-gvisor/streaming` |
+| **Nydus + Dragonfly** (`nydus-dragonfly.yaml`) | `dfdaemon` P2P peer + `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd` with Kernel EROFS/`fscache`) | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly` | `OnDelete`; `/dev/cachefiles`, `/run/ate`, `/var/lib/containerd-nydus` (`Bidirectional`), `/var/lib/ateom-gvisor/streaming` |
+| **Spegel P2P** (`spegel.yaml`) | Built-in Spegel-compatible OCI registry mirror (`:5000`) + peer router | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel` | `RollingUpdate`; `/run/ate`, `/var/lib/substrate/spegel`, `/var/lib/ateom-gvisor/streaming` |
+
+Because `go run ./cmd/ate-setup deploy ate-system` only applies `manifests/ate-install/*.yaml`, **a default cluster installation does not deploy any image-accelerator DaemonSet**.
 
 ### 6.2 End-to-End Operator Workflow
 
 #### Step 1: Default Cluster Install (Image Acceleration Off by Default)
 ```bash
-./hack/install-ate.sh deploy ate-system
+go run ./cmd/ate-setup deploy ate-system
 ```
 * Deploys `atelet` configured with `--image-accelerator-socket=/run/ate/image-accelerator.sock`.
 * Since no adapter DaemonSet is installed and no node is labeled, `/run/ate/image-accelerator.sock` does not exist and `atelet` uses `internal/imagecache` (`0` overhead).
 
-#### Step 2: Deploy and Auto-Enable the Desired Adapter DaemonSet (`--setup-image-accelerator`)
+#### Step 2: Deploy and Enable an Accelerator Plugin (Decoupled or via `hack/install-ate.sh`)
 ```bash
-# Deploy and auto-enable alongside ate-system or standalone on an existing cluster:
-./hack/install-ate.sh deploy ate-system --setup-image-accelerator=riptide
-# or:
+# Option A: Direct decoupled plugin deployment
+ko resolve -f oci-image-accelerator/manifests/riptide.yaml | kubectl apply -f -
+kubectl label nodes --all ate.dev/image-accelerator=riptide --overwrite
+
+# Option B: Via the hack/install-ate.sh convenience flag
 ./hack/install-ate.sh --setup-image-accelerator=riptide
 ```
 * Builds `oci-image-accelerator/cmd/riptide` with `ko` (when using the in-tree manifest) and applies `oci-image-accelerator/manifests/riptide.yaml`.
-* Automatically labels all cluster nodes `ate.dev/image-accelerator=riptide` and waits for the `ate-accelerator-riptide` DaemonSet rollout.
-* Once each pod creates `/run/ate/image-accelerator.sock`, `atelet` automatically begins streaming eligible images on that node.
+* Labels cluster nodes `ate.dev/image-accelerator=riptide` and waits for the `ate-accelerator-riptide` DaemonSet rollout.
+* Once each pod creates `/run/ate/image-accelerator.sock`, `atelet` automatically begins streaming eligible images on that node without restarting `atelet`.
 
 #### Step 3: Dynamically Disable / Drain Image Acceleration on a Node (or Re-Enable)
 ```bash
@@ -258,6 +273,21 @@ ATE_IMAGE_ACCELERATOR_MANIFEST=https://internal.example.com/manifests/mycompany.
   ./hack/install-ate.sh --setup-image-accelerator=mycompany
 ```
 without forking or modifying `substrate`.
+
+### 6.4 Upgrade & Version-Skew Lifecycle ([`docs/upgrade.md`](upgrade.md) & [`docs/version-skew-policy.md`](version-skew-policy.md))
+
+1. **Upgrading Agent Substrate (`deploy atelet`):**
+   * Like CSI drivers ([`docs/version-skew-policy.md`](version-skew-policy.md)), `ate-accelerator-<provider>` is an external node add-on outside the Substrate release upgrade.
+   * During [`docs/upgrade.md`](upgrade.md) Step 2 (`go run ./cmd/ate-setup deploy atelet`), `ds/atelet` rolls in-place node by node while running actors and `ate-accelerator-<provider>` pods stay up untouched. When the new `atelet` pod starts on a node, it calls `ReconcileImages` over `/run/ate/image-accelerator.sock` to synchronize active leases.
+   * The `substrate.imageaccel.v1.ImageAccelerator` gRPC protocol evolves via additive optional protobuf fields so `atelet` and `ate-accelerator-<provider>` can be upgraded in either order.
+2. **Upgrading a FUSE-Backed Adapter DaemonSet (`updateStrategy.type: OnDelete`):**
+   * Because stopping a userspace FUSE daemon (`gcfsd-v2`, `soci-snapshotter-grpc`, `nydusd`) while an actor's `overlayfs` `lowerdir` is reading from `/dev/fuse` causes reads to fail with `ENOTCONN`, FUSE-backed DaemonSets set `updateStrategy.type: OnDelete`.
+   * To roll out a new adapter image or configuration:
+     1. **Apply the updated DaemonSet manifest:** `ko resolve -f oci-image-accelerator/manifests/<provider>.yaml | kubectl apply -f -` (updates the DaemonSet template without terminating running pods).
+     2. **Drain FUSE leases on `<node>`:** `kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite`. Workers and actors on `<node>` remain online, and `atelet` serves new/restoring actors on `<node>` from local `imagecache` while existing streamed actors drain their leases (`bypass_ttl=true`) on checkpoint or teardown.
+     3. **Recycle the pod & re-enable:** Once active FUSE leases on `<node>` reach `0`, run `kubectl -n ate-system delete pod -l app=ate-image-accelerator --field-selector spec.nodeName=<node>` and `kubectl label node <node> ate.dev/image-accelerator=<provider> --overwrite`.
+3. **Upgrading Non-FUSE Providers (`ate-accelerator-spegel`):**
+   * Because Spegel unpacks standard files onto the host filesystem rather than holding open `/dev/fuse` mounts, `ate-accelerator-spegel` uses `updateStrategy.type: RollingUpdate` and rolls in-place without draining.
 
 ---
 

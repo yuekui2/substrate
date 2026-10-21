@@ -59,9 +59,11 @@ Following the Adapter pattern—analogous to Kubernetes CSI (Container Storage I
   * **Cluster Install (Disabled by Default, or Auto-Enabled with Flag):** `./hack/install-ate.sh deploy ate-system` deploys `atelet` without installing any adapter DaemonSet; adding `--setup-image-accelerator=riptide` (or `ATE_IMAGE_ACCELERATOR_MANIFEST=<path-or-url>` for out-of-tree adapters) installs the adapter DaemonSet, labels the nodes `ate.dev/image-accelerator=riptide`, and automatically enables streaming across the cluster.
   * **Disable on a Node:** `kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite` keeps the adapter pod alive for currently running actors while `atelet` stops using streaming for new and resuming actors; once existing actors checkpoint or terminate, `refCount` reaches 0 and the streamed layers are GC-ed (re-enable anytime with `ate.dev/image-accelerator=riptide`).
 
-### Upgrading the Adapter DaemonSet (Extending `atelet` Rolling Upgrades)
+### Upgrading `atelet` and the Adapter DaemonSet
 
-Stopping a userspace FUSE daemon while an actor's `overlayfs` `lowerdir` is reading from `/dev/fuse` causes reads to fail with `ENOTCONN`. The solution is to treat adapter upgrade as an `atelet` data plane upgrade, where the Adapter DaemonSet follows `atelet`'s existing version-pinned rolling upgrade process. See Appendix: [Adapter DaemonSet Upgrade](#adapter-daemonset-upgrade) for details.
+Stopping a userspace FUSE daemon while an actor's `overlayfs` `lowerdir` is reading from `/dev/fuse` causes reads to fail with `ENOTCONN`. Because the adapter runs in its own DaemonSet (`ate-accelerator-<provider>`) outside the Substrate release upgrade ([`docs/version-skew-policy.md`](version-skew-policy.md)):
+* **Substrate Upgrades ([`docs/upgrade.md`](upgrade.md) Step 2):** `ds/atelet` rolls in-place without restarting `ate-accelerator-<provider>`; active FUSE mounts stay untouched and the new `atelet` reconnects via `ReconcileImages`.
+* **Adapter DaemonSet Upgrades:** FUSE-backed adapter DaemonSets use `updateStrategy.type: OnDelete` paired with per-node `ate.dev/image-accelerator=disabled` FUSE lease draining. See Appendix: [Adapter DaemonSet Upgrade](#adapter-daemonset-upgrade) for details.
 
 ## Medium-Term Proposal
 
@@ -85,12 +87,14 @@ Additionally, in Riptide v2, Riptide Snapshotter delegates `CreateView` and `Del
 
 ### Adapter DaemonSet Upgrade
 
-**Treating Adapter Upgrade as an `atelet` Dataplane Upgrade (`docs/upgrade.md`):** Rather than introducing a separate upgrade mechanism, the Adapter DaemonSet follows `atelet`'s existing version-pinned rolling upgrade convention (`ate-accelerator-<provider>-${SUBSTRATE_VERSION_SUFFIX}`), matching both `ate.dev/image-accelerator: <provider>` and `ate.dev/substrate-version: "${SUBSTRATE_VERSION}"`:
+Following [`docs/upgrade.md`](upgrade.md) and [`docs/version-skew-policy.md`](version-skew-policy.md), `atelet` and `ate-accelerator-<provider>` have decoupled upgrade lifecycles:
 
-1. **Side-by-Side Deployment:** Deploy `ate-accelerator-<provider>-${NEW_SUFFIX}` alongside `atelet-${NEW_SUFFIX}` pinned to `$NEW_VERSION`. Both sit at 0 pods while nodes still carry `$OLD_VERSION`.
-2. **Per-Node Worker Drain & Actor Suspend:** Following `docs/upgrade.md` Step 6a–6c, drain workers on the node and suspend all running actors. Because suspending an actor triggers `Checkpoint` to `ReleaseImage`, zero running actors and zero active FUSE mounts remain on the node once the drain completes.
-3. **Shut Down Old Daemons, Then Cut Over to New Version:** Once the node has zero actors, removing the version label (`kubectl label node $NODE ate.dev/substrate-version-`) causes Kubernetes to terminate both the old `atelet` pod and the old `ate-accelerator-<provider>` pod on the node. When the old adapter pod exits, its `image-accelerator.sock`, BoltDB locks (`metadata.db` / `images_in_use.db`), and `/dev/fuse` mounts are all cleanly closed and released. Labeling the node with the new version (`kubectl label node $NODE ate.dev/substrate-version=$NEW_VERSION`) then starts the new `atelet` and new adapter pod on a clean node with zero contention. Rollback and retirement work identically.
-4. **Crash Isolation Between Upgrades:** Keeping the adapter in its own DaemonSet (rather than inside the `atelet` Pod) preserves `atelet`'s zero-capability security posture and ensures that if `atelet` crashes and restarts in-place between upgrades, the FUSE daemon and active `/dev/fuse` mounts stay alive uninterrupted while `atelet` recovers state via `ReconcileImages`.
+1. **Upgrading Agent Substrate (`deploy atelet`):** Like CSI drivers, `ate-accelerator-<provider>` is outside the Substrate system upgrade. When `ds/atelet` rolls in-place during [`docs/upgrade.md`](upgrade.md) Step 2, the `ate-accelerator-<provider>` pod and its FUSE mounts stay running uninterrupted, and the restarted `atelet` recovers active leases via `ReconcileImages`. The `substrate.imageaccel.v1.ImageAccelerator` gRPC protocol evolves via additive optional protobuf fields so `atelet` and the adapter can upgrade independently.
+2. **Upgrading a FUSE-Backed Adapter DaemonSet (`updateStrategy.type: OnDelete`):**
+   * **Step 1 — Update the DaemonSet Template:** Apply the updated `oci-image-accelerator/manifests/<provider>.yaml`. Because `updateStrategy.type` is `OnDelete`, running pods with active FUSE mounts are not terminated automatically.
+   * **Step 2 — Drain FUSE Leases on `<node>` (`ate.dev/image-accelerator=disabled`):** Run `kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite`. Workers and actors on `<node>` keep running, and new/restoring actors on `<node>` automatically fall back to local `imagecache`. As existing streamed actors on `<node>` checkpoint or terminate, `atelet` calls `ReleaseImage(bypass_ttl=true)`.
+   * **Step 3 — Recycle the Adapter Pod & Re-Enable:** Once active FUSE leases on `<node>` reach `0`, delete the pod (`kubectl -n ate-system delete pod -l app=ate-image-accelerator --field-selector spec.nodeName=<node>`) and relabel the node (`kubectl label node <node> ate.dev/image-accelerator=<provider> --overwrite`). Kubernetes starts the new adapter pod and `atelet` resumes streaming on `<node>`.
+3. **Stateless Non-FUSE Providers (`ate-accelerator-spegel`):** Because Spegel unpacks standard files onto the host filesystem rather than holding open `/dev/fuse` mounts, `ate-accelerator-spegel` uses `updateStrategy.type: RollingUpdate` and rolls in-place without draining.
 
 ### On-Disk Folder Structure
 
