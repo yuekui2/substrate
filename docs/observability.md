@@ -299,6 +299,8 @@ Agent Substrate emits foundational OpenTelemetry system and server metrics to mo
 | `ate.filecache.size` | atelet | up/down counter | bytes of disk a node-local file cache occupies, by `ate.filecache.name`, read on each collection; compare with `--sandbox-asset-cache-max-bytes` |
 | `ate.filecache.evictions` | atelet | counter | entries the eviction passes removed from a node-local file cache, by `ate.filecache.name`; a steady rate at the budget means the cache thrashes and actors pay for downloads again |
 | `ate.filecache.gc.passes` | atelet | counter | eviction passes over a node-local file cache, by `ate.filecache.name`, that had work to do, by outcome (`ate.filecache.gc.outcome`: `complete`, `shortfall`, `skipped`); a pass within budget is not counted |
+| `ate.imagestreaming.requests` | atelet | counter | image streaming layer preparation requests by provider (`ate.imagestreaming.provider`) and outcome (`ate.imagestreaming.outcome`: `success`, `fallback`, `error`) |
+| `ate.imagestreaming.duration` | atelet | histogram | duration in seconds to prepare streamed image layers on the node, labeled by provider and outcome |
 
 The table lists the OpenTelemetry instrument names. How a name appears in a query depends on the backend (Cloud Monitoring (GMP) / Kind collector).
 
