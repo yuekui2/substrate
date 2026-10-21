@@ -304,3 +304,19 @@ func TestServerReconcileImagesRestoresAndSweepsOrphans(t *testing.T) {
 		t.Errorf("active layer dir missing after ReconcileImages: %v", err)
 	}
 }
+
+func TestResolveDockerAuthNormalizesGoogleTokenUsername(t *testing.T) {
+	serverAddr, entry := resolveDockerAuth(nil, "us-west1-docker.pkg.dev/my-proj/repo/img:v1", &ocilayer.AuthConfig{
+		Username: "_token",
+		Password: "fake-oauth-access-token",
+	})
+	if serverAddr != "us-west1-docker.pkg.dev" {
+		t.Fatalf("serverAddr = %q, want %q", serverAddr, "us-west1-docker.pkg.dev")
+	}
+	if entry == nil {
+		t.Fatal("entry is nil")
+	}
+	if entry.Username != "oauth2accesstoken" {
+		t.Errorf("entry.Username = %q, want %q", entry.Username, "oauth2accesstoken")
+	}
+}

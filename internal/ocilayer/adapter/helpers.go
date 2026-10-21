@@ -562,8 +562,12 @@ func resolveDockerAuth(keychain authn.Keychain, refStr string, reqAuth *ocilayer
 		if serverAddr == "" {
 			return "", nil
 		}
+		username := reqAuth.Username
+		if username == "_token" {
+			username = "oauth2accesstoken"
+		}
 		entry := &dockerAuthEntry{
-			Username:      reqAuth.Username,
+			Username:      username,
 			Password:      reqAuth.Password,
 			Auth:          reqAuth.Auth,
 			IdentityToken: reqAuth.IdentityToken,
@@ -588,8 +592,12 @@ func resolveDockerAuth(keychain authn.Keychain, refStr string, reqAuth *ocilayer
 	if cfg.Username == "" && cfg.Password == "" && cfg.Auth == "" && cfg.IdentityToken == "" && cfg.RegistryToken == "" {
 		return "", nil
 	}
+	username := cfg.Username
+	if username == "_token" {
+		username = "oauth2accesstoken"
+	}
 	entry := &dockerAuthEntry{
-		Username:      cfg.Username,
+		Username:      username,
 		Password:      cfg.Password,
 		Auth:          cfg.Auth,
 		IdentityToken: cfg.IdentityToken,
