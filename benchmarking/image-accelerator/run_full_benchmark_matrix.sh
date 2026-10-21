@@ -1,0 +1,377 @@
+#!/usr/bin/env bash
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+set -euo pipefail
+
+export PATH="/usr/local/google/home/kuiyue/google-cloud-sdk/bin:${PATH}"
+export USE_GKE_GCLOUD_AUTH_PLUGIN=True
+
+ROOT="$(git rev-parse --show-toplevel)"
+BENCH_DIR="${ROOT}/benchmarking/image-accelerator"
+RESULTS_DIR="${BENCH_DIR}/results"
+mkdir -p "${RESULTS_DIR}"
+cd "${ROOT}"
+source "${BENCH_DIR}/built_images.env"
+
+ATE_TOKEN=$(kubectl -n ate-system create token ate-client --audience=api.ate-system.svc --duration=2h)
+ATEAPI_IP=$(kubectl -n ate-system get pods -l app=ate-api-server -o jsonpath='{.items[0].status.podIP}')
+ATENET_IP=$(kubectl -n ate-system get svc atenet-router -o jsonpath='{.spec.clusterIP}')
+COS_NODE="${COS_NODE:-gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62}"
+UBUNTU_NODE="${UBUNTU_NODE:-gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p}"
+PEER_NODE="${PEER_NODE:-gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc}"
+NO_STREAM_COS_NODE="${NO_STREAM_COS_NODE:-gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz}"
+
+RESULTS_JSONL="${RESULTS_DIR}/benchmark_results.jsonl"
+EVIDENCE_LOG="${RESULTS_DIR}/benchmark_evidence.log"
+: > "${RESULTS_JSONL}"
+: > "${EVIDENCE_LOG}"
+
+echo "=== [1] Rendering and applying all 4 ImageAccelerator Adapter DaemonSets ===" | tee -a "${EVIDENCE_LOG}"
+
+apply_adapter_manifest() {
+  local src="$1"
+  local img_placeholder="$2"
+  local img_actual="$3"
+  sed -e "s|${img_placeholder}|${img_actual}|g" -e "/- disabled/d" "${src}" | kubectl apply -f -
+}
+
+apply_adapter_manifest "oci-image-accelerator/manifests/riptide.yaml" \
+  "ko://go.ate.dev/substrate/oci-image-accelerator/cmd/riptide" \
+  "${RIPTIDE_IMG}"
+
+apply_adapter_manifest "oci-image-accelerator/manifests/soci.yaml" \
+  "ko://go.ate.dev/substrate/oci-image-accelerator/cmd/soci" \
+  "${SOCI_IMG}"
+
+apply_adapter_manifest "oci-image-accelerator/manifests/nydus-dragonfly.yaml" \
+  "ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly" \
+  "${NYDUS_DF_IMG}"
+
+apply_adapter_manifest "oci-image-accelerator/manifests/spegel.yaml" \
+  "ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel" \
+  "${SPEGEL_IMG}"
+
+kubectl -n ate-system delete pods -l app=ate-image-accelerator --ignore-not-found --wait=true
+
+echo "=== [2] Labeling c3-standard-22 nodes and creating 1 CPU / 2 GiB WorkerPools ===" | tee -a "${EVIDENCE_LOG}"
+kubectl label node "${COS_NODE}" bench-node=c3-cos --overwrite
+kubectl label node "${UBUNTU_NODE}" bench-node=c3-ubuntu --overwrite
+
+echo "Using workerImage: ${WORKER_IMG}" | tee -a "${EVIDENCE_LOG}"
+
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ate-bench-stream
+---
+apiVersion: ate.dev/v1alpha1
+kind: WorkerPool
+metadata:
+  name: wp-c3-cos
+  namespace: ate-bench-stream
+  labels:
+    workload: bench-cos
+spec:
+  replicas: 1
+  workerImage: ${WORKER_IMG}
+  sandboxClasses:
+  - name: gvisor
+  template:
+    nodeSelector:
+      bench-node: c3-cos
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+---
+apiVersion: ate.dev/v1alpha1
+kind: WorkerPool
+metadata:
+  name: wp-c3-ubuntu
+  namespace: ate-bench-stream
+  labels:
+    workload: bench-ubuntu
+spec:
+  replicas: 1
+  workerImage: ${WORKER_IMG}
+  sandboxClasses:
+  - name: gvisor
+  template:
+    nodeSelector:
+      bench-node: c3-ubuntu
+    resources:
+      requests:
+        cpu: "1"
+        memory: 2Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+EOF
+
+echo "Waiting for WorkerPools wp-c3-cos and wp-c3-ubuntu to have 1 Ready replica..."
+for i in $(seq 1 90); do
+  R_COS=$(kubectl -n ate-bench-stream get workerpool wp-c3-cos -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  R_UBU=$(kubectl -n ate-bench-stream get workerpool wp-c3-ubuntu -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
+  if [[ "${R_COS}" == "1" && "${R_UBU}" == "1" ]]; then
+    echo "Both WorkerPools Ready (1 CPU, 2 GiB on c3-standard-22)!" | tee -a "${EVIDENCE_LOG}"
+    break
+  fi
+  sleep 2
+done
+kubectl -n ate-bench-stream get pods -o wide | tee -a "${EVIDENCE_LOG}"
+
+wait_adapter_on_node() {
+  local provider="$1"
+  local node="$2"
+  echo "Waiting for adapter pod (provider=${provider}) on ${node} to become Ready..."
+  for i in $(seq 1 90); do
+    local ready
+    ready=$(kubectl -n ate-system get pods -l "app=ate-image-accelerator,ate.dev/image-accelerator=${provider}" --field-selector "spec.nodeName=${node}" -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+    if [[ "${ready}" == "True" ]]; then
+      echo "Adapter ${provider} Ready on ${node}!"
+      return 0
+    fi
+    sleep 1
+  done
+  echo "ERROR: Timed out waiting for adapter ${provider} on ${node}"
+  kubectl -n ate-system get pods -l app=ate-image-accelerator -o wide
+  return 1
+}
+
+echo "=== [3] Verifying Riptide on both COS modes (GKE Image Streaming enabled vs disabled) ===" | tee -a "${EVIDENCE_LOG}"
+kubectl label node "${COS_NODE}" "${NO_STREAM_COS_NODE}" ate.dev/image-accelerator=riptide --overwrite
+wait_adapter_on_node "riptide" "${COS_NODE}"
+wait_adapter_on_node "riptide" "${NO_STREAM_COS_NODE}"
+
+echo "--- Probing Riptide on ${NO_STREAM_COS_NODE} (host gcfsd disabled) ---" | tee -a "${EVIDENCE_LOG}"
+kubectl -n ate-system exec "bench-helper-${NO_STREAM_COS_NODE##*-}" -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe \
+  -socket /run/ate/image-accelerator.sock \
+  -image "${SWEBENCH_IMG}" \
+  -bypass-ttl=true | tee -a "${EVIDENCE_LOG}"
+
+echo "=== [4] Pre-initializing ActorTemplates (1 CPU / 2 GiB) and completing one-time golden snapshots ===" | tee -a "${EVIDENCE_LOG}"
+kubectl -n ate-system rollout status deployment/dragonfly-redis deployment/dragonfly-mysql deployment/dragonfly-manager deployment/dragonfly-scheduler --timeout=180s | tee -a "${EVIDENCE_LOG}"
+kubectl label node "${UBUNTU_NODE}" "${PEER_NODE}" ate.dev/image-accelerator=nydus-dragonfly --overwrite
+wait_adapter_on_node "nydus-dragonfly" "${UBUNTU_NODE}"
+wait_adapter_on_node "nydus-dragonfly" "${PEER_NODE}"
+
+kubectl -n ate-system exec "bench-helper-${PEER_NODE##*-}" -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe \
+  -socket /run/ate/image-accelerator.sock \
+  -image "${SWEBENCH_NYDUS_IMG}" \
+  -bypass-ttl=false | tee -a "${EVIDENCE_LOG}"
+
+kubectl -n ate-system exec "bench-helper-${COS_NODE##*-}" -- /home/kubernetes/bin/bench-runner \
+  --mode=ensure-template \
+  --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" --atespace=ate-bench-stream \
+  --template=tmpl-cos-oci \
+  --pool-label=bench-cos \
+  --image="${SWEBENCH_IMG}" \
+  --wait-golden=true | tee -a "${EVIDENCE_LOG}"
+
+kubectl -n ate-system exec "bench-helper-${UBUNTU_NODE##*-}" -- /home/kubernetes/bin/bench-runner \
+  --mode=ensure-template \
+  --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" --atespace=ate-bench-stream \
+  --template=tmpl-ubuntu-nydus \
+  --pool-label=bench-ubuntu \
+  --image="${SWEBENCH_NYDUS_IMG}" \
+  --wait-golden=true | tee -a "${EVIDENCE_LOG}"
+
+wipe_node_cache() {
+  local adapter="$1"
+  local helper_pod="$2"
+  local image_ref="$3"
+
+  kubectl -n ate-system exec "${helper_pod}" -- nsenter -t 1 -m -u -i -n -- sh -c "
+    rm -rf /var/lib/ate/image-cache/layers/sha256/* /var/lib/ate/image-cache/manifests/sha256/* /var/lib/ate/images/layers/sha256/* /var/lib/ate/images/manifests/sha256/*
+    mkdir -p /var/lib/ate/image-cache/layers/sha256 /var/lib/ate/image-cache/manifests/sha256
+    if [ '${adapter}' != 'baseline' ] && [ -S /run/ate/image-accelerator.sock ]; then
+      /home/kubernetes/bin/bench-runner \
+        --mode=release-image \
+        --socket=/run/ate/image-accelerator.sock \
+        --image='${image_ref}' >/dev/null 2>&1 || true
+    fi
+    if [ '${adapter}' = 'spegel' ]; then
+      rm -rf /var/lib/ate/streaming/spegel-store/blobs/sha256/* /var/lib/ate/streaming/spegel-store/layers/sha256/* 2>/dev/null || true
+      mkdir -p /var/lib/ate/streaming/spegel-store/blobs/sha256 /var/lib/ate/streaming/spegel-store/layers/sha256
+    fi
+    sync
+    echo 3 > /proc/sys/vm/drop_caches || true
+  "
+}
+
+CMD_SMALL='cat -- "/testbed/lib/matplotlib/pyplot.py"'
+CMD_MEDIUM='/opt/miniconda3/envs/testbed/bin/python -m compileall -f -q "/testbed/lib/matplotlib"'
+CMD_LARGE='tar -cf - --one-file-system / | wc -c'
+
+run_one_measurement() {
+  local adapter="$1"
+  local scenario="$2"
+  local workload="$3"
+  local cmd_str="$4"
+  local run_mode="$5"
+  local helper_pod="$6"
+  local tmpl_name="$7"
+  local actor_name="$8"
+  local node_name="$9"
+
+  echo "--- [${adapter} | ${scenario} | ${workload}] Running (${run_mode}) on ${node_name} ---" | tee -a "${EVIDENCE_LOG}"
+  local out_json
+  out_json=$(kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+    --mode="${run_mode}" \
+    --adapter="${adapter}" \
+    --scenario="${scenario}" \
+    --workload="${workload}" \
+    --cmd="${cmd_str}" \
+    --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" --atespace=ate-bench-stream \
+    --template="${tmpl_name}" \
+    --actor="${actor_name}")
+
+  local picked_line
+  picked_line=$(kubectl -n ate-system logs -l app=ate-api-server --timestamps=true --since=180s 2>/dev/null | grep "Picked worker" | sort | tail -n 1 || true)
+  local picked_ts
+  picked_ts=$(echo "${picked_line}" | awk '{print $1}')
+  local picked_ns=0
+  if [[ -n "${picked_ts}" ]]; then
+    picked_ns=$(date -d "${picked_ts}" +%s%N 2>/dev/null || echo 0)
+  fi
+
+  local enriched_json
+  enriched_json=$(python3 -c '
+import json, sys
+d = json.loads(sys.argv[1])
+picked_ns = int(sys.argv[2])
+picked_ts = sys.argv[3]
+if picked_ns > 0 and abs(picked_ns - d["resume_rpc_start_ns"]) < 30_000_000_000:
+    d["picked_worker_ts"] = picked_ts
+    d["picked_worker_ns"] = picked_ns
+    d["ttce_ms"] = round((d["cmd_t0_ns"] - picked_ns) / 1e6, 2)
+    d["e2e_ms"] = round((d["cmd_t1_ns"] - picked_ns) / 1e6, 2)
+else:
+    d["picked_worker_ts"] = "rpc_start_fallback"
+    d["picked_worker_ns"] = d["resume_rpc_start_ns"]
+    d["ttce_ms"] = round(d["client_ttce_ms"], 2)
+    d["e2e_ms"] = round(d["client_e2e_ms"], 2)
+d["workload_run_ms"] = round(d["workload_run_ms"], 2)
+print(json.dumps(d))
+' "${out_json}" "${picked_ns}" "${picked_ts}")
+
+  echo "${enriched_json}" | tee -a "${RESULTS_JSONL}" | tee -a "${EVIDENCE_LOG}"
+  echo "ateapi Picked worker log: ${picked_line}" >> "${EVIDENCE_LOG}"
+
+  if [[ "${adapter}" != "baseline" ]]; then
+    local ad_pod
+    ad_pod=$(kubectl -n ate-system get pods -l "app=ate-image-accelerator,ate.dev/image-accelerator=${adapter}" --field-selector "spec.nodeName=${node_name}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [[ -n "${ad_pod}" ]]; then
+      echo "Adapter (${ad_pod}) recent logs:" >> "${EVIDENCE_LOG}"
+      kubectl -n ate-system logs "${ad_pod}" -c "accelerator-${adapter}" --tail=6 >> "${EVIDENCE_LOG}" 2>&1 || \
+      kubectl -n ate-system logs "${ad_pod}" --tail=6 >> "${EVIDENCE_LOG}" 2>&1 || true
+    fi
+  else
+    local atelet_pod
+    atelet_pod=$(kubectl -n ate-system get pods -l app=atelet --field-selector "spec.nodeName=${node_name}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [[ -n "${atelet_pod}" ]]; then
+      echo "atelet (${atelet_pod}) recent imagecache logs:" >> "${EVIDENCE_LOG}"
+      kubectl -n ate-system logs "${atelet_pod}" --tail=15 | grep -E "Image cache|EnsureImage|PrepareImage" >> "${EVIDENCE_LOG}" 2>&1 || true
+    fi
+  fi
+}
+
+run_adapter_suite() {
+  local adapter="$1"
+  local node_name="$2"
+  local helper_pod="bench-helper-${node_name##*-}"
+  local tmpl_name="$3"
+  local image_ref="$4"
+
+  echo "================================================================================" | tee -a "${EVIDENCE_LOG}"
+  echo "STARTING SUITE: Adapter=${adapter} Node=${node_name} Image=${image_ref}" | tee -a "${EVIDENCE_LOG}"
+  echo "================================================================================" | tee -a "${EVIDENCE_LOG}"
+
+  for wl in small medium large; do
+    local cmd_str=""
+    case "${wl}" in
+      small)  cmd_str="${CMD_SMALL}" ;;
+      medium) cmd_str="${CMD_MEDIUM}" ;;
+      large)  cmd_str="${CMD_LARGE}" ;;
+    esac
+
+    local actor_name="bench-${adapter}-${wl}"
+    kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+      --mode=delete --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" --atespace=ate-bench-stream --actor="${actor_name}" >/dev/null 2>&1 || true
+
+    wipe_node_cache "${adapter}" "${helper_pod}" "${image_ref}"
+    run_one_measurement "${adapter}" "cold_boot" "${wl}" "${cmd_str}" "create-boot-run" "${helper_pod}" "${tmpl_name}" "${actor_name}" "${node_name}"
+
+    kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+      --mode=suspend --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" --atespace=ate-bench-stream --actor="${actor_name}" --clean-pycache=true >> "${EVIDENCE_LOG}"
+
+    run_one_measurement "${adapter}" "warm_resume" "${wl}" "${cmd_str}" "resume-and-run" "${helper_pod}" "${tmpl_name}" "${actor_name}" "${node_name}"
+
+    kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+      --mode=suspend --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" --atespace=ate-bench-stream --actor="${actor_name}" --clean-pycache=true >> "${EVIDENCE_LOG}"
+
+    # Evict node-local snapshot while preserving durable GCS snapshot so the next resume is a true cold_resume
+    kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+      --mode=revert --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" --atespace=ate-bench-stream --actor="${actor_name}" >> "${EVIDENCE_LOG}"
+
+    wipe_node_cache "${adapter}" "${helper_pod}" "${image_ref}"
+    run_one_measurement "${adapter}" "cold_resume" "${wl}" "${cmd_str}" "resume-and-run" "${helper_pod}" "${tmpl_name}" "${actor_name}" "${node_name}"
+
+    kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+      --mode=delete --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" --atespace=ate-bench-stream --actor="${actor_name}" >> "${EVIDENCE_LOG}"
+  done
+}
+
+kubectl label node "${COS_NODE}" ate.dev/image-accelerator=riptide --overwrite
+wait_adapter_on_node "riptide" "${COS_NODE}"
+run_adapter_suite "riptide" "${COS_NODE}" "tmpl-cos-oci" "${SWEBENCH_IMG}"
+
+kubectl label node "${COS_NODE}" ate.dev/image-accelerator=soci --overwrite
+wait_adapter_on_node "soci" "${COS_NODE}"
+run_adapter_suite "soci" "${COS_NODE}" "tmpl-cos-oci" "${SWEBENCH_IMG}"
+
+kubectl label node "${COS_NODE}" "${PEER_NODE}" ate.dev/image-accelerator=spegel --overwrite
+wait_adapter_on_node "spegel" "${PEER_NODE}"
+wait_adapter_on_node "spegel" "${COS_NODE}"
+echo "Seeding ${SWEBENCH_IMG} on Spegel peer node ${PEER_NODE}..."
+kubectl -n ate-system exec "bench-helper-${PEER_NODE##*-}" -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe \
+  -socket /run/ate/image-accelerator.sock \
+  -image "${SWEBENCH_IMG}" \
+  -bypass-ttl=false
+run_adapter_suite "spegel" "${COS_NODE}" "tmpl-cos-oci" "${SWEBENCH_IMG}"
+
+kubectl label node "${COS_NODE}" ate.dev/image-accelerator=disabled --overwrite
+while [[ -n "$(kubectl -n ate-system get pods -l app=ate-image-accelerator --field-selector spec.nodeName=${COS_NODE} -o name 2>/dev/null)" ]]; do
+  sleep 1
+done
+kubectl -n ate-system exec "bench-helper-${COS_NODE##*-}" -- nsenter -t 1 -m -u -i -n -- rm -f /run/ate/image-accelerator.sock
+run_adapter_suite "baseline" "${COS_NODE}" "tmpl-cos-oci" "${SWEBENCH_IMG}"
+
+kubectl label node "${UBUNTU_NODE}" "${PEER_NODE}" ate.dev/image-accelerator=nydus-dragonfly --overwrite
+wait_adapter_on_node "nydus-dragonfly" "${PEER_NODE}"
+wait_adapter_on_node "nydus-dragonfly" "${UBUNTU_NODE}"
+echo "Seeding ${SWEBENCH_NYDUS_IMG} on Dragonfly peer node ${PEER_NODE}..."
+kubectl -n ate-system exec "bench-helper-${PEER_NODE##*-}" -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe \
+  -socket /run/ate/image-accelerator.sock \
+  -image "${SWEBENCH_NYDUS_IMG}" \
+  -bypass-ttl=false
+run_adapter_suite "nydus-dragonfly" "${UBUNTU_NODE}" "tmpl-ubuntu-nydus" "${SWEBENCH_NYDUS_IMG}"
+
+echo "=== ALL 45 BENCHMARK RUNS COMPLETED SUCCESSFULLY! ===" | tee -a "${EVIDENCE_LOG}"
+cat "${RESULTS_JSONL}"

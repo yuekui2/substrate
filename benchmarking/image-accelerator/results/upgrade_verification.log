@@ -1,0 +1,147 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+================================================================================
+UPGRADE TEST SCENARIO A: Substrate atelet Rolling Upgrade with Active Streamed Actor
+================================================================================
+clusterrole.rbac.authorization.k8s.io/atelet unchanged
+daemonset.apps/ate-accelerator-riptide unchanged
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+Before atelet upgrade:
+  Adapter pod: ate-accelerator-riptide-z98mc (UID=e5d37512-eb0f-4a16-8d8d-c7c0cf0a8095, restarts=0)
+  atelet pod:  atelet-sggpj (UID=63b477e1-c6cf-4931-a915-bea8654de236)
+--- [Scenario A.1] Booting streamed actor upgrade-actor-a on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+{"adapter":"riptide","scenario":"upgrade_a_pre","workload":"small","actor_ref":"ate-bench-stream/upgrade-actor-a","worker_pod":"wp-c3-cos-75d8d5bf9c-zntsp","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792605085122662775,"resume_rpc_done_ns":1792605086866636448,"resume_rpc_dur_ms":1743.97367,"cmd_t0_ns":1792605086976528735,"cmd_t1_ns":1792605086997953365,"http_done_ns":1792605086999913908,"client_ttce_ms":1853.86596,"workload_run_ms":21.42463,"client_e2e_ms":1875.29059,"exit_code":0,"stdout_preview":"112403"}
+--- [Scenario A.2] Verifying rootfs-overlay.json records streamed=true and /var/lib/ate/streaming/riptide layers on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+{
+  "version": 1,
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "streamed": true,
+  "layers": [
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+  ]
+}
+--- [Scenario A.3] Rolling ds/atelet while upgrade-actor-a is RUNNING ---
+daemonset.apps/atelet restarted
+Waiting for daemon set "atelet" rollout to finish: 0 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 1 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 1 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 1 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 2 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 2 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 2 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 3 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 3 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 3 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 4 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 4 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 4 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 4 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 5 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 5 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 5 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 6 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 6 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 6 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 7 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 7 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 7 out of 8 new pods have been updated...
+Waiting for daemon set "atelet" rollout to finish: 7 of 8 updated pods are available...
+daemon set "atelet" successfully rolled out
+After atelet upgrade:
+  Adapter pod: ate-accelerator-riptide-z98mc (UID=e5d37512-eb0f-4a16-8d8d-c7c0cf0a8095, restarts=0)
+  atelet pod:  atelet-tpc5g (UID=344b164a-d3e9-441b-b27b-4980f82d35ec)
+--- [Scenario A.4] Verifying active actor reads uncached files from FUSE mount after atelet restart (zero ENOTCONN) ---
+{"stdout":"FUSE_READ_OK bytes= 131407\n","stderr":"","exitCode":0}
+--- [Scenario A.5] Verifying new atelet pod (atelet-tpc5g) and adapter pod (ate-accelerator-riptide-z98mc) ReconcileImages logs ---
+{"time":"2026-10-21T17:52:12.240809044Z","level":"INFO","msg":"Successfully reconciled streamed image leases on startup","provider":"image-accelerator","reconciledImages":1}
+2026/10/21 17:51:26 INFO PrepareImage timing breakdown provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=403.82 stat_ms=7.177 prepare_ms=1155.759 view_ms=16.544 listable_ms=0.357 wrapper_ms=2.291 total_ms=1585.665
+2026/10/21 17:52:12 INFO Reconciled active streamed image lease provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 refCount=1
+--- [Scenario A.6] Cleaning up upgrade-actor-a ---
+{"action":"delete","actor_ref":"ate-bench-stream/upgrade-actor-a"}
+================================================================================
+UPGRADE TEST SCENARIO B: Adapter DaemonSet OnDelete + ate.dev/image-accelerator=disabled Drain
+================================================================================
+--- [Scenario B.1] Booting streamed actor upgrade-actor-b on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+{"adapter":"riptide","scenario":"upgrade_b_streamed","workload":"small","actor_ref":"ate-bench-stream/upgrade-actor-b","worker_pod":"wp-c3-cos-75d8d5bf9c-zntsp","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792605175967936326,"resume_rpc_done_ns":1792605176210296916,"resume_rpc_dur_ms":242.360584,"cmd_t0_ns":1792605176231981831,"cmd_t1_ns":1792605176262455177,"http_done_ns":1792605176273872032,"client_ttce_ms":264.045505,"workload_run_ms":30.473346,"client_e2e_ms":294.518851,"exit_code":0,"stdout_preview":"112403"}
+--- [Scenario B.2] Updating ds/ate-accelerator-riptide template (updateStrategy: OnDelete) ---
+daemonset.apps/ate-accelerator-riptide patched (no change)
+Adapter pod after DaemonSet template update (OnDelete): ate-accelerator-riptide-z98mc (UID=e5d37512-eb0f-4a16-8d8d-c7c0cf0a8095)
+--- [Scenario B.3] Labeling gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ate.dev/image-accelerator=disabled to drain FUSE leases ---
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
+Adapter pod phase during ate.dev/image-accelerator=disabled drain: Running
+{"time":"2026-10-21T17:53:02.715524138Z","level":"INFO","msg":"ImageAccelerator node drain state changed","node":"gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62","draining":true}
+{"stdout":"DRAIN_FUSE_READ_OK bytes= 131407\n","stderr":"","exitCode":0}
+--- [Scenario B.4] Deleting upgrade-actor-b to complete FUSE drain (triggers ReleaseImage(bypass_ttl=true)) ---
+{"action":"delete","actor_ref":"ate-bench-stream/upgrade-actor-b"}
+Remaining workdirs in /var/lib/ate/streaming/riptide after ReleaseImage(bypass_ttl=true): []
+--- [Scenario B.5] Verifying new actor on disabled node falls back to local imagecache ---
+{"adapter":"baseline","scenario":"upgrade_b_fallback","workload":"small","actor_ref":"ate-bench-stream/upgrade-actor-fallback","worker_pod":"wp-c3-cos-75d8d5bf9c-zntsp","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792605191535505286,"resume_rpc_done_ns":1792605214713943156,"resume_rpc_dur_ms":23178.437862,"cmd_t0_ns":1792605214760746394,"cmd_t1_ns":1792605214775321173,"http_done_ns":1792605214777183597,"client_ttce_ms":23225.241108,"workload_run_ms":14.574779,"client_e2e_ms":23239.815887,"exit_code":0,"stdout_preview":"112403"}
+rootfs-overlay.json during disabled fallback (should point to /var/lib/ate/image-cache):
+{
+  "version": 1,
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "layers": [
+    "/var/lib/ate/image-cache/layers/sha256/ea16cace89338c84eb6bcb91a7efdfcae6838fff359efe951858227436486c34",
+    "/var/lib/ate/image-cache/layers/sha256/fd14681b3f78357c6ffbcef2d304d2323c29797bde46a32f3037701f7a431fd6",
+    "/var/lib/ate/image-cache/layers/sha256/17e3008119c76df2e3a50da6fe465488993955150901315b1f09d9fded346507",
+    "/var/lib/ate/image-cache/layers/sha256/8512b779ac15768e46d1c70d0c7d0031eae14a47cd0c3ce7588d843419cee4d1",
+    "/var/lib/ate/image-cache/layers/sha256/f5f3409de2bcb398e84055464ed1a8b701f7e964f019e9c5d679002e6a0bea93",
+    "/var/lib/ate/image-cache/layers/sha256/fc77ab78e128550fbf89806ef258df94a58ff8a9cdcb5c66241c7815bf630de0",
+    "/var/lib/ate/image-cache/layers/sha256/584c997258045503a652a2773234cd3f9c48e320ebbeb037b7a703d8a684d2b8",
+    "/var/lib/ate/image-cache/layers/sha256/ffe56a1c5f3878e9b5f803842adb9e2ce81584b6bd027e8599582aefe14a975b",
+    "/var/lib/ate/image-cache/layers/sha256/b80be4baa9e9d46a68c44421143a8241fc7f7e03178118805f002b931332caa1",
+    "/var/lib/ate/image-cache/layers/sha256/4d18cef730e0121c58eea34494a964e0c7f1b9798262dcdb2ca6ad7d1f3902f0"
+  ]
+}
+{"action":"delete","actor_ref":"ate-bench-stream/upgrade-actor-fallback"}
+--- [Scenario B.6] Deleting drained adapter pod and relabeling ate.dev/image-accelerator=riptide ---
+pod "ate-accelerator-riptide-z98mc" deleted from ate-system namespace
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
+New adapter pod after OnDelete upgrade: ate-accelerator-riptide-w59dq (UID=3c8e00d0-d4eb-4ad8-88ff-90d61eb7da27, rev=v2)
+--- [Scenario B.7] Verifying new adapter pod serves streaming cleanly ---
+{
+  "provider": "riptide",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "canProvide": true,
+  "layerDirs": [
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+  ],
+  "canProvideMs": 26.99,
+  "prepareMs": 1302.741,
+  "releaseMs": 15.284,
+  "verifiedLayers": 10
+}
+=== BOTH UPGRADE SCENARIOS (A & B) PASSED SUCCESSFULLY! ===
