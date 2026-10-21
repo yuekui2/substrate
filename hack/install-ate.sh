@@ -32,4 +32,95 @@
 
 set -o errexit -o nounset -o pipefail
 
-go run ./cmd/ate-setup "$@"
+ROOT="$(git rev-parse --show-toplevel)"
+cd "${ROOT}"
+
+SETUP_IMAGE_ACCELERATOR="${SETUP_IMAGE_ACCELERATOR:-none}"
+
+setup_image_accelerator() {
+  local adapter="${SETUP_IMAGE_ACCELERATOR:-none}"
+  case "${adapter}" in
+    ""|none|false)
+      return
+      ;;
+    disabled)
+      echo "=== [setup_image_accelerator (disabled)] ==="
+      kubectl label nodes --all "ate.dev/image-accelerator=disabled" --overwrite
+      return
+      ;;
+  esac
+
+  echo "=== [setup_image_accelerator (${adapter})] ==="
+
+  # Resolve the accelerator manifest in priority order:
+  # 1. Explicit manifest file or URL override (ATE_IMAGE_ACCELERATOR_MANIFEST)
+  # 2. Local accelerator repository checkout (ATE_IMAGE_ACCELERATOR_PATH/manifests/${adapter}.yaml)
+  # 3. In-tree manifest (oci-image-accelerator/manifests/${adapter}.yaml)
+  local manifest="${ATE_IMAGE_ACCELERATOR_MANIFEST:-}"
+  if [[ -z "${manifest}" ]]; then
+    if [[ -n "${ATE_IMAGE_ACCELERATOR_PATH:-}" ]]; then
+      local base_path="${ATE_IMAGE_ACCELERATOR_PATH}"
+      manifest="${base_path}/manifests/${adapter}.yaml"
+    else
+      manifest="${ROOT}/oci-image-accelerator/manifests/${adapter}.yaml"
+    fi
+  fi
+
+  if [[ "${manifest}" != http://* && "${manifest}" != https://* && ! -f "${manifest}" ]]; then
+    echo "Error: manifest not found for image accelerator \"${adapter}\": ${manifest}" >&2
+    exit 1
+  fi
+
+  kubectl apply -f manifests/ate-install/ate-system-namespace.yaml \
+    && kubectl wait --for=jsonpath='{.status.phase}'=Active namespace/ate-system --timeout=60s
+
+  local rendered=""
+  if [[ "${manifest}" == http://* || "${manifest}" == https://* ]]; then
+    rendered="$(curl -fsSL "${manifest}")"
+  elif grep -q "ko://" "${manifest}"; then
+    rendered="$(ko resolve -f "${manifest}")"
+  else
+    rendered="$(cat "${manifest}")"
+  fi
+  echo "${rendered}" | kubectl apply -f -
+
+  kubectl label nodes --all "ate.dev/image-accelerator=${adapter}" --overwrite
+  local deploy=""
+  for deploy in $(kubectl -n ate-system get deployment -l "ate.dev/image-accelerator=${adapter}" -o name 2>/dev/null); do
+    kubectl rollout status "${deploy}" -n ate-system --timeout=120s || true
+  done
+  local ds_name="ate-accelerator-${adapter}"
+  kubectl rollout status "daemonset/${ds_name}" -n ate-system --timeout=120s || true
+}
+
+forward_args=()
+run_accelerator=false
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --setup-image-accelerator=*)
+      SETUP_IMAGE_ACCELERATOR="${1#*=}"
+      run_accelerator=true
+      ;;
+    --setup-image-accelerator)
+      if [[ "$#" -gt 1 && "$2" != -* ]]; then
+        shift
+        SETUP_IMAGE_ACCELERATOR="$1"
+      else
+        SETUP_IMAGE_ACCELERATOR="riptide"
+      fi
+      run_accelerator=true
+      ;;
+    *)
+      forward_args+=("$1")
+      ;;
+  esac
+  shift
+done
+
+if [[ "${#forward_args[@]}" -gt 0 || ( "${run_accelerator}" == "false" && "${SETUP_IMAGE_ACCELERATOR}" == "none" ) ]]; then
+  go run ./cmd/ate-setup ${forward_args[@]+"${forward_args[@]}"}
+fi
+
+if [[ "${run_accelerator}" == "true" || "${SETUP_IMAGE_ACCELERATOR}" != "none" ]]; then
+  setup_image_accelerator
+fi

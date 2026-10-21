@@ -23,3 +23,4 @@ baseImageOverrides:
   # atelet needs glibc to run the node's kubelet credential provider, which
   # some platforms ship dynamically linked (e.g. AKS, GKE Ubuntu).
   go.ate.dev/substrate/cmd/atelet: gcr.io/distroless/base-debian13:latest@sha256:389cad21f73e4c37b94ffe5b13736d5a92bd5bd3c6c6b38c2be1c881e14ba2bd
+  go.ate.dev/substrate/oci-image-accelerator/cmd/spegel: debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
