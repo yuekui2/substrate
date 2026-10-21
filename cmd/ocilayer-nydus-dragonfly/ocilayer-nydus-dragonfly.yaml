@@ -478,7 +478,7 @@ spec:
             proxies:
             - regx: blobs/sha256.*
               useHTTPS: true
-            - regx: us-central1-docker\.pkg\.dev
+            - regx: (docker\.pkg\.dev|gcr\.io)
               useHTTPS: true
           EOF
           exec /opt/dragonfly/bin/dfget daemon --config /etc/dragonfly/dfget.yaml
@@ -510,7 +510,7 @@ spec:
         - /bin/bash
         - -ec
         - |
-          readonly nydus_root="/var/lib/containerd-nydus"
+          readonly nydus_root="/var/lib/ateom-gvisor/containerd-nydus"
           readonly nydus_run="/run/containerd-nydus"
           readonly nydusd_bin="${KUBE_HOME}/bin/nydusd"
           readonly snapshotter_bin="${KUBE_HOME}/bin/containerd-nydus-grpc"
@@ -595,6 +595,9 @@ spec:
           }
           EOF
 
+          pkill -x nydusd 2>/dev/null || true
+          grep "${nydus_root}" /proc/mounts 2>/dev/null | awk '{print $2}' | sort -r | xargs -r umount -l 2>/dev/null || true
+          rm -rf "${nydus_root}/metadata.db" "${nydus_root}/nydus.db" "${nydus_root}/snapshots" "${nydus_root}/config" "${nydus_root}/socket"
           rm -f "${nydus_run}/containerd-nydus-grpc.sock"
           exec "${snapshotter_bin}" \
             --log-level=info \
@@ -613,7 +616,7 @@ spec:
         - name: run-nydus
           mountPath: /run/containerd-nydus
         - name: var-lib-nydus
-          mountPath: /var/lib/containerd-nydus
+          mountPath: /var/lib/ateom-gvisor/containerd-nydus
           mountPropagation: Bidirectional
       - name: ocilayer-nydus-dragonfly
         image: ko://github.com/agent-substrate/substrate/cmd/ocilayer-nydus-dragonfly
@@ -644,7 +647,7 @@ spec:
         - name: run-nydus
           mountPath: /run/containerd-nydus
         - name: var-lib-nydus
-          mountPath: /var/lib/containerd-nydus
+          mountPath: /var/lib/ateom-gvisor/containerd-nydus
           mountPropagation: HostToContainer
       volumes:
       - name: kube-home
@@ -665,7 +668,7 @@ spec:
           type: DirectoryOrCreate
       - name: var-lib-nydus
         hostPath:
-          path: /var/lib/containerd-nydus
+          path: /var/lib/ateom-gvisor/containerd-nydus
           type: DirectoryOrCreate
       - name: var-lib-dragonfly
         hostPath:
