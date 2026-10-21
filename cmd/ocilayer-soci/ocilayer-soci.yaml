@@ -119,6 +119,8 @@ spec:
             min_layer_size = ${SOCI_MIN_LAYER_SIZE:-0}
           EOF
 
+          grep "${soci_root}" /proc/mounts 2>/dev/null | awk '{print $2}' | sort -r | xargs -r umount -l 2>/dev/null || true
+          rm -rf "${soci_root}/snapshotter" "${soci_root}/unpack"
           rm -f "${soci_run}/soci-snapshotter-grpc.sock"
           exec "${soci_bin}" \
             --log-level=info \

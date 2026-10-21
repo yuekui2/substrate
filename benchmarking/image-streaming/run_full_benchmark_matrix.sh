@@ -193,8 +193,14 @@ wipe_node_cache() {
   local image_ref="$3"
 
   kubectl -n ate-system exec "${helper_pod}" -- nsenter -t 1 -m -u -i -n -- sh -c "
-    rm -rf /var/lib/ateom-gvisor/images/layers/sha256/* /var/lib/ateom-gvisor/images/manifests/sha256/*
-    mkdir -p /var/lib/ateom-gvisor/images/layers/sha256 /var/lib/ateom-gvisor/images/manifests/sha256
+    rm -f /var/lib/ateom-gvisor/image-cache/manifests/sha256/c8c61a46* /var/lib/ateom-gvisor/image-cache/manifests/sha256/d89906a9* 2>/dev/null || true
+    for d in /var/lib/ateom-gvisor/image-cache/layers/sha256/*; do
+      if [ -d \"\$d\" ] && [ ! -f \"\$d/fs/pause\" ]; then
+        chmod -R u+w \"\$d\" 2>/dev/null || true
+        rm -rf \"\$d\"
+      fi
+    done
+    mkdir -p /var/lib/ateom-gvisor/image-cache/layers/sha256 /var/lib/ateom-gvisor/image-cache/manifests/sha256
     if [ '${adapter}' != 'baseline' ] && [ -S /run/ate-image-streaming/ocilayer.sock ]; then
       /home/kubernetes/bin/bench-runner \
         --mode=release-image \

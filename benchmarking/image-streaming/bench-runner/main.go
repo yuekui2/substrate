@@ -153,6 +153,27 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
 	defer cancel()
 
+	if *mode == "prepare-image" {
+		if *imageRef == "" {
+			log.Fatal("--image is required for prepare-image")
+		}
+		client, err := ocilayer.NewGRPCClient(*ociSocket)
+		if err != nil {
+			log.Fatalf("NewGRPCClient: %v", err)
+		}
+		defer client.Close()
+		ok, err := client.CanProvide(ctx, &ocilayer.PrepareRequest{ImageRef: *imageRef})
+		if err != nil || !ok {
+			log.Fatalf("CanProvide(%s) = (%v, %v)", *imageRef, ok, err)
+		}
+		res, err := client.PrepareImage(ctx, &ocilayer.PrepareRequest{ImageRef: *imageRef})
+		if err != nil {
+			log.Fatalf("PrepareImage(%s): %v", *imageRef, err)
+		}
+		fmt.Printf("Prepared image %s (digest=%s, layers=%d)\n", *imageRef, res.ImageDigest, len(res.LayerDirs))
+		return
+	}
+
 	if *mode == "release-image" {
 		if *imageRef == "" {
 			log.Fatal("--image is required for release-image")

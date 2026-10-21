@@ -1,0 +1,727 @@
+
+================================================================================
+[2026-10-21T20:12:15Z] STEP 1: Tear down existing DaemonSets, WorkerPools, and stale host state (Fresh Start)
+================================================================================
+Substrate build version: 695dee9e (suffix: 695dee9e)
+workerpool.ate.dev "wp-c3-cos" deleted from ate-bench-stream namespace
+workerpool.ate.dev "wp-c3-ubuntu" deleted from ate-bench-stream namespace
+namespace "ate-bench-stream" deleted
+daemonset.apps "ate-ocilayer-nydus-dragonfly-695dee9e" deleted from ate-system namespace
+daemonset.apps "ate-ocilayer-riptide-695dee9e" deleted from ate-system namespace
+daemonset.apps "ate-ocilayer-soci-695dee9e" deleted from ate-system namespace
+daemonset.apps "ate-ocilayer-spegel-695dee9e" deleted from ate-system namespace
+daemonset.apps "atelet-695dee9e" deleted from ate-system namespace
+deployment.apps "atenet-egress" deleted from ate-system namespace
+deployment.apps "atenet-router" deleted from ate-system namespace
+deployment.apps "ate-controller" deleted from ate-system namespace
+deployment.apps "ate-api-server" deleted from ate-system namespace
+deployment.apps "dragonfly-manager" deleted from ate-system namespace
+deployment.apps "dragonfly-scheduler" deleted from ate-system namespace
+deployment.apps "dragonfly-mysql" deleted from ate-system namespace
+deployment.apps "dragonfly-redis" deleted from ate-system namespace
+service "atenet-router" deleted from ate-system namespace
+service "atenet-egress" deleted from ate-system namespace
+service "dragonfly-manager" deleted from ate-system namespace
+service "dragonfly-scheduler" deleted from ate-system namespace
+service "dragonfly-mysql" deleted from ate-system namespace
+service "dragonfly-redis" deleted from ate-system namespace
+configmap "ate-api-authentication" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "ate-api-server" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "ate-idp-server" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "ate-system-observability" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "atelet" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "atenet-egress" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "atenet-router" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "default-deny-ingress" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "dragonfly-backing-stores" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "dragonfly-controlplane-and-peers" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "postgres" deleted from ate-system namespace
+networkpolicy.networking.k8s.io "spegel-p2p" deleted from ate-system namespace
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p not labeled
+node/gke-substrate-stream-e2-std32-ssd-poo-cadaf832-bpft not labeled
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-49x6 not labeled
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-65vz not labeled
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-sae4 not labeled
+node/gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz not labeled
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p labeled
+node/gke-substrate-stream-e2-std32-ssd-poo-cadaf832-bpft not labeled
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-49x6 not labeled
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc labeled
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-65vz not labeled
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-sae4 not labeled
+node/gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz not labeled
+Cleaning host state on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 via bench-helper-wj62...
+Cleaning host state on gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p via bench-helper-5h2p...
+Cleaning host state on gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc via bench-helper-fkxc...
+
+================================================================================
+[2026-10-21T20:12:48Z] STEP 2: Recompile bench-runner and install on helper pods
+================================================================================
+
+================================================================================
+[2026-10-21T20:12:57Z] STEP 3: Fresh deploy of ate-system control plane & atelet (695dee9e)
+================================================================================
+Fetching cluster endpoint and auth data.
+kubeconfig entry generated for substrate-stream-test.
+[1;36m[step]: deploy_ate_system[0m
+namespace/ate-system unchanged
+namespace/ate-system condition met
+[1;36m[step]: label_nodes_substrate_version (695dee9e)[0m
+[1;36m[step]: deploy_crds[0m
+customresourcedefinition.apiextensions.k8s.io/csidriverconfigs.ate.dev unchanged
+customresourcedefinition.apiextensions.k8s.io/sandboxconfigs.ate.dev unchanged
+customresourcedefinition.apiextensions.k8s.io/workerpools.ate.dev unchanged
+clusterrole.rbac.authorization.k8s.io/ate-controller unchanged
+role.rbac.authorization.k8s.io/ate-controller unchanged
+validatingadmissionpolicy.admissionregistration.k8s.io/sandboxconfig-assets configured
+validatingadmissionpolicybinding.admissionregistration.k8s.io/sandboxconfig-assets unchanged
+sandboxconfig.ate.dev/gvisor-default unchanged
+configmap/ate-otel-config unchanged
+[1;36m[step]: ensure_apiserver_prerequisites[0m
+[1;36m[step]: create_api_server_env_vars[0m
+namespace/ate-system configured
+POSTGRES_CONNECTION_STRING: postgresql://postgres@postgres.ate-system.svc:5432/atepg?sslmode=verify-full&sslrootcert=/run/servicedns.podcert.ate.dev/trust-bundle.pem&sslcert=/run/podidentity.podcert.ate.dev/credential-bundle.pem&sslkey=/run/podidentity.podcert.ate.dev/credential-bundle.pem
+configmap/ate-api-server-envvars unchanged
+secret/ate-api-server-secret-envvars unchanged
+[1;36m[step]: create_api_authentication_config[0m
+namespace/ate-system unchanged
+ate-api-authentication authentication.yaml:
+  | actorIdentityJWTProvider: kubernetes
+  | jwtProviders:
+  | - name: kubernetes
+  |   issuer: https://container.googleapis.com/v1/projects/kuiyue-gke-dev/locations/us-central1-a/clusters/substrate-stream-test
+  |   audiences: [api.ate-system.svc]
+configmap/ate-api-authentication created
+2026/10/21 20:13:20 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/podcertcontroller
+2026/10/21 20:13:21 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:13:21 Building github.com/agent-substrate/substrate/cmd/podcertcontroller for linux/amd64
+2026/10/21 20:13:26 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/podcertcontroller-bf341f0f8a58c5a065fbdc9410c76470:latest
+2026/10/21 20:13:27 existing manifest: latest@sha256:bc4d898a7c2ddb5dc4797005438f41bec317be64b0587fffd913327795f2ed4b
+2026/10/21 20:13:27 existing manifest: sha256-bc4d898a7c2ddb5dc4797005438f41bec317be64b0587fffd913327795f2ed4b.sbom@sha256:27dfc6b9a3c9c6b873d9aa10a5699c892d12b81c14be4e165a62482b7ff42e95
+2026/10/21 20:13:27 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/podcertcontroller-bf341f0f8a58c5a065fbdc9410c76470:sha256-bc4d898a7c2ddb5dc4797005438f41bec317be64b0587fffd913327795f2ed4b.sbom
+2026/10/21 20:13:27 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/podcertcontroller-bf341f0f8a58c5a065fbdc9410c76470@sha256:bc4d898a7c2ddb5dc4797005438f41bec317be64b0587fffd913327795f2ed4b
+namespace/podcertificate-controller-system unchanged
+clusterrole.rbac.authorization.k8s.io/podcert-ate-dev-signer unchanged
+clusterrolebinding.rbac.authorization.k8s.io/podcert-ate-dev-signer unchanged
+role.rbac.authorization.k8s.io/coordinator unchanged
+rolebinding.rbac.authorization.k8s.io/podcertificate-controller-is-a-coordinator unchanged
+deployment.apps/podcertificate-controller unchanged
+deployment "podcertificate-controller" successfully rolled out
+Waiting for podcertificate ClusterTrustBundles to be ready...
+configmap/postgres-config unchanged
+service/postgres unchanged
+statefulset.apps/postgres configured
+2026/10/21 20:13:36 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/atenet
+2026/10/21 20:13:36 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/atecontroller
+2026/10/21 20:13:36 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/atelet
+2026/10/21 20:13:36 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/ateapi
+2026/10/21 20:13:36 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/podcertcontroller
+2026/10/21 20:13:37 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:13:37 Building github.com/agent-substrate/substrate/cmd/atenet for linux/amd64
+2026/10/21 20:13:37 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:13:37 Building github.com/agent-substrate/substrate/cmd/ateapi for linux/amd64
+2026/10/21 20:13:37 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:13:37 Building github.com/agent-substrate/substrate/cmd/atelet for linux/amd64
+2026/10/21 20:13:37 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:13:37 Building github.com/agent-substrate/substrate/cmd/podcertcontroller for linux/amd64
+2026/10/21 20:13:39 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:13:39 Building github.com/agent-substrate/substrate/cmd/atecontroller for linux/amd64
+2026/10/21 20:13:41 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/podcertcontroller-bf341f0f8a58c5a065fbdc9410c76470:latest
+2026/10/21 20:13:43 existing manifest: latest@sha256:bc4d898a7c2ddb5dc4797005438f41bec317be64b0587fffd913327795f2ed4b
+2026/10/21 20:13:43 existing manifest: sha256-bc4d898a7c2ddb5dc4797005438f41bec317be64b0587fffd913327795f2ed4b.sbom@sha256:27dfc6b9a3c9c6b873d9aa10a5699c892d12b81c14be4e165a62482b7ff42e95
+2026/10/21 20:13:43 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/podcertcontroller-bf341f0f8a58c5a065fbdc9410c76470:sha256-bc4d898a7c2ddb5dc4797005438f41bec317be64b0587fffd913327795f2ed4b.sbom
+2026/10/21 20:13:43 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/podcertcontroller-bf341f0f8a58c5a065fbdc9410c76470@sha256:bc4d898a7c2ddb5dc4797005438f41bec317be64b0587fffd913327795f2ed4b
+2026/10/21 20:13:46 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atecontroller-86b02a85c6bff82898e0930a8b0286d1:latest
+2026/10/21 20:13:46 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atenet-2559047aaba794c6723c99da32f86409:latest
+2026/10/21 20:13:48 existing manifest: latest@sha256:38ea9d179ee61abeb9bb913946960fba2f889153fd1c4cd755d809b61036fb7b
+2026/10/21 20:13:48 existing manifest: sha256-38ea9d179ee61abeb9bb913946960fba2f889153fd1c4cd755d809b61036fb7b.sbom@sha256:bb407e712dd35d9a1e7e63e3ed49fd8e8f744915dee29c0c98c157903e0145b6
+2026/10/21 20:13:48 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atecontroller-86b02a85c6bff82898e0930a8b0286d1:sha256-38ea9d179ee61abeb9bb913946960fba2f889153fd1c4cd755d809b61036fb7b.sbom
+2026/10/21 20:13:48 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atecontroller-86b02a85c6bff82898e0930a8b0286d1@sha256:38ea9d179ee61abeb9bb913946960fba2f889153fd1c4cd755d809b61036fb7b
+2026/10/21 20:13:48 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atelet-89dbecdd4e8d5cd4d125a2de341f399c:latest
+2026/10/21 20:13:48 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateapi-752889f8b0bcdbee32172ac9fe056025:latest
+2026/10/21 20:13:49 existing manifest: latest@sha256:6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d
+2026/10/21 20:13:49 existing manifest: sha256-6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d.sbom@sha256:12c6a2332f6e32d47f202a9e36153d2449dfcd0e817f2f27232e80c82e6735b3
+2026/10/21 20:13:49 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atenet-2559047aaba794c6723c99da32f86409:sha256-6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d.sbom
+2026/10/21 20:13:49 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atenet-2559047aaba794c6723c99da32f86409@sha256:6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d
+2026/10/21 20:13:50 existing manifest: latest@sha256:975bd88e7ba0213652de7807dabe3df2aa5f13f6d4ba02326f8386cda2b31df0
+2026/10/21 20:13:50 existing manifest: sha256-975bd88e7ba0213652de7807dabe3df2aa5f13f6d4ba02326f8386cda2b31df0.sbom@sha256:b9bbd1e4b2fd0ecdc19ee3d01d39842598d8ac0d8dc2fba4cad0a082393a06c0
+2026/10/21 20:13:50 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atelet-89dbecdd4e8d5cd4d125a2de341f399c:sha256-975bd88e7ba0213652de7807dabe3df2aa5f13f6d4ba02326f8386cda2b31df0.sbom
+2026/10/21 20:13:50 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atelet-89dbecdd4e8d5cd4d125a2de341f399c@sha256:975bd88e7ba0213652de7807dabe3df2aa5f13f6d4ba02326f8386cda2b31df0
+2026/10/21 20:13:52 existing manifest: latest@sha256:777afd3d4c76957615ec8db2810759b2fff742a1eeeb6457627d2479879f77f6
+2026/10/21 20:13:52 existing manifest: sha256-777afd3d4c76957615ec8db2810759b2fff742a1eeeb6457627d2479879f77f6.sbom@sha256:fd03e564b688136e72a809bb5cc5eff3a36c43143b712a896e902c4d54475349
+2026/10/21 20:13:52 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateapi-752889f8b0bcdbee32172ac9fe056025:sha256-777afd3d4c76957615ec8db2810759b2fff742a1eeeb6457627d2479879f77f6.sbom
+2026/10/21 20:13:52 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateapi-752889f8b0bcdbee32172ac9fe056025@sha256:777afd3d4c76957615ec8db2810759b2fff742a1eeeb6457627d2479879f77f6
+clusterrole.rbac.authorization.k8s.io/ate-api-server unchanged
+serviceaccount/ate-api-server unchanged
+clusterrolebinding.rbac.authorization.k8s.io/ate-api-server unchanged
+deployment.apps/ate-api-server created
+poddisruptionbudget.policy/ate-api-server configured
+service/api configured
+namespace/ate-system configured
+serviceaccount/ate-client unchanged
+serviceaccount/ate-controller unchanged
+clusterrolebinding.rbac.authorization.k8s.io/ate-controller unchanged
+rolebinding.rbac.authorization.k8s.io/ate-controller unchanged
+service/ate-controller unchanged
+deployment.apps/ate-controller created
+configmap/ate-otel-config unchanged
+namespace/ate-system unchanged
+serviceaccount/atelet unchanged
+clusterrole.rbac.authorization.k8s.io/atelet unchanged
+clusterrolebinding.rbac.authorization.k8s.io/atelet unchanged
+role.rbac.authorization.k8s.io/atelet-endpointslices unchanged
+rolebinding.rbac.authorization.k8s.io/atelet-endpointslices unchanged
+daemonset.apps/atelet-695dee9e created
+serviceaccount/atenet-egress unchanged
+configmap/atenet-egress configured
+deployment.apps/atenet-egress created
+service/atenet-egress created
+serviceaccount/atenet-egress unchanged
+configmap/atenet-egress configured
+deployment.apps/atenet-egress configured
+service/atenet-egress configured
+podmonitoring.monitoring.googleapis.com/atenet-router-envoy unchanged
+serviceaccount/atenet-router unchanged
+role.rbac.authorization.k8s.io/atenet-router-endpointslices unchanged
+rolebinding.rbac.authorization.k8s.io/atenet-router-endpointslices unchanged
+configmap/atenet-router-envoy-config unchanged
+deployment.apps/atenet-router created
+service/atenet-router created
+namespace/podcertificate-controller-system unchanged
+clusterrole.rbac.authorization.k8s.io/podcert-ate-dev-signer unchanged
+clusterrolebinding.rbac.authorization.k8s.io/podcert-ate-dev-signer unchanged
+role.rbac.authorization.k8s.io/coordinator unchanged
+rolebinding.rbac.authorization.k8s.io/podcertificate-controller-is-a-coordinator unchanged
+deployment.apps/podcertificate-controller unchanged
+sandboxconfig.ate.dev/gvisor-default unchanged
+validatingadmissionpolicy.admissionregistration.k8s.io/sandboxconfig-assets configured
+validatingadmissionpolicybinding.admissionregistration.k8s.io/sandboxconfig-assets unchanged
+2026/10/21 20:14:05 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/atenet
+2026/10/21 20:14:06 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:14:06 Building github.com/agent-substrate/substrate/cmd/atenet for linux/amd64
+2026/10/21 20:14:13 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atenet-2559047aaba794c6723c99da32f86409:latest
+2026/10/21 20:14:15 existing manifest: latest@sha256:6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d
+2026/10/21 20:14:15 existing manifest: sha256-6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d.sbom@sha256:12c6a2332f6e32d47f202a9e36153d2449dfcd0e817f2f27232e80c82e6735b3
+2026/10/21 20:14:15 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atenet-2559047aaba794c6723c99da32f86409:sha256-6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d.sbom
+2026/10/21 20:14:15 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atenet-2559047aaba794c6723c99da32f86409@sha256:6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d
+serviceaccount/atenet-egress unchanged
+configmap/atenet-egress unchanged
+deployment.apps/atenet-egress unchanged
+service/atenet-egress unchanged
+[1;36m[step]: Waiting for ATE system components to be ready...[0m
+partitioned roll out complete: 1 new pods have been updated...
+deployment "ate-api-server" successfully rolled out
+deployment "ate-controller" successfully rolled out
+deployment "atenet-router" successfully rolled out
+deployment "atenet-egress" successfully rolled out
+daemon set "atelet-695dee9e" successfully rolled out
+
+================================================================================
+[2026-10-21T20:14:23Z] STEP 4: Build fresh ateom-gvisor worker image and deploy WorkerPools (wp-c3-cos, wp-c3-ubuntu)
+================================================================================
+Built fresh WORKER_IMAGE: us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateom-gvisor-715889664656de67e44382a8d6ab981d@sha256:44ba803da2a0314833cdf635111ef31bf7aa5515f5ea87fbf7918c7abee537b7
+namespace/ate-bench-stream created
+workerpool.ate.dev/wp-c3-cos created
+workerpool.ate.dev/wp-c3-ubuntu created
+Waiting for WorkerPools wp-c3-cos and wp-c3-ubuntu to become Ready...
++ kubectl -n ate-bench-stream get workerpools,pods -o wide
+NAME                              DESIRED   REPLICAS   READY   AGE
+workerpool.ate.dev/wp-c3-cos      1         1          1       6s
+workerpool.ate.dev/wp-c3-ubuntu   1         1          1       6s
+
+NAME                                READY   STATUS    RESTARTS   AGE   IP           NODE                                                  NOMINATED NODE   READINESS GATES
+pod/wp-c3-cos-5bbd6758-cv9fr        1/1     Running   0          6s    10.96.6.64   gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62   <none>           <none>
+pod/wp-c3-ubuntu-7686d7fdb6-xvvkq   1/1     Running   0          5s    10.96.7.62   gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p   <none>           <none>
+Inspecting volumeMounts on worker pod wp-c3-ubuntu-7686d7fdb6-xvvkq:
+[
+    {
+        "mountPath": "/run/ateom-capacity",
+        "name": "ateom-capacity",
+        "readOnly": true
+    },
+    {
+        "mountPath": "/var/lib/ateom-gvisor",
+        "mountPropagation": "HostToContainer",
+        "name": "run-ateom"
+    },
+    {
+        "mountPath": "/run/podidentity.podcert.ate.dev",
+        "name": "atunnel-identity",
+        "readOnly": true
+    },
+    {
+        "mountPath": "/run/servicedns.podcert.ate.dev",
+        "name": "atunnel-egress-trust",
+        "readOnly": true
+    },
+    {
+        "mountPath": "/var/lib/substrate/gcfs",
+        "mountPropagation": "HostToContainer",
+        "name": "var-lib-substrate-gcfs",
+        "readOnly": true
+    },
+    {
+        "mountPath": "/run/gcfsd",
+        "mountPropagation": "HostToContainer",
+        "name": "run-gcfsd",
+        "readOnly": true
+    },
+    {
+        "mountPath": "/var/lib/soci-snapshotter-grpc",
+        "mountPropagation": "HostToContainer",
+        "name": "var-lib-soci",
+        "readOnly": true
+    },
+    {
+        "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+        "name": "kube-api-access-rqz6l",
+        "readOnly": true
+    }
+]
+
+================================================================================
+[2026-10-21T20:14:45Z] STEP 5: Build & deploy all 4 OCILayerService adapter DaemonSets from scratch via swap_ocilayer_adapter.sh
+================================================================================
+=== Deleting any existing OCILayerService / ImageAccelerator DaemonSets and Dragonfly components ===
+No resources found
+Waiting for old adapter pods to terminate...
+=== Building and applying cmd/ocilayer-riptide/ocilayer-riptide.yaml (version=695dee9e, suffix=695dee9e) ===
+2026/10/21 20:14:53 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/ocilayer-riptide
+2026/10/21 20:14:53 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:14:53 Building github.com/agent-substrate/substrate/cmd/ocilayer-riptide for linux/amd64
+2026/10/21 20:14:55 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-riptide-fb3bebf9d8a93a0115f1bba1f3a46c4e:latest
+2026/10/21 20:14:57 existing manifest: sha256-7e82d47b97e114f3b8f159efc859d35273410395dd6081ab962c8b5c77002166.sbom@sha256:04d26f78da4ee9c846057b02082ec78078c55c831ea0eae30b503fdd5d9f5c1f
+2026/10/21 20:14:57 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-riptide-fb3bebf9d8a93a0115f1bba1f3a46c4e:sha256-7e82d47b97e114f3b8f159efc859d35273410395dd6081ab962c8b5c77002166.sbom
+2026/10/21 20:14:59 existing manifest: latest@sha256:7e82d47b97e114f3b8f159efc859d35273410395dd6081ab962c8b5c77002166
+2026/10/21 20:14:59 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-riptide-fb3bebf9d8a93a0115f1bba1f3a46c4e@sha256:7e82d47b97e114f3b8f159efc859d35273410395dd6081ab962c8b5c77002166
+daemonset.apps/ate-ocilayer-riptide-695dee9e created
+=== Building and applying cmd/ocilayer-soci/ocilayer-soci.yaml (version=695dee9e, suffix=695dee9e) ===
+2026/10/21 20:15:03 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/ocilayer-soci
+2026/10/21 20:15:03 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:15:03 Building github.com/agent-substrate/substrate/cmd/ocilayer-soci for linux/amd64
+2026/10/21 20:15:06 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-soci-7812b0903a149b0ac33f7852e91a4f48:latest
+2026/10/21 20:15:08 existing manifest: sha256-17ff7781ec3c39b78d6493c3961370665114b8da4df20f03fbd9b8af8b0dd8c8.sbom@sha256:d91d2deaf18bb7eb34870d2393c084c0c5810bbc3c0c13bbeea1431cb00ef72d
+2026/10/21 20:15:08 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-soci-7812b0903a149b0ac33f7852e91a4f48:sha256-17ff7781ec3c39b78d6493c3961370665114b8da4df20f03fbd9b8af8b0dd8c8.sbom
+2026/10/21 20:15:08 existing manifest: latest@sha256:17ff7781ec3c39b78d6493c3961370665114b8da4df20f03fbd9b8af8b0dd8c8
+2026/10/21 20:15:08 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-soci-7812b0903a149b0ac33f7852e91a4f48@sha256:17ff7781ec3c39b78d6493c3961370665114b8da4df20f03fbd9b8af8b0dd8c8
+daemonset.apps/ate-ocilayer-soci-695dee9e created
+=== Building and applying cmd/ocilayer-nydus-dragonfly/ocilayer-nydus-dragonfly.yaml (version=695dee9e, suffix=695dee9e) ===
+2026/10/21 20:15:11 Using base gcr.io/distroless/static-debian13:latest@sha256:f2ea2709ac8db56323cbd7d014277f32cb572d9ea124b0076f7aafe5980678fe for github.com/agent-substrate/substrate/cmd/ocilayer-nydus-dragonfly
+2026/10/21 20:15:12 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:15:12 Building github.com/agent-substrate/substrate/cmd/ocilayer-nydus-dragonfly for linux/amd64
+2026/10/21 20:15:14 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-nydus-dragonfly-1e72345282d02b32b52680fec87861f5:latest
+2026/10/21 20:15:18 existing manifest: sha256-066065b67e8c412a033d322daeed1cda84ac0a5f234bc8f3c95ad19c11c4b716.sbom@sha256:ee02ab7ddc6e259381f08ef3576f52931675a06e962ab285bc1d685e9467e061
+2026/10/21 20:15:18 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-nydus-dragonfly-1e72345282d02b32b52680fec87861f5:sha256-066065b67e8c412a033d322daeed1cda84ac0a5f234bc8f3c95ad19c11c4b716.sbom
+2026/10/21 20:15:20 existing manifest: latest@sha256:066065b67e8c412a033d322daeed1cda84ac0a5f234bc8f3c95ad19c11c4b716
+2026/10/21 20:15:20 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-nydus-dragonfly-1e72345282d02b32b52680fec87861f5@sha256:066065b67e8c412a033d322daeed1cda84ac0a5f234bc8f3c95ad19c11c4b716
+service/dragonfly-redis created
+deployment.apps/dragonfly-redis created
+service/dragonfly-mysql created
+deployment.apps/dragonfly-mysql created
+configmap/dragonfly-controlplane-config unchanged
+service/dragonfly-manager created
+deployment.apps/dragonfly-manager created
+service/dragonfly-scheduler created
+deployment.apps/dragonfly-scheduler created
+daemonset.apps/ate-ocilayer-nydus-dragonfly-695dee9e created
+=== Building and applying cmd/ocilayer-spegel/ocilayer-spegel.yaml (version=695dee9e, suffix=695dee9e) ===
+2026/10/21 20:15:24 Using base debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 for github.com/agent-substrate/substrate/cmd/ocilayer-spegel
+2026/10/21 20:15:24 git doesn't contain any tags. Tag info will not be available
+git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-streaming/bench-runner/main.go
+?? benchmarking/image-streaming/E2E_FUNCTIONAL_TEST.md
+?? benchmarking/image-streaming/e2e_functional_test_evidence.log
+?? benchmarking/image-streaming/e2e_functional_test_results.jsonl
+?? benchmarking/image-streaming/run_e2e_functional_test.sh
+?? benchmarking/image-streaming/swap_ocilayer_adapter.sh
+
+2026/10/21 20:15:24 Building github.com/agent-substrate/substrate/cmd/ocilayer-spegel for linux/amd64
+2026/10/21 20:15:27 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-spegel-29f31aaf72b63aa7a9865085196dfba0:latest
+2026/10/21 20:15:28 existing manifest: latest@sha256:e51e77149cf6058a5b10ca14c3c84e447dab0e8e8367b173ac5d833ffbbfa3a8
+2026/10/21 20:15:29 existing manifest: sha256-e51e77149cf6058a5b10ca14c3c84e447dab0e8e8367b173ac5d833ffbbfa3a8.sbom@sha256:7c892af403ddcf71ba136f33f67d81452a3d214212c08f9f2caa47268ea05f23
+2026/10/21 20:15:29 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-spegel-29f31aaf72b63aa7a9865085196dfba0:sha256-e51e77149cf6058a5b10ca14c3c84e447dab0e8e8367b173ac5d833ffbbfa3a8.sbom
+2026/10/21 20:15:29 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-spegel-29f31aaf72b63aa7a9865085196dfba0@sha256:e51e77149cf6058a5b10ca14c3c84e447dab0e8e8367b173ac5d833ffbbfa3a8
+service/spegel-bootstrap unchanged
+daemonset.apps/ate-ocilayer-spegel-695dee9e created
+Waiting for Dragonfly control-plane deployments to become Available...
+deployment "dragonfly-mysql" successfully rolled out
+deployment "dragonfly-redis" successfully rolled out
+Waiting for deployment "dragonfly-manager" rollout to finish: 0 of 1 updated replicas are available...
+deployment "dragonfly-manager" successfully rolled out
+Waiting for deployment "dragonfly-scheduler" rollout to finish: 0 of 1 updated replicas are available...
+deployment "dragonfly-scheduler" successfully rolled out
+=== All 4 OCILayerService adapter DaemonSets deployed cleanly ===
++ kubectl -n ate-system get ds,deploy -o wide
+NAME                                                   DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR                        AGE    CONTAINERS                                            IMAGES                                                                                                                                                                                                                                                                                                                            SELECTOR
+daemonset.apps/ate-ocilayer-nydus-dragonfly-695dee9e   0         0         0       0            0           ate.dev/substrate-version=695dee9e   18s    dfdaemon,nydus-snapshotter,ocilayer-nydus-dragonfly   dragonflyoss/dfdaemon:v2.1.49,debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132,us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-nydus-dragonfly-1e72345282d02b32b52680fec87861f5@sha256:066065b67e8c412a033d322daeed1cda84ac0a5f234bc8f3c95ad19c11c4b716   app=ate-ocilayer-adapter,ate.dev/oci-layer-provider=nydus-dragonfly,ate.dev/substrate-version=695dee9e
+daemonset.apps/ate-ocilayer-riptide-695dee9e           0         0         0       0            0           ate.dev/substrate-version=695dee9e   40s    riptide-provider,ocilayer-riptide                     debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132,us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-riptide-fb3bebf9d8a93a0115f1bba1f3a46c4e@sha256:7e82d47b97e114f3b8f159efc859d35273410395dd6081ab962c8b5c77002166                                         app=ate-ocilayer-adapter,ate.dev/oci-layer-provider=riptide,ate.dev/substrate-version=695dee9e
+daemonset.apps/ate-ocilayer-soci-695dee9e              0         0         0       0            0           ate.dev/substrate-version=695dee9e   32s    soci-snapshotter,ocilayer-soci                        debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132,us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-soci-7812b0903a149b0ac33f7852e91a4f48@sha256:17ff7781ec3c39b78d6493c3961370665114b8da4df20f03fbd9b8af8b0dd8c8                                            app=ate-ocilayer-adapter,ate.dev/oci-layer-provider=soci,ate.dev/substrate-version=695dee9e
+daemonset.apps/ate-ocilayer-spegel-695dee9e            0         0         0       0            0           ate.dev/substrate-version=695dee9e   10s    ocilayer-spegel                                       us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ocilayer-spegel-29f31aaf72b63aa7a9865085196dfba0@sha256:e51e77149cf6058a5b10ca14c3c84e447dab0e8e8367b173ac5d833ffbbfa3a8                                                                                                                                 app=ate-ocilayer-adapter,ate.dev/oci-layer-provider=spegel,ate.dev/substrate-version=695dee9e
+daemonset.apps/atelet-695dee9e                         8         8         8       8            8           ate.dev/substrate-version=695dee9e   104s   atelet                                                us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atelet-89dbecdd4e8d5cd4d125a2de341f399c@sha256:975bd88e7ba0213652de7807dabe3df2aa5f13f6d4ba02326f8386cda2b31df0                                                                                                                                          app=atelet,ate.dev/substrate-version=695dee9e
+
+NAME                                  READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS            IMAGES                                                                                                                                                                                                                                                                                           SELECTOR
+deployment.apps/ate-api-server        2/2     2            2           106s   ate-api-server        us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateapi-752889f8b0bcdbee32172ac9fe056025@sha256:777afd3d4c76957615ec8db2810759b2fff742a1eeeb6457627d2479879f77f6                                                                                                         app=ate-api-server
+deployment.apps/ate-controller        1/1     1            1           105s   ate-controller        us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atecontroller-86b02a85c6bff82898e0930a8b0286d1@sha256:38ea9d179ee61abeb9bb913946960fba2f889153fd1c4cd755d809b61036fb7b                                                                                                  app=ate-controller
+deployment.apps/ate-idp-server        2/2     2            2           4h     ate-idp-server        us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ate-idp-server@sha256:9877fe0a70a615fd8faaa08203e93de3cb9df151afb20a8911d252a600a43616                                                                                                                                  app=ate-idp-server
+deployment.apps/atenet-egress         1/1     1            1           103s   envoy,ext-proc        envoyproxy/envoy:v1.39-latest@sha256:57e14a549d7bd43c8d3f6d03e8cfa653e037d4b38e133acd9b54f38c524401b4,us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atenet-2559047aaba794c6723c99da32f86409@sha256:6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d   app=atenet-egress
+deployment.apps/atenet-router         1/1     1            1           100s   atenet-router,envoy   us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atenet-2559047aaba794c6723c99da32f86409@sha256:6c1dc94b76548a4ae24bb25057a29f955978be6ba81585ba31a75109b0ad7b3d,envoyproxy/envoy:v1.39-latest@sha256:57e14a549d7bd43c8d3f6d03e8cfa653e037d4b38e133acd9b54f38c524401b4   app=atenet-router
+deployment.apps/dragonfly-manager     1/1     1            1           18s    manager               dragonflyoss/manager:v2.1.49                                                                                                                                                                                                                                                                     app=dragonfly-manager
+deployment.apps/dragonfly-mysql       1/1     1            1           19s    mysql                 mysql:8.0                                                                                                                                                                                                                                                                                        app=dragonfly-mysql
+deployment.apps/dragonfly-redis       1/1     1            1           19s    redis                 redis:7-alpine                                                                                                                                                                                                                                                                                   app=dragonfly-redis
+deployment.apps/dragonfly-scheduler   1/1     1            1           18s    scheduler             dragonflyoss/scheduler:v2.1.49                                                                                                                                                                                                                                                                   app=dragonfly-scheduler
+
+================================================================================
+[2026-10-21T20:15:43Z] STEP 6: E2E Functional Test — Nydus + Dragonfly P2P on Ubuntu Node (gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p)
+================================================================================
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p not labeled
+Swapping node gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p to ate.dev/oci-layer-service=nydus-dragonfly...
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p labeled
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+Swapping node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc to ate.dev/oci-layer-service=nydus-dragonfly...
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc labeled
+Waiting for adapter pod (provider=nydus-dragonfly) on node gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p to become Ready...
+Adapter nydus-dragonfly (ate-ocilayer-nydus-dragonfly-695dee9e-5q46x) is Ready on gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p!
+Waiting for adapter pod (provider=nydus-dragonfly) on node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc to become Ready...
+Adapter nydus-dragonfly (ate-ocilayer-nydus-dragonfly-695dee9e-rdvpj) is Ready on gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc!
+--- Seeding Nydus RAFS v6 image on Dragonfly peer node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc ---
+Prepared image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 (digest=sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7, layers=1)
+--- Creating ActorTemplate tmpl-ubuntu-nydus and waiting for golden snapshot ---
+Deleted ActorTemplate ate-bench-stream/tmpl-ubuntu-nydus
+Created ActorTemplate ate-bench-stream/tmpl-ubuntu-nydus (uid=609a53d9-994a-4775-a4e5-06f0d71fde36)
+Golden snapshot ready: gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-golden/actors/170a9c53-3433-4d48-b687-8727e861a02a/snapshots/b4a53b23-d3f4-4764-9e94-61f703051bc6
+--- [nydus-dragonfly] 1. Cold Boot + Command Execution ---
+{"adapter":"nydus-dragonfly","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-nydus-dragonfly-actor","worker_pod":"wp-c3-ubuntu-7686d7fdb6-xvvkq","resume_rpc_start_ns":1792614497081528390,"resume_rpc_done_ns":1792614497681079270,"resume_rpc_dur_ms":599.550891,"cmd_t0_ns":1792614497827400655,"cmd_t1_ns":1792614497838014329,"http_done_ns":1792614497840703707,"client_ttce_ms":745.872265,"workload_run_ms":10.613674,"client_e2e_ms":756.485939,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+--- [nydus-dragonfly] 2. Verifying Nydus EROFS Mounts Inside Worker Pod (wp-c3-ubuntu-7686d7fdb6-xvvkq) ---
+Inspecting mount namespace of worker pod process ateom-gvisor (host PID=2810249):
+=== Symlink target of layer-0/fs inside worker pod (/proc/2810249/root) ===
+total 8
+drwxr-xr-x 2 root root 4096 Oct 21 20:28 .
+drwxr-xr-x 3 root root 4096 Oct 21 20:28 ..
+-rw------- 1 root root    0 Oct 21 20:28 finalized
+lrwxrwxrwx 1 root root   55 Oct 21 20:28 fs -> /var/lib/ateom-gvisor/containerd-nydus/snapshots/10/mnt
+=== Reading EROFS mount at /var/lib/ateom-gvisor/containerd-nydus/snapshots/*/mnt inside worker pod ===
+total 112
+drwxr-xr-x 20 root   root   472 Jan  1  1970 .
+drwx------  5 root   root  4096 Oct 21 20:16 ..
+lrwxrwxrwx  1 root   root     7 Sep  1 20:33 bin -> usr/bin
+drwxr-xr-x  2 root   root    27 Apr 18  2022 boot
+drwxr-xr-x  3 root   root    76 Sep 24 18:30 builder
+drwxr-xr-x  2 root   root    27 Sep  1 20:42 dev
+drwxr-xr-x 61 root   root  2362 Sep 24 18:49 etc
+drwxr-xr-x  2 root   root    27 Apr 18  2022 home
+dr-xr-xr-x  2 root   root    46 Jan  1  1970 ko-app
+lrwxrwxrwx  1 root   root     7 Sep  1 20:33 lib -> usr/lib
+lrwxrwxrwx  1 root   root     9 Sep  1 20:33 lib32 -> usr/lib32
+lrwxrwxrwx  1 root   root     9 Sep  1 20:33 lib64 -> usr/lib64
+lrwxrwxrwx  1 root   root    10 Sep  1 20:33 libx32 -> usr/libx32
+drwxr-xr-x  2 root   root    27 Sep  1 20:33 media
+drwxr-xr-x  2 root   root    27 Sep  1 20:33 mnt
+drwxr-xr-x  3 591210 89939   49 Oct 16 01:19 opt
+drwxr-xr-x  2 root   root    27 Apr 18  2022 proc
+-rw-r--r--  1 root   root   272 Sep 24 18:27 requirements.txt
+-rw-r--r--  1 root   root   244 Sep 24 18:27 requirements_py2.txt
+drwx------  4 root   root   103 Sep 24 18:30 root
+drwxr-xr-x  8 root   root   152 Sep 24 18:29 run
+lrwxrwxrwx  1 root   root     8 Sep  1 20:33 sbin -> usr/sbin
+drwxr-xr-x  2 root   root    27 Sep  1 20:33 srv
+drwxr-xr-x  2 root   root    27 Apr 18  2022 sys
+drwxr-xr-x  3 591210 89939   42 Oct 16 01:19 testbed
+drwxrwxrwt  3 root   root    54 Sep 24 18:50 tmp
+drwxr-xr-x 14 root   root   229 Sep  1 20:33 usr
+dr-xr-xr-x 12 root   root   204 Jan  1  1970 var
+=== Active EROFS / containerd-nydus mounts in worker pod mountinfo ===
+3331 3543 0:448 / /var/lib/ateom-gvisor/containerd-nydus/snapshots/10/mnt rw,relatime master:1573 - erofs erofs ro,user_xattr,acl,cache_strategy=readaround,fsid=5fff396b3fb7a4acb15dd26e7249657c919c352e2cd75c89bbda3c0cd5a17753
+--- [nydus-dragonfly] 3. Suspend + Warm Resume + Cold Resume ---
+{"action":"suspend","actor_ref":"ate-bench-stream/e2e-nydus-dragonfly-actor","suspend_dur_ms":414.72,"snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/42208506-2f65-4223-9b2b-3b8c1607b8cd/snapshots/08b71029-48e3-4431-92d1-593672fb3ffb"}
+{"adapter":"nydus-dragonfly","scenario":"warm_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-nydus-dragonfly-actor","worker_pod":"wp-c3-ubuntu-7686d7fdb6-xvvkq","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/42208506-2f65-4223-9b2b-3b8c1607b8cd/snapshots/08b71029-48e3-4431-92d1-593672fb3ffb","resume_rpc_start_ns":1792614501082643038,"resume_rpc_done_ns":1792614501380987810,"resume_rpc_dur_ms":298.344782,"cmd_t0_ns":1792614501398534553,"cmd_t1_ns":1792614501406394106,"http_done_ns":1792614501409028365,"client_ttce_ms":315.891515,"workload_run_ms":7.859553,"client_e2e_ms":323.751068,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"suspend","actor_ref":"ate-bench-stream/e2e-nydus-dragonfly-actor","suspend_dur_ms":603.84,"snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/42208506-2f65-4223-9b2b-3b8c1607b8cd/snapshots/8f9bb4f3-a2a7-4b0d-98f8-fb75d4630f0b"}
+{"adapter":"nydus-dragonfly","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-nydus-dragonfly-actor","worker_pod":"wp-c3-ubuntu-7686d7fdb6-xvvkq","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/42208506-2f65-4223-9b2b-3b8c1607b8cd/snapshots/8f9bb4f3-a2a7-4b0d-98f8-fb75d4630f0b","resume_rpc_start_ns":1792614505056886912,"resume_rpc_done_ns":1792614505747181586,"resume_rpc_dur_ms":690.294738,"cmd_t0_ns":1792614505808397672,"cmd_t1_ns":1792614505819517417,"http_done_ns":1792614505822243651,"client_ttce_ms":751.51076,"workload_run_ms":11.119745,"client_e2e_ms":762.630505,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"delete","actor_ref":"ate-bench-stream/e2e-nydus-dragonfly-actor"}
+--- [nydus-dragonfly] 4. Inspecting Adapter, Snapshotter/nydusd, and dfdaemon Logs (ate-ocilayer-nydus-dragonfly-695dee9e-5q46x) ---
+>>> Container: ocilayer-nydus-dragonfly <<<
+2026/10/21 20:15:46 INFO Initialized cross-node Nydus + Dragonfly v2 (Kernel EROFS + fscache) OCILayerService driver dragonflyProxyAddr=http://127.0.0.1:65001 dragonflySchedulerAddr=dragonfly-scheduler.ate-system.svc.cluster.local:8002 dragonflyManagerAddr=dragonfly-manager.ate-system.svc.cluster.local:65003 verifyDragonflyPing=true procFilesystems=/proc/filesystems cachefilesDev=/dev/cachefiles
+2026/10/21 20:15:46 INFO OCILayerService adapter listening provider=nydus-dragonfly listenSocket=/run/ate-image-streaming/ocilayer.sock snapshotterSocket=/run/containerd-nydus/containerd-nydus-grpc.sock
+2026/10/21 20:16:03 INFO Synchronized registry credentials to docker config path=/run/containerd-nydus/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 server=us-central1-docker.pkg.dev username=oauth2accesstoken
+2026/10/21 20:16:04 INFO Materialized and committed Nydus RAFS v6 EROFS bootstrap layer layerIndex=9 layerDigest=sha256:4708d969ebe0d28faabdc8af15029c0af872add758901ba43b46223611c12b0a chainID=sha256:290c98e805703be418ed6428abb8738cc00c711707718b663a7605e7f983670b targetDir=/var/lib/ateom-gvisor/containerd-nydus/snapshots/10/fs dragonflyProxy=http://127.0.0.1:65001 dragonflyScheduler=dragonfly-scheduler.ate-system.svc.cluster.local:8002 dragonflyManager=dragonfly-manager.ate-system.svc.cluster.local:65003
+2026/10/21 20:16:04 INFO PrepareImage timing breakdown provider=nydus-dragonfly image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 digest=sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 layers=1 resolve_ms=236.181 stat_ms=3.709 prepare_ms=26.644 view_ms=29.162 listable_ms=0.058 wrapper_ms=0.39 total_ms=671.393
+2026/10/21 20:16:28 INFO Synchronized registry credentials to docker config path=/run/containerd-nydus/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 server=us-central1-docker.pkg.dev username=oauth2accesstoken
+2026/10/21 20:16:28 INFO PrepareImage timing breakdown provider=nydus-dragonfly image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 digest=sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 layers=1 resolve_ms=0 stat_ms=1.504 prepare_ms=0 view_ms=1.298 listable_ms=0.452 wrapper_ms=0.978 total_ms=4.882
+2026/10/21 20:22:12 INFO Synchronized registry credentials to docker config path=/run/containerd-nydus/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 server=us-central1-docker.pkg.dev username=oauth2accesstoken
+2026/10/21 20:22:17 INFO Synchronized registry credentials to docker config path=/run/containerd-nydus/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 server=us-central1-docker.pkg.dev username=oauth2accesstoken
+2026/10/21 20:22:17 INFO PrepareImage timing breakdown provider=nydus-dragonfly image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 digest=sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 layers=1 resolve_ms=0 stat_ms=1.358 prepare_ms=0 view_ms=1.252 listable_ms=0.366 wrapper_ms=1.026 total_ms=4.649
+2026/10/21 20:28:17 INFO Synchronized registry credentials to docker config path=/run/containerd-nydus/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 server=us-central1-docker.pkg.dev username=oauth2accesstoken
+2026/10/21 20:28:17 INFO PrepareImage timing breakdown provider=nydus-dragonfly image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 digest=sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 layers=1 resolve_ms=0 stat_ms=1.464 prepare_ms=0 view_ms=1.326 listable_ms=0.427 wrapper_ms=0.921 total_ms=4.82
+2026/10/21 20:28:25 INFO Synchronized registry credentials to docker config path=/run/containerd-nydus/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 server=us-central1-docker.pkg.dev username=oauth2accesstoken
+2026/10/21 20:28:25 INFO PrepareImage timing breakdown provider=nydus-dragonfly image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 digest=sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 layers=1 resolve_ms=0 stat_ms=1.51 prepare_ms=0 view_ms=1.348 listable_ms=0.366 wrapper_ms=1.044 total_ms=4.819
+>>> Container: nydus-snapshotter (checking for any 403 token errors) <<<
+[2026-10-21 20:15:46.498731 +00:00] INFO Program Version: v2.3.0, Git Commit: "a4683baa1ea8cafecc9013bc4d6a5259b5a82678", Build Time: "2024-10-11T02:51:53.888907475Z", Profile: "release", Rustc Version: "rustc 1.72.1 (d5c2e9c34 2023-09-13)"
+[2026-10-21 20:15:46.498773 +00:00] INFO Set rlimit-nofile to 1000000, maximum 1048576
+[2026-10-21 20:15:46.498780 +00:00] INFO Start Nydus daemon in singleton mode!
+[2026-10-21 20:15:46.498848 +00:00] INFO Create fscache instance at /var/lib/ateom-gvisor/containerd-nydus/cache with tag <none>, 4 working threads
+[2026-10-21 20:15:46.498858 +00:00] INFO fscache: create FsCacheHandler with dir /var/lib/ateom-gvisor/containerd-nydus/cache, tag <None>
+[2026-10-21 20:15:46.510689 +00:00] INFO State machine(pid=2810775): from Init to Ready, input [Mount], output [None]
+[2026-10-21 20:15:46.510768 +00:00] INFO State machine(pid=2810775): from Ready to Running, input [Start], output [Some(StartService)]
+[2026-10-21 20:15:46.510777 +00:00] INFO Starting all Nydus services...
+[2026-10-21 20:15:46.511015 +00:00] INFO HTTP API server running at /var/lib/ateom-gvisor/containerd-nydus/socket/dbchqsg3jrrjtpqs7crg/api.sock
+[2026-10-21 20:15:46.511049 +00:00] INFO http server started
+time="2026-10-21T20:15:46.692458779Z" level=info msg="Subscribe daemon dbchqsg3jrrjtpqs7crg liveness event, path=/var/lib/ateom-gvisor/containerd-nydus/socket/dbchqsg3jrrjtpqs7crg/api.sock."
+time="2026-10-21T20:16:03.894332776Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l0-prep parent "
+time="2026-10-21T20:16:03.897751123Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l0-prep\" snapshot id 1"
+time="2026-10-21T20:16:03.900555089Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l1-prep parent sha256:8c736db307953fce280b5277a5c4c970e842a506842900434e4736d8887212d2"
+time="2026-10-21T20:16:03.901453857Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l1-prep\" snapshot id 2"
+time="2026-10-21T20:16:03.904155520Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l2-prep parent sha256:e039f7948ac6664abaacbc4153c1b31fe2bc92e202bef10d9b10a497ad833738"
+time="2026-10-21T20:16:03.905079583Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l2-prep\" snapshot id 3"
+time="2026-10-21T20:16:03.907011231Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l3-prep parent sha256:a8643653def8449337a4e542c0b5bbeaee70c716095fadd1de61b325a56c1dda"
+time="2026-10-21T20:16:03.907878802Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l3-prep\" snapshot id 4"
+time="2026-10-21T20:16:03.909570491Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l4-prep parent sha256:90a8bb0f457c8b71516f4d421a15230cfeaf07802c725b6b97f2eff41e34e65c"
+time="2026-10-21T20:16:03.910375884Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l4-prep\" snapshot id 5"
+time="2026-10-21T20:16:03.912290047Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l5-prep parent sha256:e228ac1d5fe9714d0298f5db3585f415271526c2e71490f3c284b7b28f20ce38"
+time="2026-10-21T20:16:03.913082574Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l5-prep\" snapshot id 6"
+time="2026-10-21T20:16:03.914878431Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l6-prep parent sha256:ec2310208ca2aeb15c67595d5febfe4580f7e584637004639ad1bbda675f5d61"
+time="2026-10-21T20:16:03.915729639Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l6-prep\" snapshot id 7"
+time="2026-10-21T20:16:03.917473243Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l7-prep parent sha256:84a1d21eb8ca98eccc020a26dec2a31539d34772c9a56df9d23b32a5048a0393"
+time="2026-10-21T20:16:03.918212016Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l7-prep\" snapshot id 8"
+time="2026-10-21T20:16:03.920124807Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l8-prep parent sha256:b5d7684a2b08ad504569bba218b363c23460b37ae7915404106b1396fbf9128a"
+time="2026-10-21T20:16:03.920964168Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l8-prep\" snapshot id 9"
+time="2026-10-21T20:16:03.922891311Z" level=info msg="[Prepare] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l9-prep parent sha256:7afcbe8340e78744cf2d7786e2855c4f6304a3fe8e769ea8f7b0455ca91a8679"
+time="2026-10-21T20:16:04.205000079Z" level=info msg="[Commit] snapshot with key \"us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l9-prep\" snapshot id 10"
+time="2026-10-21T20:16:04.208100934Z" level=info msg="[View] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l9-view parent sha256:290c98e805703be418ed6428abb8738cc00c711707718b663a7605e7f983670b"
+[2026-10-21 20:16:04.208984 +00:00] INFO RAFS features: HASH_BLAKE3 | EXPLICIT_UID_GID | HAS_XATTR | COMPRESSION_ZSTD | INLINED_CHUNK_DIGEST | ENCRYPTION_NONE
+time="2026-10-21T20:16:04.209366256Z" level=info msg="Mount erofs to /var/lib/ateom-gvisor/containerd-nydus/snapshots/10/mnt with options fsid=5fff396b3fb7a4acb15dd26e7249657c919c352e2cd75c89bbda3c0cd5a17753"
+[2026-10-21 20:16:04.214638 +00:00] INFO backend config: ConnectionConfig { proxy: ProxyConfig { url: "http://127.0.0.1:65001", ping_url: "http://127.0.0.1:40901/server/ping", fallback: false, check_interval: 5, use_http: true, check_pause_elapsed: 300 }, mirrors: [], skip_verify: false, timeout: 10, connect_timeout: 10, retry_limit: 2 }
+[2026-10-21 20:16:04.229501 +00:00] INFO Refresh token thread started.
+[2026-10-21 20:16:04.229676 +00:00] INFO Will replace backend's URL's scheme with http
+time="2026-10-21T20:16:04.236831159Z" level=info msg="remote mount options [lowerdir=/var/lib/ateom-gvisor/containerd-nydus/snapshots/10/mnt:/var/lib/ateom-gvisor/containerd-nydus/snapshots/11/fs]"
+time="2026-10-21T20:16:27.498826840Z" level=info msg="[Remove] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4b872f2c0b5-l9-view snapshot id 11"
+time="2026-10-21T20:16:28.928041480Z" level=info msg="[View] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4be4c6b2041-l9-view parent sha256:290c98e805703be418ed6428abb8738cc00c711707718b663a7605e7f983670b"
+time="2026-10-21T20:16:28.929204113Z" level=info msg="remote mount options [lowerdir=/var/lib/ateom-gvisor/containerd-nydus/snapshots/10/mnt:/var/lib/ateom-gvisor/containerd-nydus/snapshots/12/fs]"
+time="2026-10-21T20:22:15.655139348Z" level=info msg="[Remove] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a4be4c6b2041-l9-view snapshot id 12"
+time="2026-10-21T20:22:17.109451963Z" level=info msg="[View] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a50f5da83a40-l9-view parent sha256:290c98e805703be418ed6428abb8738cc00c711707718b663a7605e7f983670b"
+time="2026-10-21T20:22:17.110571368Z" level=info msg="remote mount options [lowerdir=/var/lib/ateom-gvisor/containerd-nydus/snapshots/10/mnt:/var/lib/ateom-gvisor/containerd-nydus/snapshots/13/fs]"
+time="2026-10-21T20:28:15.725192355Z" level=info msg="[Remove] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a50f5da83a40-l9-view snapshot id 13"
+time="2026-10-21T20:28:17.178616198Z" level=info msg="[View] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a5633371eef1-l9-view parent sha256:290c98e805703be418ed6428abb8738cc00c711707718b663a7605e7f983670b"
+time="2026-10-21T20:28:17.179799092Z" level=info msg="remote mount options [lowerdir=/var/lib/ateom-gvisor/containerd-nydus/snapshots/10/mnt:/var/lib/ateom-gvisor/containerd-nydus/snapshots/14/fs]"
+time="2026-10-21T20:28:23.807111935Z" level=info msg="[Remove] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a5633371eef1-l9-view snapshot id 14"
+time="2026-10-21T20:28:25.139276487Z" level=info msg="[View] snapshot with key us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7-18e0a5650def5fc7-l9-view parent sha256:290c98e805703be418ed6428abb8738cc00c711707718b663a7605e7f983670b"
+time="2026-10-21T20:28:25.140487921Z" level=info msg="remote mount options [lowerdir=/var/lib/ateom-gvisor/containerd-nydus/snapshots/10/mnt:/var/lib/ateom-gvisor/containerd-nydus/snapshots/15/fs]"
+VERIFIED: 0 occurrences of HTTP 403 in nydus-snapshotter / nydusd logs!
+
+================================================================================
+[2026-10-21T21:03:08Z] STEP 7: E2E Functional Test — Riptide, SOCI, Spegel, and Baseline on COS Node (gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62)
+================================================================================
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+Swapping node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 to ate.dev/oci-layer-service=riptide...
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+Waiting for adapter pod (provider=riptide) on node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 to become Ready...
+Adapter riptide (ate-ocilayer-riptide-695dee9e-zstnw) is Ready on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62!
+Golden snapshot ready: gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-golden/actors/5c3730fa-743a-468d-9b6b-e2c6537e55d0/snapshots/6d24b697-b088-4b7a-af57-7ba3165801f3
+
+================================================================================
+[2026-10-21T21:03:14Z] Testing Adapter=riptide on COS Node (gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62)
+================================================================================
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+Swapping node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 to ate.dev/oci-layer-service=riptide...
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+Waiting for adapter pod (provider=riptide) on node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 to become Ready...
+Adapter riptide (ate-ocilayer-riptide-695dee9e-zstnw) is Ready on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62!
+{"adapter":"riptide","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-riptide-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","resume_rpc_start_ns":1792616608672318859,"resume_rpc_done_ns":1792616609993527275,"resume_rpc_dur_ms":1321.208414,"cmd_t0_ns":1792616610199153353,"cmd_t1_ns":1792616610211698058,"http_done_ns":1792616610214242813,"client_ttce_ms":1526.834494,"workload_run_ms":12.544705,"client_e2e_ms":1539.379199,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"suspend","actor_ref":"ate-bench-stream/e2e-riptide-actor","suspend_dur_ms":569.16,"snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/73d5b526-347f-4a1e-8fcb-fdc688a3be94/snapshots/4cbc21f3-4480-4324-86ce-e00443fe7f47"}
+{"adapter":"riptide","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-riptide-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/73d5b526-347f-4a1e-8fcb-fdc688a3be94/snapshots/4cbc21f3-4480-4324-86ce-e00443fe7f47","resume_rpc_start_ns":1792616614052578812,"resume_rpc_done_ns":1792616614681974526,"resume_rpc_dur_ms":629.395803,"cmd_t0_ns":1792616614812690219,"cmd_t1_ns":1792616614825515495,"http_done_ns":1792616614828259949,"client_ttce_ms":760.111407,"workload_run_ms":12.825276,"client_e2e_ms":772.936683,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"delete","actor_ref":"ate-bench-stream/e2e-riptide-actor"}
+Adapter (ate-ocilayer-riptide-695dee9e-zstnw) logs:
+2026/10/21 21:03:11 INFO OCILayerService adapter listening provider=riptide listenSocket=/run/ate-image-streaming/ocilayer.sock snapshotterSocket=/run/ate-image-streaming/gcfs-snapshotter.sock
+2026/10/21 21:03:29 INFO Pushed credentials to Riptide gcfsd keychain socket=/run/ate-image-streaming/gcfsd/keychain.sock image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 server=us-central1-docker.pkg.dev username=_token
+2026/10/21 21:03:29 INFO PrepareImage timing breakdown provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=330.035 stat_ms=19.485 prepare_ms=0 view_ms=16.982 listable_ms=3.59 wrapper_ms=1.837 total_ms=371.54
+2026/10/21 21:03:34 INFO Pushed credentials to Riptide gcfsd keychain socket=/run/ate-image-streaming/gcfsd/keychain.sock image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 server=us-central1-docker.pkg.dev username=_token
+2026/10/21 21:03:34 INFO PrepareImage timing breakdown provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=0 stat_ms=15.089 prepare_ms=0 view_ms=8.997 listable_ms=0.414 wrapper_ms=2.579 total_ms=25.667
+
+================================================================================
+[2026-10-21T21:24:21Z] Testing Adapter=soci on COS Node (gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62)
+================================================================================
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+Swapping node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 to ate.dev/oci-layer-service=soci...
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+Waiting for adapter pod (provider=soci) on node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 to become Ready...
+Adapter soci (ate-ocilayer-soci-695dee9e-hkmgl) is Ready on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62!
+{"adapter":"soci","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-soci-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","resume_rpc_start_ns":1792617872896893952,"resume_rpc_done_ns":1792617877407183612,"resume_rpc_dur_ms":4510.289687,"cmd_t0_ns":1792617877969515242,"cmd_t1_ns":1792617878094203215,"http_done_ns":1792617878096967649,"client_ttce_ms":5072.62129,"workload_run_ms":124.687973,"client_e2e_ms":5197.309263,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"suspend","actor_ref":"ate-bench-stream/e2e-soci-actor","suspend_dur_ms":475.94,"snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/730a3fa9-29c5-4651-a826-fddebbf334d9/snapshots/55ff6dab-6de2-4fa4-8124-03928580e5d9"}
+{"adapter":"soci","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-soci-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/730a3fa9-29c5-4651-a826-fddebbf334d9/snapshots/55ff6dab-6de2-4fa4-8124-03928580e5d9","resume_rpc_start_ns":1792617882428225361,"resume_rpc_done_ns":1792617883048821464,"resume_rpc_dur_ms":620.59617,"cmd_t0_ns":1792617883159951247,"cmd_t1_ns":1792617883179653776,"http_done_ns":1792617883182763924,"client_ttce_ms":731.725886,"workload_run_ms":19.702529,"client_e2e_ms":751.428415,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"delete","actor_ref":"ate-bench-stream/e2e-soci-actor"}
+Adapter (ate-ocilayer-soci-695dee9e-hkmgl) logs:
+2026/10/21 21:24:24 INFO OCILayerService adapter listening provider=soci listenSocket=/run/ate-image-streaming/ocilayer.sock snapshotterSocket=/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock
+2026/10/21 21:24:33 INFO Synchronized registry credentials to docker config path=/run/soci-snapshotter-grpc/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 server=us-central1-docker.pkg.dev username=oauth2accesstoken
+2026/10/21 21:24:36 INFO PrepareImage timing breakdown provider=soci image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=320.929 stat_ms=29.75 prepare_ms=2997.976 view_ms=25.824 listable_ms=0.835 wrapper_ms=62.611 total_ms=3382.049
+2026/10/21 21:24:42 INFO Synchronized registry credentials to docker config path=/run/soci-snapshotter-grpc/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 server=us-central1-docker.pkg.dev username=oauth2accesstoken
+2026/10/21 21:24:42 INFO PrepareImage timing breakdown provider=soci image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=0 stat_ms=2.002 prepare_ms=0 view_ms=20.124 listable_ms=0.861 wrapper_ms=1.02 total_ms=24.266
+
+================================================================================
+[2026-10-21T21:04:43Z] Testing Adapter=spegel on COS Node (gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62)
+================================================================================
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+Swapping node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 to ate.dev/oci-layer-service=spegel...
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+Swapping node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc to ate.dev/oci-layer-service=spegel...
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+Waiting for adapter pod (provider=spegel) on node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 to become Ready...
+Adapter spegel (ate-ocilayer-spegel-695dee9e-942j4) is Ready on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62!
+Waiting for adapter pod (provider=spegel) on node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc to become Ready...
+Adapter spegel (ate-ocilayer-spegel-695dee9e-brcdd) is Ready on gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc!
+Prepared image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 (digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4, layers=10)
+{"adapter":"spegel","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-spegel-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","resume_rpc_start_ns":1792616703710554944,"resume_rpc_done_ns":1792616723094611018,"resume_rpc_dur_ms":19384.056066,"cmd_t0_ns":1792616723120447794,"cmd_t1_ns":1792616723128597021,"http_done_ns":1792616723130968698,"client_ttce_ms":19409.89285,"workload_run_ms":8.149227,"client_e2e_ms":19418.042077,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"suspend","actor_ref":"ate-bench-stream/e2e-spegel-actor","suspend_dur_ms":468.94,"snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/0262b578-b666-4d3c-9b3a-046ff23c2e3f/snapshots/bb3060c8-8b54-4e01-a7d6-89cef53b29b8"}
+{"adapter":"spegel","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-spegel-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/0262b578-b666-4d3c-9b3a-046ff23c2e3f/snapshots/bb3060c8-8b54-4e01-a7d6-89cef53b29b8","resume_rpc_start_ns":1792616728502247270,"resume_rpc_done_ns":1792616746152321749,"resume_rpc_dur_ms":17650.074354,"cmd_t0_ns":1792616746177324464,"cmd_t1_ns":1792616746185589197,"http_done_ns":1792616746188270834,"client_ttce_ms":17675.077194,"workload_run_ms":8.264733,"client_e2e_ms":17683.341927,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"delete","actor_ref":"ate-bench-stream/e2e-spegel-actor"}
+Adapter (ate-ocilayer-spegel-695dee9e-942j4) logs:
+2026/10/21 21:05:28 INFO Materialized Spegel OCI layer layerIndex=2 blobDigest=sha256:e9a96d24d607549aeede6055c93293c34678b2225a6f20c8923a103a55171e4a source=spegel-p2p:10.1.15.220:5000 layerFSDir=/var/lib/ateom-gvisor/streaming/spegel-store/layers/sha256/3cb8e82e2e0c0fe5e61a20fb35e1a621188305e44850f9c58dbe4e0ac4b449c2/fs
+2026/10/21 21:05:28 INFO Materialized Spegel OCI layer layerIndex=1 blobDigest=sha256:a17129cc092793e477505b92a06cd8d44c74989d116656cb6624a2e5b87aa089 source=spegel-p2p:10.1.15.220:5000 layerFSDir=/var/lib/ateom-gvisor/streaming/spegel-store/layers/sha256/5dda86b5f741fd620228596b7d11aafada6529e6011f7f54e957e2b5636c18e9/fs
+2026/10/21 21:05:28 INFO Materialized Spegel OCI layer layerIndex=5 blobDigest=sha256:eee00ea291453c8f52c7bd4d604a2dee3ae6e1ca990c77342a0989d51524ca2f source=spegel-p2p:10.1.15.220:5000 layerFSDir=/var/lib/ateom-gvisor/streaming/spegel-store/layers/sha256/35e76a8344cfcd7992490dc23d7deacf38c2219b7cb5da4192109e03ddec4ef1/fs
+2026/10/21 21:05:28 INFO Materialized Spegel OCI layer layerIndex=4 blobDigest=sha256:eff5bf5846f61928f32134940b127704dec6e7b6fb2919eae7d6043f96198f4b source=spegel-p2p:10.1.15.220:5000 layerFSDir=/var/lib/ateom-gvisor/streaming/spegel-store/layers/sha256/6b4d0fa0650dcf70101a9df4e0a73f20ccf7343b3942e72eda85884b8ea84f13/fs
+2026/10/21 21:05:28 INFO Streamed OCI layer blob from remote Spegel P2P peer peer=10.1.15.220:5000 digest=sha256:4778a54a0081597a421cef5da837a421e979562e2a0cf1dd9d360ce727d4eea9
+2026/10/21 21:05:28 INFO Materialized Spegel OCI layer layerIndex=8 blobDigest=sha256:4778a54a0081597a421cef5da837a421e979562e2a0cf1dd9d360ce727d4eea9 source=spegel-p2p:10.1.15.220:5000 layerFSDir=/var/lib/ateom-gvisor/streaming/spegel-store/layers/sha256/fb2ce8854ebc5f60bff909e1958df5ef993746ec297d0da1c1b40d181a04e9f5/fs
+2026/10/21 21:05:28 INFO Streamed OCI layer blob from remote Spegel P2P peer peer=10.1.15.220:5000 digest=sha256:efa480865f05db60ad7281907c4c30274a544043fe67a7a9cf3aa32893d56eb9
+2026/10/21 21:05:28 INFO Streamed OCI layer blob from remote Spegel P2P peer peer=10.1.15.220:5000 digest=sha256:84ad5f3a28e133b7e3d79a5974fa2411b373762f03734f30c1c2b75fb05bcb40
+2026/10/21 21:05:29 INFO Streamed OCI layer blob from remote Spegel P2P peer peer=10.1.15.220:5000 digest=sha256:2edc65f4c1b13f4dbd79d1298ea6a3070f86022e6726d99a73830a6a25005ac9
+2026/10/21 21:05:29 INFO Materialized Spegel OCI layer layerIndex=9 blobDigest=sha256:efa480865f05db60ad7281907c4c30274a544043fe67a7a9cf3aa32893d56eb9 source=spegel-p2p:10.1.15.220:5000 layerFSDir=/var/lib/ateom-gvisor/streaming/spegel-store/layers/sha256/4f1ed5e516950f6f04d88d5b2c90a542647bc0b84f38e5ae7ea213edcf8f5d5f/fs
+2026/10/21 21:05:29 INFO Materialized Spegel OCI layer layerIndex=0 blobDigest=sha256:84ad5f3a28e133b7e3d79a5974fa2411b373762f03734f30c1c2b75fb05bcb40 source=spegel-p2p:10.1.15.220:5000 layerFSDir=/var/lib/ateom-gvisor/streaming/spegel-store/layers/sha256/ea16cace89338c84eb6bcb91a7efdfcae6838fff359efe951858227436486c34/fs
+2026/10/21 21:05:29 INFO Streamed OCI layer blob from remote Spegel P2P peer peer=10.1.15.220:5000 digest=sha256:6cca528c578ed71cc7845b45d5d2b4d13be0167c2873e44fbca2b847980bbda1
+2026/10/21 21:05:41 INFO Materialized Spegel OCI layer layerIndex=3 blobDigest=sha256:2edc65f4c1b13f4dbd79d1298ea6a3070f86022e6726d99a73830a6a25005ac9 source=spegel-p2p:10.1.15.220:5000 layerFSDir=/var/lib/ateom-gvisor/streaming/spegel-store/layers/sha256/4af17c5627211dde358de00cf665cc8e5b5c1d253c97f56057a6ec9ea3d349eb/fs
+2026/10/21 21:05:45 INFO Materialized Spegel OCI layer layerIndex=6 blobDigest=sha256:6cca528c578ed71cc7845b45d5d2b4d13be0167c2873e44fbca2b847980bbda1 source=spegel-p2p:10.1.15.220:5000 layerFSDir=/var/lib/ateom-gvisor/streaming/spegel-store/layers/sha256/f86362802e5cd5d78264a3406407f8677f5c1007920e3825faf1f9b55f6b5792/fs
+2026/10/21 21:05:45 INFO PrepareImage timing breakdown provider=spegel image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=0 stat_ms=31.488 prepare_ms=16664.415 view_ms=0 listable_ms=0.055 wrapper_ms=2.023 total_ms=16668.573
+
+================================================================================
+[2026-10-21T21:05:49Z] Testing Adapter=baseline on COS Node (gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62)
+================================================================================
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+Swapping node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 to baseline (ate.dev/oci-layer-service=disabled)...
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
+Node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 has no active OCILayerService adapter pods.
+{"adapter":"baseline","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-baseline-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","resume_rpc_start_ns":1792616780082578833,"resume_rpc_done_ns":1792616802159266548,"resume_rpc_dur_ms":22076.687708,"cmd_t0_ns":1792616802179434954,"cmd_t1_ns":1792616802187391780,"http_done_ns":1792616802189852848,"client_ttce_ms":22096.856121,"workload_run_ms":7.956826,"client_e2e_ms":22104.812947,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"suspend","actor_ref":"ate-bench-stream/e2e-baseline-actor","suspend_dur_ms":398.42,"snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/4bba2b3c-385a-492e-9d1f-e0f9daa0e7c9/snapshots/4c0d5748-f798-485b-81a6-411cd3dac942"}
+{"adapter":"baseline","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-baseline-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/4bba2b3c-385a-492e-9d1f-e0f9daa0e7c9/snapshots/4c0d5748-f798-485b-81a6-411cd3dac942","resume_rpc_start_ns":1792616808636492831,"resume_rpc_done_ns":1792616831931250965,"resume_rpc_dur_ms":23294.758128,"cmd_t0_ns":1792616831956276747,"cmd_t1_ns":1792616831967087273,"http_done_ns":1792616831969792564,"client_ttce_ms":23319.783916,"workload_run_ms":10.810526,"client_e2e_ms":23330.594442,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"action":"delete","actor_ref":"ate-bench-stream/e2e-baseline-actor"}
+
+================================================================================
+[2026-10-21T21:24:46Z] ALL E2E FUNCTIONAL TESTS PASSED FROM FRESH DEPLOYMENT!
+================================================================================
+{"adapter":"nydus-dragonfly","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-nydus-dragonfly-actor","worker_pod":"wp-c3-ubuntu-7686d7fdb6-xvvkq","resume_rpc_start_ns":1792614497081528390,"resume_rpc_done_ns":1792614497681079270,"resume_rpc_dur_ms":599.550891,"cmd_t0_ns":1792614497827400655,"cmd_t1_ns":1792614497838014329,"http_done_ns":1792614497840703707,"client_ttce_ms":745.872265,"workload_run_ms":10.613674,"client_e2e_ms":756.485939,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"nydus-dragonfly","scenario":"warm_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-nydus-dragonfly-actor","worker_pod":"wp-c3-ubuntu-7686d7fdb6-xvvkq","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/42208506-2f65-4223-9b2b-3b8c1607b8cd/snapshots/08b71029-48e3-4431-92d1-593672fb3ffb","resume_rpc_start_ns":1792614501082643038,"resume_rpc_done_ns":1792614501380987810,"resume_rpc_dur_ms":298.344782,"cmd_t0_ns":1792614501398534553,"cmd_t1_ns":1792614501406394106,"http_done_ns":1792614501409028365,"client_ttce_ms":315.891515,"workload_run_ms":7.859553,"client_e2e_ms":323.751068,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"nydus-dragonfly","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-nydus-dragonfly-actor","worker_pod":"wp-c3-ubuntu-7686d7fdb6-xvvkq","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/42208506-2f65-4223-9b2b-3b8c1607b8cd/snapshots/8f9bb4f3-a2a7-4b0d-98f8-fb75d4630f0b","resume_rpc_start_ns":1792614505056886912,"resume_rpc_done_ns":1792614505747181586,"resume_rpc_dur_ms":690.294738,"cmd_t0_ns":1792614505808397672,"cmd_t1_ns":1792614505819517417,"http_done_ns":1792614505822243651,"client_ttce_ms":751.51076,"workload_run_ms":11.119745,"client_e2e_ms":762.630505,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"riptide","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-riptide-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","resume_rpc_start_ns":1792616608672318859,"resume_rpc_done_ns":1792616609993527275,"resume_rpc_dur_ms":1321.208414,"cmd_t0_ns":1792616610199153353,"cmd_t1_ns":1792616610211698058,"http_done_ns":1792616610214242813,"client_ttce_ms":1526.834494,"workload_run_ms":12.544705,"client_e2e_ms":1539.379199,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"riptide","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-riptide-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/73d5b526-347f-4a1e-8fcb-fdc688a3be94/snapshots/4cbc21f3-4480-4324-86ce-e00443fe7f47","resume_rpc_start_ns":1792616614052578812,"resume_rpc_done_ns":1792616614681974526,"resume_rpc_dur_ms":629.395803,"cmd_t0_ns":1792616614812690219,"cmd_t1_ns":1792616614825515495,"http_done_ns":1792616614828259949,"client_ttce_ms":760.111407,"workload_run_ms":12.825276,"client_e2e_ms":772.936683,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"soci","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-soci-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","resume_rpc_start_ns":1792617872896893952,"resume_rpc_done_ns":1792617877407183612,"resume_rpc_dur_ms":4510.289687,"cmd_t0_ns":1792617877969515242,"cmd_t1_ns":1792617878094203215,"http_done_ns":1792617878096967649,"client_ttce_ms":5072.62129,"workload_run_ms":124.687973,"client_e2e_ms":5197.309263,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"soci","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-soci-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/730a3fa9-29c5-4651-a826-fddebbf334d9/snapshots/55ff6dab-6de2-4fa4-8124-03928580e5d9","resume_rpc_start_ns":1792617882428225361,"resume_rpc_done_ns":1792617883048821464,"resume_rpc_dur_ms":620.59617,"cmd_t0_ns":1792617883159951247,"cmd_t1_ns":1792617883179653776,"http_done_ns":1792617883182763924,"client_ttce_ms":731.725886,"workload_run_ms":19.702529,"client_e2e_ms":751.428415,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"spegel","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-spegel-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","resume_rpc_start_ns":1792616703710554944,"resume_rpc_done_ns":1792616723094611018,"resume_rpc_dur_ms":19384.056066,"cmd_t0_ns":1792616723120447794,"cmd_t1_ns":1792616723128597021,"http_done_ns":1792616723130968698,"client_ttce_ms":19409.89285,"workload_run_ms":8.149227,"client_e2e_ms":19418.042077,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"spegel","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-spegel-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/0262b578-b666-4d3c-9b3a-046ff23c2e3f/snapshots/bb3060c8-8b54-4e01-a7d6-89cef53b29b8","resume_rpc_start_ns":1792616728502247270,"resume_rpc_done_ns":1792616746152321749,"resume_rpc_dur_ms":17650.074354,"cmd_t0_ns":1792616746177324464,"cmd_t1_ns":1792616746185589197,"http_done_ns":1792616746188270834,"client_ttce_ms":17675.077194,"workload_run_ms":8.264733,"client_e2e_ms":17683.341927,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"baseline","scenario":"cold_boot","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-baseline-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","resume_rpc_start_ns":1792616780082578833,"resume_rpc_done_ns":1792616802159266548,"resume_rpc_dur_ms":22076.687708,"cmd_t0_ns":1792616802179434954,"cmd_t1_ns":1792616802187391780,"http_done_ns":1792616802189852848,"client_ttce_ms":22096.856121,"workload_run_ms":7.956826,"client_e2e_ms":22104.812947,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
+{"adapter":"baseline","scenario":"cold_resume","workload":"functional_check","actor_ref":"ate-bench-stream/e2e-baseline-actor","worker_pod":"wp-c3-cos-5bbd6758-cv9fr","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/ate-bench-stream/atespaces/ate-bench-stream/actors/4bba2b3c-385a-492e-9d1f-e0f9daa0e7c9/snapshots/4c0d5748-f798-485b-81a6-411cd3dac942","resume_rpc_start_ns":1792616808636492831,"resume_rpc_done_ns":1792616831931250965,"resume_rpc_dur_ms":23294.758128,"cmd_t0_ns":1792616831956276747,"cmd_t1_ns":1792616831967087273,"http_done_ns":1792616831969792564,"client_ttce_ms":23319.783916,"workload_run_ms":10.810526,"client_e2e_ms":23330.594442,"exit_code":0,"stdout_preview":"# Note: The first part of this file can be modified in place, but the latter\n# part is autogenerated by the boilerplate.py script.\n\n\"\"\"\n`matplotlib.pyplot` is a state-based interface to matplotlib. It provides"}
