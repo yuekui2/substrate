@@ -219,9 +219,9 @@ Each `ate-accelerator-<provider>` DaemonSet runs a multi-container pod combining
 
 | Provider (`manifests/*.yaml`) | Container 1: Engine / Snapshotter | Container 2: `ImageAccelerator` Adapter | `updateStrategy` & Host Volume Contracts |
 | :--- | :--- | :--- | :--- |
-| **GKE Riptide** (`riptide.yaml`) | `riptide-provider`: Mounts pre-installed `/home/kubernetes/bin/{gcfsd-v2,containerd-gcfs-grpc}` read-only from COS host in an isolated `unshare -m` child mount namespace | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/riptide` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/ate` (`Bidirectional`; uses `/var/lib/ate/accelerator/riptide-gcfs` and `/var/lib/ate/accelerator/riptide`) |
-| **AWS SOCI** (`soci.yaml`) | `soci-snapshotter-grpc` FUSE snapshotter | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/soci` | `OnDelete`; `/dev/fuse`, `/run/ate`, `/var/lib/ate` (`Bidirectional`; uses `/var/lib/ate/accelerator/soci-snapshotter` and `/var/lib/ate/accelerator/soci`) |
-| **Nydus + Dragonfly** (`nydus-dragonfly.yaml`) | `dfdaemon` P2P peer + `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd` with Kernel EROFS/`fscache`) | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly` | `OnDelete`; `/dev/cachefiles`, `/run/ate`, `/var/lib/ate` (`Bidirectional`; uses `/var/lib/ate/accelerator/nydus-snapshotter` and `/var/lib/ate/accelerator/nydus-dragonfly`) |
+| **GKE Riptide** (`riptide.yaml`) | `riptide-provider`: Mounts pre-installed `/home/kubernetes/bin/{gcfsd-v2,containerd-gcfs-grpc}` read-only from COS host in an isolated `unshare -m` child mount namespace | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/riptide` | `RollingUpdate` (`maxUnavailable: 10%`, `SIGTERM` lame-duck drain); `/dev/fuse`, `/run/ate`, `/var/lib/ate` (`Bidirectional`; uses `/var/lib/ate/accelerator/riptide-gcfs` and `/var/lib/ate/accelerator/riptide`) |
+| **AWS SOCI** (`soci.yaml`) | `soci-snapshotter-grpc` FUSE snapshotter | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/soci` | `RollingUpdate` (`maxUnavailable: 10%`, `SIGTERM` lame-duck drain); `/dev/fuse`, `/run/ate`, `/var/lib/ate` (`Bidirectional`; uses `/var/lib/ate/accelerator/soci-snapshotter` and `/var/lib/ate/accelerator/soci`) |
+| **Nydus + Dragonfly** (`nydus-dragonfly.yaml`) | `dfdaemon` P2P peer + `nydus-snapshotter` (`containerd-nydus-grpc` + `nydusd` with Kernel EROFS/`fscache`) | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly` | `RollingUpdate` (`maxUnavailable: 10%`, `SIGTERM` lame-duck drain); `/dev/cachefiles`, `/run/ate`, `/var/lib/ate` (`Bidirectional`; uses `/var/lib/ate/accelerator/nydus-snapshotter` and `/var/lib/ate/accelerator/nydus-dragonfly`) |
 | **Spegel P2P** (`spegel.yaml`) | Built-in Spegel-compatible OCI registry mirror (`:5000`) + peer router | `ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel` | `RollingUpdate`; `/run/ate`, `/var/lib/ate` (uses `/var/lib/ate/accelerator/spegel-store` and `/var/lib/ate/accelerator/spegel`) |
 
 Because `go run ./cmd/ate-setup deploy ate-system` only applies `manifests/ate-install/*.yaml`, **a cluster installation never deploys an image-accelerator DaemonSet**.
@@ -247,15 +247,15 @@ kubectl label nodes --all ate.dev/image-accelerator=riptide --overwrite
 
 #### Step 3: Dynamically Disable / Drain Image Acceleration on a Node (or Re-Enable)
 ```bash
-kubectl label node <node-name> ate.dev/image-accelerator=disabled --overwrite
+kubectl label node <node-name> ate.dev/image-accelerator-
 ```
-* `atelet`'s node-label watcher immediately marks the `ImageAccelerator` client as draining (`SetDraining(true)`).
-* All new (`Run`) and restoring (`Restore`) actors immediately use `/var/lib/ate/image-cache/layers/...`.
-* Because the DaemonSet's `nodeAffinity` matches `ate.dev/image-accelerator In [<adapter>, disabled]`, the adapter pod stays running while active actors finish reading their FUSE mounts and unmounts each streamed image immediately (`bypass_idle_ttl=true`) when its `refCount` reaches `0`.
-* Re-enable on a node anytime via `kubectl label node <node-name> ate.dev/image-accelerator=riptide --overwrite`, or remove the label (`kubectl label node <node-name> ate.dev/image-accelerator-`) to terminate the adapter pod.
+* Removing the `ate.dev/image-accelerator` node label causes Kubernetes to send `SIGTERM` to the adapter pod on `<node-name>`.
+* On `SIGTERM`, the adapter immediately enters lame-duck mode (`driver.Drain`): `CanProvide` returns `false`, `PrepareImage` returns `ErrNotSupported` (`codes.FailedPrecondition`) so all new (`Run`) and restoring (`Restore`) actors immediately use `/var/lib/ate/image-cache/layers/...`, and idle cached leases (`refCount == 0`) are unmounted immediately.
+* The provider container (`riptide-provider`, `soci-snapshotter`, `nydus-snapshotter`) holds a `lifecycle.preStop` hook (`while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done`) so the FUSE daemon stays running while active actors finish reading their FUSE mounts and unmounts each streamed image immediately (auto-bypassing `idleTTL`) when its `refCount` reaches `0` (up to `--drain-timeout=30m`).
+* Re-enable on a node anytime via `kubectl label node <node-name> ate.dev/image-accelerator=riptide --overwrite`.
 
 ### 6.3 Out-of-Tree & Custom Customer Adapter Extensibility
-Because `atelet` only knows the socket endpoint (`/run/ate/image-accelerator.sock`) and checks only whether `ate.dev/image-accelerator` is `"disabled"` (draining) vs. any other value (enabled whenever `/run/ate/image-accelerator.sock` exists), any out-of-tree or customer-built `ImageAccelerator` DaemonSet works without modifying Substrate:
+Because `atelet` only knows the socket endpoint (`/run/ate/image-accelerator.sock`) and has zero K8s API or node-label coupling, any out-of-tree or customer-built `ImageAccelerator` DaemonSet works without modifying Substrate:
 ```bash
 kubectl apply -f https://internal.example.com/manifests/mycompany-accelerator.yaml
 kubectl label node <node-name> ate.dev/image-accelerator=mycompany --overwrite
@@ -267,14 +267,13 @@ kubectl label node <node-name> ate.dev/image-accelerator=mycompany --overwrite
    * Like CSI drivers ([`docs/version-skew-policy.md`](version-skew-policy.md)), `ate-accelerator-<provider>` is an external node add-on outside the Substrate release upgrade.
    * During [`docs/upgrade.md`](upgrade.md) Step 2 (`go run ./cmd/ate-setup deploy atelet`), `ds/atelet` rolls in-place node by node while running actors and `ate-accelerator-<provider>` pods stay up untouched. When the new `atelet` pod starts on a node, it calls `ReconcileImages` over `/run/ate/image-accelerator.sock` to synchronize active leases.
    * The `substrate.imageaccel.v1.ImageAccelerator` gRPC protocol evolves via additive optional protobuf fields so `atelet` and `ate-accelerator-<provider>` can be upgraded in either order.
-2. **Upgrading a FUSE-Backed Adapter DaemonSet (`updateStrategy.type: OnDelete`):**
-   * Because stopping a userspace FUSE daemon (`gcfsd-v2`, `soci-snapshotter-grpc`, `nydusd`) while an actor's `overlayfs` `lowerdir` is reading from `/dev/fuse` causes reads to fail with `ENOTCONN`, FUSE-backed DaemonSets set `updateStrategy.type: OnDelete`.
-   * To roll out a new adapter image or configuration:
-     1. **Apply the updated DaemonSet manifest:** `ko resolve -f oci-image-accelerator/manifests/<provider>.yaml | kubectl apply -f -` (updates the DaemonSet template without terminating running pods).
-     2. **Drain FUSE leases on `<node>`:** `kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite`. Workers and actors on `<node>` remain online, and `atelet` serves new/restoring actors on `<node>` from local `imagecache` while existing streamed actors drain their leases (`bypass_ttl=true`) on checkpoint or teardown.
-     3. **Recycle the pod & re-enable:** Once active FUSE leases on `<node>` reach `0`, run `kubectl -n ate-system delete pod -l app=ate-image-accelerator --field-selector spec.nodeName=<node>` and `kubectl label node <node> ate.dev/image-accelerator=<provider> --overwrite`.
+2. **Upgrading a FUSE-Backed Adapter DaemonSet (`RollingUpdate` + `SIGTERM` Lame-Duck Drain):**
+   * Stopping a userspace FUSE daemon (`gcfsd-v2`, `soci-snapshotter-grpc`, `nydusd`) while an actor's `overlayfs` `lowerdir` is reading from `/dev/fuse` causes reads to fail with `ENOTCONN`. FUSE-backed DaemonSets therefore combine `updateStrategy.type: RollingUpdate` (`maxUnavailable: 10%`, `terminationGracePeriodSeconds: 3600`) with `SIGTERM` lame-duck self-draining (`--drain-timeout=30m`) and `/run/ate/drain-complete` `preStop` synchronization:
+     1. **Apply the updated DaemonSet manifest:** `ko resolve -f oci-image-accelerator/manifests/<provider>.yaml | kubectl apply -f -`.
+     2. **Lame-duck drain on `SIGTERM`:** When `kubelet` terminates an adapter pod on `<node>`, the adapter container receives `SIGTERM` and immediately enters lame-duck mode (`CanProvide=false`, `PrepareImage=ErrNotSupported`, idle `refCount == 0` leases evicted). `atelet` automatically falls back to local `imagecache` for new and restoring actors on `<node>` while `/run/ate/image-accelerator.sock` remains open for `ReleaseImage` calls from running streamed actors.
+     3. **`preStop` synchronization & replacement:** The provider container's `lifecycle.preStop` hook waits for `/run/ate/drain-complete` before `kubelet` sends `SIGTERM` to the FUSE daemon. Once active leases reach `refCount == 0` (or `--drain-timeout=30m` elapses, matching `ateworker`'s 30-minute workload grace period), the adapter stops its gRPC server, writes `/run/ate/drain-complete`, and Kubernetes starts the new adapter pod on `<node>`.
 3. **Upgrading Non-FUSE Providers (`ate-accelerator-spegel`):**
-   * Because Spegel unpacks standard files onto the host filesystem rather than holding open `/dev/fuse` mounts, `ate-accelerator-spegel` uses `updateStrategy.type: RollingUpdate` and rolls in-place without draining.
+   * Because Spegel unpacks standard files onto the host filesystem rather than holding open `/dev/fuse` mounts, `ate-accelerator-spegel` uses `updateStrategy.type: RollingUpdate` (`terminationGracePeriodSeconds: 5`) and rolls in-place immediately.
 
 ---
 

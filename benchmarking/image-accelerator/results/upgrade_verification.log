@@ -1,50 +1,118 @@
-# Copyright 2026 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 ================================================================================
-UPGRADE TEST SCENARIO A: Substrate atelet Rolling Upgrade with Active Streamed Actor
+PRE-FLIGHT: Verifying ate-system Control Plane, WorkerPools, and ActorTemplates
 ================================================================================
-clusterrole.rbac.authorization.k8s.io/atelet unchanged
-daemonset.apps/ate-accelerator-riptide unchanged
+$ kubectl -n ate-system rollout status deploy/ate-api-server deploy/ate-controller deploy/atenet-egress deploy/atenet-router ds/atelet --timeout=180s
+deployment "ate-api-server" successfully rolled out
+deployment "ate-controller" successfully rolled out
+deployment "atenet-egress" successfully rolled out
+deployment "atenet-router" successfully rolled out
+daemon set "atelet" successfully rolled out
+$ kubectl label node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 bench-node=c3-cos --overwrite
 node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
-Before atelet upgrade:
-  Adapter pod: ate-accelerator-riptide-z98mc (UID=e5d37512-eb0f-4a16-8d8d-c7c0cf0a8095, restarts=0)
-  atelet pod:  atelet-sggpj (UID=63b477e1-c6cf-4931-a915-bea8654de236)
---- [Scenario A.1] Booting streamed actor upgrade-actor-a on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
-{"adapter":"riptide","scenario":"upgrade_a_pre","workload":"small","actor_ref":"ate-bench-stream/upgrade-actor-a","worker_pod":"wp-c3-cos-75d8d5bf9c-zntsp","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792605085122662775,"resume_rpc_done_ns":1792605086866636448,"resume_rpc_dur_ms":1743.97367,"cmd_t0_ns":1792605086976528735,"cmd_t1_ns":1792605086997953365,"http_done_ns":1792605086999913908,"client_ttce_ms":1853.86596,"workload_run_ms":21.42463,"client_e2e_ms":1875.29059,"exit_code":0,"stdout_preview":"112403"}
---- [Scenario A.2] Verifying rootfs-overlay.json records streamed=true and /var/lib/ate/streaming/riptide layers on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+$ kubectl label node gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p bench-node=c3-ubuntu --overwrite
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p not labeled
+--- Cleaning all existing adapter DaemonSets and node labels ---
+$ kubectl label nodes --all ate.dev/image-accelerator- --overwrite
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 unlabeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-e2-std32-ssd-poo-cadaf832-bpft not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-49x6 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-65vz not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-sae4 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz not labeled
+$ kubectl -n ate-system delete ds ate-accelerator-riptide ate-accelerator-soci ate-accelerator-nydus-dragonfly ate-accelerator-spegel --ignore-not-found --wait=true
+daemonset.apps "ate-accelerator-riptide" deleted from ate-system namespace
+namespace/ate-bench-stream unchanged
+workerpool.ate.dev/wp-c3-cos created
+workerpool.ate.dev/wp-c3-ubuntu created
+Waiting for WorkerPools wp-c3-cos and wp-c3-ubuntu to become Ready...
+$ kubectl -n ate-bench-stream get workerpool,pods -o wide
+NAME                              DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+workerpool.ate.dev/wp-c3-cos      1         1          1       gvisor-default   True       7s
+workerpool.ate.dev/wp-c3-ubuntu   1         1          1       gvisor-default   True       6s
+
+NAME                                READY   STATUS    RESTARTS   AGE   IP           NODE                                                  NOMINATED NODE   READINESS GATES
+pod/wp-c3-cos-6ddc6bb74b-zplgc      1/1     Running   0          6s    10.96.6.73   gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62   <none>           <none>
+pod/wp-c3-ubuntu-565b998d86-x4fz8   1/1     Running   0          6s    10.96.7.72   gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p   <none>           <none>
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=ensure-template --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --template=tmpl-cos-oci --pool-label=bench-cos --image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 --wait-golden=true
+Golden snapshot ready: 96fcb9a2-f979-43fd-a818-946952c83804
+$ kubectl -n ate-system exec bench-helper-5h2p -- /home/kubernetes/bin/bench-runner --mode=ensure-template --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --template=tmpl-ubuntu-oci --pool-label=bench-ubuntu --image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 --wait-golden=true
+Golden snapshot ready: 6d01b055-edd3-4e14-be95-30e5e03a0a27
+Golden snapshot ready: 93658d6c-01fe-46a5-98f2-b23018911352
+================================================================================
+ROLLING UPDATE TEST (riptide): Fresh Deploy -> Streamed Actor -> SIGTERM Lame-Duck Drain -> Rollover
+================================================================================
+--- Cleaning all existing adapter DaemonSets and node labels ---
+$ kubectl label nodes --all ate.dev/image-accelerator- --overwrite
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-e2-std32-ssd-poo-cadaf832-bpft not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-49x6 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-65vz not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-sae4 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz not labeled
+$ kubectl -n ate-system delete ds ate-accelerator-riptide ate-accelerator-soci ate-accelerator-nydus-dragonfly ate-accelerator-spegel --ignore-not-found --wait=true
+--- [riptide Step 1] Freshly applying oci-image-accelerator/manifests/riptide.yaml and labeling gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+$ sed 's|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/riptide|us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/riptide-6083894072deeb136589591d9e652920@sha256:457af33a2f35a8ba766cdddb87ba30439ab1374813d6dab2094a77ec6071cf0d|g' oci-image-accelerator/manifests/riptide.yaml | kubectl apply -f -
+daemonset.apps/ate-accelerator-riptide created
+$ kubectl label node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ate.dev/image-accelerator=riptide --overwrite
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
+$ kubectl -n ate-system get ds ate-accelerator-riptide -o wide
+NAME                      DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS                             IMAGES                                                                                                                                                                                                                                                                             SELECTOR
+ate-accelerator-riptide   1         1         1       1            1           <none>          6s    riptide-provider,accelerator-riptide   debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132,us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/riptide-6083894072deeb136589591d9e652920@sha256:457af33a2f35a8ba766cdddb87ba30439ab1374813d6dab2094a77ec6071cf0d   app=ate-image-accelerator,ate.dev/image-accelerator=riptide
+$ kubectl -n ate-system get pods -l app=ate-image-accelerator,ate.dev/image-accelerator=riptide -o wide
+NAME                            READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+ate-accelerator-riptide-r5rj9   2/2     Running   0          6s    10.1.15.236   gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62   <none>           <none>
+Initial riptide pod on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62: ate-accelerator-riptide-r5rj9 (UID=7016cc89-d6f9-4cef-8c60-7867203c3fb3)
+--- [riptide Step 2] Booting streamed actor up-riptide-stream on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=create-boot-run --adapter=riptide --scenario=upgrade_riptide_streamed --workload=small --cmd=cat -- "/testbed/lib/matplotlib/pyplot.py" | wc -c --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --template=tmpl-cos-oci --actor=up-riptide-stream
+{"adapter":"riptide","scenario":"upgrade_riptide_streamed","workload":"small","actor_ref":"ate-bench-stream/up-riptide-stream","worker_pod":"wp-c3-cos-6ddc6bb74b-zplgc","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792644337003896528,"resume_rpc_done_ns":1792644338606891529,"resume_rpc_dur_ms":1602.995004,"cmd_t0_ns":1792644338711596709,"cmd_t1_ns":1792644338764635373,"http_done_ns":1792644338767142448,"client_ttce_ms":1707.700181,"workload_run_ms":53.038664,"client_e2e_ms":1760.738845,"exit_code":0,"stdout_preview":"112403"}
+--- [riptide Step 2b] Verifying rootfs-overlay.json for up-riptide-stream on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- sh -c 
+    cat /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; echo ""
+  
 {
   "version": 1,
   "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
   "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
   "streamed": true,
   "layers": [
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
   ]
 }
---- [Scenario A.3] Rolling ds/atelet while upgrade-actor-a is RUNNING ---
+================================================================================
+SCENARIO A: Rolling ds/atelet on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 while up-riptide-stream is RUNNING
+================================================================================
+atelet pod before rollout: atelet-8xqpv (UID=bd3714a1-cee5-4439-9817-ab7dc4fb6a26)
+$ kubectl -n ate-system rollout restart ds/atelet
 daemonset.apps/atelet restarted
-Waiting for daemon set "atelet" rollout to finish: 0 out of 8 new pods have been updated...
+$ kubectl -n ate-system rollout status ds/atelet --timeout=180s
 Waiting for daemon set "atelet" rollout to finish: 1 out of 8 new pods have been updated...
 Waiting for daemon set "atelet" rollout to finish: 1 out of 8 new pods have been updated...
 Waiting for daemon set "atelet" rollout to finish: 1 out of 8 new pods have been updated...
@@ -54,7 +122,6 @@ Waiting for daemon set "atelet" rollout to finish: 2 out of 8 new pods have been
 Waiting for daemon set "atelet" rollout to finish: 3 out of 8 new pods have been updated...
 Waiting for daemon set "atelet" rollout to finish: 3 out of 8 new pods have been updated...
 Waiting for daemon set "atelet" rollout to finish: 3 out of 8 new pods have been updated...
-Waiting for daemon set "atelet" rollout to finish: 4 out of 8 new pods have been updated...
 Waiting for daemon set "atelet" rollout to finish: 4 out of 8 new pods have been updated...
 Waiting for daemon set "atelet" rollout to finish: 4 out of 8 new pods have been updated...
 Waiting for daemon set "atelet" rollout to finish: 4 out of 8 new pods have been updated...
@@ -69,36 +136,63 @@ Waiting for daemon set "atelet" rollout to finish: 7 out of 8 new pods have been
 Waiting for daemon set "atelet" rollout to finish: 7 out of 8 new pods have been updated...
 Waiting for daemon set "atelet" rollout to finish: 7 of 8 updated pods are available...
 daemon set "atelet" successfully rolled out
-After atelet upgrade:
-  Adapter pod: ate-accelerator-riptide-z98mc (UID=e5d37512-eb0f-4a16-8d8d-c7c0cf0a8095, restarts=0)
-  atelet pod:  atelet-tpc5g (UID=344b164a-d3e9-441b-b27b-4980f82d35ec)
---- [Scenario A.4] Verifying active actor reads uncached files from FUSE mount after atelet restart (zero ENOTCONN) ---
-{"stdout":"FUSE_READ_OK bytes= 131407\n","stderr":"","exitCode":0}
---- [Scenario A.5] Verifying new atelet pod (atelet-tpc5g) and adapter pod (ate-accelerator-riptide-z98mc) ReconcileImages logs ---
-{"time":"2026-10-21T17:52:12.240809044Z","level":"INFO","msg":"Successfully reconciled streamed image leases on startup","provider":"image-accelerator","reconciledImages":1}
-2026/10/21 17:51:26 INFO PrepareImage timing breakdown provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=403.82 stat_ms=7.177 prepare_ms=1155.759 view_ms=16.544 listable_ms=0.357 wrapper_ms=2.291 total_ms=1585.665
-2026/10/21 17:52:12 INFO Reconciled active streamed image lease provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 refCount=1
---- [Scenario A.6] Cleaning up upgrade-actor-a ---
-{"action":"delete","actor_ref":"ate-bench-stream/upgrade-actor-a"}
-================================================================================
-UPGRADE TEST SCENARIO B: Adapter DaemonSet OnDelete + ate.dev/image-accelerator=disabled Drain
-================================================================================
---- [Scenario B.1] Booting streamed actor upgrade-actor-b on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
-{"adapter":"riptide","scenario":"upgrade_b_streamed","workload":"small","actor_ref":"ate-bench-stream/upgrade-actor-b","worker_pod":"wp-c3-cos-75d8d5bf9c-zntsp","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792605175967936326,"resume_rpc_done_ns":1792605176210296916,"resume_rpc_dur_ms":242.360584,"cmd_t0_ns":1792605176231981831,"cmd_t1_ns":1792605176262455177,"http_done_ns":1792605176273872032,"client_ttce_ms":264.045505,"workload_run_ms":30.473346,"client_e2e_ms":294.518851,"exit_code":0,"stdout_preview":"112403"}
---- [Scenario B.2] Updating ds/ate-accelerator-riptide template (updateStrategy: OnDelete) ---
-daemonset.apps/ate-accelerator-riptide patched (no change)
-Adapter pod after DaemonSet template update (OnDelete): ate-accelerator-riptide-z98mc (UID=e5d37512-eb0f-4a16-8d8d-c7c0cf0a8095)
---- [Scenario B.3] Labeling gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ate.dev/image-accelerator=disabled to drain FUSE leases ---
-node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
-Adapter pod phase during ate.dev/image-accelerator=disabled drain: Running
-{"time":"2026-10-21T17:53:02.715524138Z","level":"INFO","msg":"ImageAccelerator node drain state changed","node":"gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62","draining":true}
-{"stdout":"DRAIN_FUSE_READ_OK bytes= 131407\n","stderr":"","exitCode":0}
---- [Scenario B.4] Deleting upgrade-actor-b to complete FUSE drain (triggers ReleaseImage(bypass_ttl=true)) ---
-{"action":"delete","actor_ref":"ate-bench-stream/upgrade-actor-b"}
-Remaining workdirs in /var/lib/ate/streaming/riptide after ReleaseImage(bypass_ttl=true): []
---- [Scenario B.5] Verifying new actor on disabled node falls back to local imagecache ---
-{"adapter":"baseline","scenario":"upgrade_b_fallback","workload":"small","actor_ref":"ate-bench-stream/upgrade-actor-fallback","worker_pod":"wp-c3-cos-75d8d5bf9c-zntsp","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792605191535505286,"resume_rpc_done_ns":1792605214713943156,"resume_rpc_dur_ms":23178.437862,"cmd_t0_ns":1792605214760746394,"cmd_t1_ns":1792605214775321173,"http_done_ns":1792605214777183597,"client_ttce_ms":23225.241108,"workload_run_ms":14.574779,"client_e2e_ms":23239.815887,"exit_code":0,"stdout_preview":"112403"}
-rootfs-overlay.json during disabled fallback (should point to /var/lib/ate/image-cache):
+After ds/atelet rollout: atelet=atelet-sl5gj (UID=01de45a2-aac1-459a-9eca-7eb49492d1b5), adapter=ate-accelerator-riptide-r5rj9 (UID=7016cc89-d6f9-4cef-8c60-7867203c3fb3)
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=exec --cmd=python3 -c "data = open(\"/testbed/lib/matplotlib/figure.py\").read(); print(\"ATELET_ROLLOUT_FUSE_READ_OK bytes=\", len(data))" --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-riptide-stream
+{"stdout":"ATELET_ROLLOUT_FUSE_READ_OK bytes= 131407\n","stderr":"","exitCode":0}
+--- Verifying ReconcileImages logs on atelet-sl5gj and ate-accelerator-riptide-r5rj9 ---
+{"time":"2026-10-22T04:46:30.044811024Z","level":"INFO","msg":"Successfully reconciled streamed image leases on startup","provider":"image-accelerator","reconciledImages":1}
+2026/10/22 04:45:38 INFO PrepareImage timing breakdown provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=270.193 stat_ms=8.931 prepare_ms=1078.895 view_ms=19.79 listable_ms=0.381 wrapper_ms=2.349 total_ms=1380.223
+2026/10/22 04:46:30 INFO Reconciled active streamed image lease provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 refCount=1
+--- [riptide Step 3] Triggering RollingUpdate on ds/ate-accelerator-riptide while up-riptide-stream holds active lease (refCount=1) ---
+$ kubectl -n ate-system patch ds ate-accelerator-riptide --type=merge -p {"spec":{"template":{"metadata":{"annotations":{"ate.dev/upgrade-test-rev":"v2"}}}}}
+daemonset.apps/ate-accelerator-riptide patched
+Waiting for ate-accelerator-riptide-r5rj9 to receive SIGTERM and enter lame-duck drain mode...
+--- [riptide Step 4a] Pod status and adapter lame-duck logs during active lease drain ---
+$ kubectl -n ate-system get pods -l app=ate-image-accelerator,ate.dev/image-accelerator=riptide -o wide
+NAME                            READY   STATUS        RESTARTS   AGE     IP            NODE                                                  NOMINATED NODE   READINESS GATES
+ate-accelerator-riptide-r5rj9   2/2     Terminating   0          2m29s   10.1.15.236   gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62   <none>           <none>
+$ kubectl -n ate-system logs ate-accelerator-riptide-r5rj9 -c accelerator-riptide
+2026/10/22 04:45:27 INFO ImageAccelerator adapter listening provider=riptide listenSocket=/run/ate/image-accelerator.sock snapshotterSocket=/run/ate/gcfs-snapshotter.sock
+2026/10/22 04:45:37 INFO Pushed credentials to Riptide gcfsd keychain socket=/run/ate/gcfsd/keychain.sock image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 server=us-central1-docker.pkg.dev username=_token
+2026/10/22 04:45:38 INFO PrepareImage timing breakdown provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=270.193 stat_ms=8.931 prepare_ms=1078.895 view_ms=19.79 listable_ms=0.381 wrapper_ms=2.349 total_ms=1380.223
+2026/10/22 04:46:30 INFO Reconciled active streamed image lease provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 refCount=1
+2026/10/22 04:47:01 INFO Shutdown signal received; entering lame-duck drain mode socket=/run/ate/image-accelerator.sock
+2026/10/22 04:47:01 INFO Entered lame-duck drain mode; waiting for active streamed image leases to release provider=riptide drainTimeout=30m0s activeLeases="[us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4(refCount=1)]"
+--- [riptide Step 4b] Verifying /run/ate/drain-complete is NOT written while refCount=1 ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- sh -c 
+    if [ -f /run/ate/drain-complete ]; then
+      echo "ERROR: /run/ate/drain-complete exists prematurely!"
+      exit 1
+    else
+      echo "CONFIRMED: /run/ate/drain-complete does not exist while refCount=1 (preStop is holding provider container alive)"
+    fi
+  
+CONFIRMED: /run/ate/drain-complete does not exist while refCount=1 (preStop is holding provider container alive)
+--- [riptide Step 4c] Probing /run/ate/image-accelerator.sock during lame-duck drain (expect CanProvide=false) ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 -bypass-ttl=true
+{
+  "provider": "riptide",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "canProvide": false,
+  "canProvideMs": 1.521,
+  "prepareMs": 0,
+  "releaseMs": 0,
+  "verifiedLayers": 0
+}
+--- [riptide Step 4d] Verifying active actor up-riptide-stream reads uncached file from FUSE/EROFS during SIGTERM drain (zero ENOTCONN) ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=exec --cmd=python3 -c "data = open(\"/testbed/lib/matplotlib/axes/_axes.py\").read(); print(\"LAME_DUCK_DRAIN_READ_OK bytes=\", len(data))" --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-riptide-stream
+{"stdout":"LAME_DUCK_DRAIN_READ_OK bytes= 320619\n","stderr":"","exitCode":0}
+--- [riptide Step 4e] Booting new actor up-riptide-fallback during lame-duck drain (verifying automatic fallback to local image-cache) ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=create-boot-run --adapter=baseline --scenario=upgrade_riptide_fallback --workload=small --cmd=cat -- "/testbed/lib/matplotlib/pyplot.py" | wc -c --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --template=tmpl-cos-oci --actor=up-riptide-fallback
+{"adapter":"baseline","scenario":"upgrade_riptide_fallback","workload":"small","actor_ref":"ate-bench-stream/up-riptide-fallback","worker_pod":"wp-c3-cos-6ddc6bb74b-zplgc","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792644479991913766,"resume_rpc_done_ns":1792644504677810396,"resume_rpc_dur_ms":24685.896632,"cmd_t0_ns":1792644504700079907,"cmd_t1_ns":1792644504723361817,"http_done_ns":1792644504725384761,"client_ttce_ms":24708.166141,"workload_run_ms":23.28191,"client_e2e_ms":24731.448051,"exit_code":0,"stdout_preview":"112403"}
+--- [riptide Step 4f] Inspecting rootfs-overlay.json of both actors (up-riptide-stream streamed=true vs up-riptide-fallback image-cache) ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- sh -c 
+    for f in /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; do
+      echo "=== ${f} ==="
+      cat "${f}"; echo ""
+    done
+  
+=== /var/lib/ate/actors/861afb65-c487-474a-af0d-ef4e5eeb9bd7/bundles/sandbox/rootfs-overlay.json ===
 {
   "version": 1,
   "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
@@ -116,32 +210,576 @@ rootfs-overlay.json during disabled fallback (should point to /var/lib/ate/image
     "/var/lib/ate/image-cache/layers/sha256/4d18cef730e0121c58eea34494a964e0c7f1b9798262dcdb2ca6ad7d1f3902f0"
   ]
 }
-{"action":"delete","actor_ref":"ate-bench-stream/upgrade-actor-fallback"}
---- [Scenario B.6] Deleting drained adapter pod and relabeling ate.dev/image-accelerator=riptide ---
-pod "ate-accelerator-riptide-z98mc" deleted from ate-system namespace
-node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
-New adapter pod after OnDelete upgrade: ate-accelerator-riptide-w59dq (UID=3c8e00d0-d4eb-4ad8-88ff-90d61eb7da27, rev=v2)
---- [Scenario B.7] Verifying new adapter pod serves streaming cleanly ---
+=== /var/lib/ate/actors/e1734d54-ba0d-4fea-b141-7d617e87929d/bundles/sandbox/rootfs-overlay.json ===
+{
+  "version": 1,
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "streamed": true,
+  "layers": [
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+  ]
+}
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=delete --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-riptide-fallback
+{"action":"delete","actor_ref":"ate-bench-stream/up-riptide-fallback"}
+--- [riptide Step 5] Deleting streamed actor up-riptide-stream to drop refCount -> 0 and complete RollingUpdate ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=delete --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-riptide-stream
+{"action":"delete","actor_ref":"ate-bench-stream/up-riptide-stream"}
+--- [riptide Step 5b] Waiting for ds/ate-accelerator-riptide RollingUpdate replacement pod to become Ready ---
+$ kubectl -n ate-system rollout status ds/ate-accelerator-riptide --timeout=180s
+Waiting for daemon set "ate-accelerator-riptide" rollout to finish: 0 out of 1 new pods have been updated...
+Waiting for daemon set "ate-accelerator-riptide" rollout to finish: 0 out of 1 new pods have been updated...
+Waiting for daemon set "ate-accelerator-riptide" rollout to finish: 0 of 1 updated pods are available...
+daemon set "ate-accelerator-riptide" successfully rolled out
+Replacement riptide pod Ready: ate-accelerator-riptide-xbx7p (UID=7dea15da-81cf-474b-ba6e-3f59783ad146, rev=v2)
+--- [riptide Step 5c] Probing new v2 riptide pod (ate-accelerator-riptide-xbx7p) to verify clean streaming ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 -bypass-ttl=true
 {
   "provider": "riptide",
   "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
   "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
   "canProvide": true,
   "layerDirs": [
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
-    "/var/lib/ate/streaming/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/accelerator/riptide/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
   ],
-  "canProvideMs": 26.99,
-  "prepareMs": 1302.741,
-  "releaseMs": 15.284,
+  "canProvideMs": 25.482,
+  "prepareMs": 1616.565,
+  "releaseMs": 15.328,
   "verifiedLayers": 10
 }
-=== BOTH UPGRADE SCENARIOS (A & B) PASSED SUCCESSFULLY! ===
+$ kubectl -n ate-system logs ate-accelerator-riptide-xbx7p -c accelerator-riptide
+2026/10/22 04:48:40 INFO ImageAccelerator adapter listening provider=riptide listenSocket=/run/ate/image-accelerator.sock snapshotterSocket=/run/ate/gcfs-snapshotter.sock
+2026/10/22 04:48:47 INFO Pushed credentials to Riptide gcfsd keychain socket=/run/ate/gcfsd/keychain.sock image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 server=us-central1-docker.pkg.dev username=_token
+2026/10/22 04:48:48 INFO PrepareImage timing breakdown provider=riptide image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=239.314 stat_ms=8.954 prepare_ms=1349.853 view_ms=15.115 listable_ms=0.486 wrapper_ms=2.5 total_ms=1615.798
+================================================================================
+ROLLING UPDATE TEST (soci): Fresh Deploy -> Streamed Actor -> SIGTERM Lame-Duck Drain -> Rollover
+================================================================================
+--- Cleaning all existing adapter DaemonSets and node labels ---
+$ kubectl label nodes --all ate.dev/image-accelerator- --overwrite
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 unlabeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-e2-std32-ssd-poo-cadaf832-bpft not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-49x6 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-65vz not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-sae4 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz not labeled
+$ kubectl -n ate-system delete ds ate-accelerator-riptide ate-accelerator-soci ate-accelerator-nydus-dragonfly ate-accelerator-spegel --ignore-not-found --wait=true
+daemonset.apps "ate-accelerator-riptide" deleted from ate-system namespace
+--- [soci Step 1] Freshly applying oci-image-accelerator/manifests/soci.yaml and labeling gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+$ sed 's|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/soci|us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/soci-f7734fd431374bc636fdbf37591987a3@sha256:9ec60e40495b0a4da5cdb79083a338f088ed7c5b30a64ef98bc8a959536c02a3|g' oci-image-accelerator/manifests/soci.yaml | kubectl apply -f -
+daemonset.apps/ate-accelerator-soci created
+$ kubectl label node gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ate.dev/image-accelerator=soci --overwrite
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
+$ kubectl -n ate-system get ds ate-accelerator-soci -o wide
+NAME                   DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS                          IMAGES                                                                                                                                                                                                                                                                          SELECTOR
+ate-accelerator-soci   1         1         1       1            1           <none>          6s    soci-snapshotter,accelerator-soci   debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132,us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/soci-f7734fd431374bc636fdbf37591987a3@sha256:9ec60e40495b0a4da5cdb79083a338f088ed7c5b30a64ef98bc8a959536c02a3   app=ate-image-accelerator,ate.dev/image-accelerator=soci
+$ kubectl -n ate-system get pods -l app=ate-image-accelerator,ate.dev/image-accelerator=soci -o wide
+NAME                         READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+ate-accelerator-soci-9qms2   2/2     Running   0          6s    10.1.15.236   gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62   <none>           <none>
+Initial soci pod on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62: ate-accelerator-soci-9qms2 (UID=b8e4271c-1048-4950-a560-a63bba6a0ba8)
+--- [soci Step 2] Booting streamed actor up-soci-stream on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=create-boot-run --adapter=soci --scenario=upgrade_soci_streamed --workload=small --cmd=cat -- "/testbed/lib/matplotlib/pyplot.py" | wc -c --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --template=tmpl-cos-oci --actor=up-soci-stream
+{"adapter":"soci","scenario":"upgrade_soci_streamed","workload":"small","actor_ref":"ate-bench-stream/up-soci-stream","worker_pod":"wp-c3-cos-6ddc6bb74b-zplgc","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792644554539309449,"resume_rpc_done_ns":1792644558338012346,"resume_rpc_dur_ms":3798.702893,"cmd_t0_ns":1792644559108880539,"cmd_t1_ns":1792644559220460273,"http_done_ns":1792644559222999725,"client_ttce_ms":4569.57109,"workload_run_ms":111.579734,"client_e2e_ms":4681.150824,"exit_code":0,"stdout_preview":"112403"}
+--- [soci Step 2b] Verifying rootfs-overlay.json for up-soci-stream on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- sh -c 
+    cat /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; echo ""
+  
+{
+  "version": 1,
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "streamed": true,
+  "layers": [
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+  ]
+}
+--- [soci Step 3] Triggering RollingUpdate on ds/ate-accelerator-soci while up-soci-stream holds active lease (refCount=1) ---
+$ kubectl -n ate-system patch ds ate-accelerator-soci --type=merge -p {"spec":{"template":{"metadata":{"annotations":{"ate.dev/upgrade-test-rev":"v2"}}}}}
+daemonset.apps/ate-accelerator-soci patched
+Waiting for ate-accelerator-soci-9qms2 to receive SIGTERM and enter lame-duck drain mode...
+--- [soci Step 4a] Pod status and adapter lame-duck logs during active lease drain ---
+$ kubectl -n ate-system get pods -l app=ate-image-accelerator,ate.dev/image-accelerator=soci -o wide
+NAME                         READY   STATUS        RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+ate-accelerator-soci-9qms2   2/2     Terminating   0          72s   10.1.15.236   gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62   <none>           <none>
+$ kubectl -n ate-system logs ate-accelerator-soci-9qms2 -c accelerator-soci
+2026/10/22 04:49:05 INFO ImageAccelerator adapter listening provider=soci listenSocket=/run/ate/image-accelerator.sock snapshotterSocket=/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock
+2026/10/22 04:49:14 INFO Synchronized registry credentials to docker config path=/run/soci-snapshotter-grpc/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 server=us-central1-docker.pkg.dev username=_token
+2026/10/22 04:49:18 INFO PrepareImage timing breakdown provider=soci image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=265.711 stat_ms=5.791 prepare_ms=3351.211 view_ms=35.54 listable_ms=1.305 wrapper_ms=3.201 total_ms=3660.353
+2026/10/22 04:49:21 INFO Shutdown signal received; entering lame-duck drain mode socket=/run/ate/image-accelerator.sock
+2026/10/22 04:49:21 INFO Entered lame-duck drain mode; waiting for active streamed image leases to release provider=soci drainTimeout=30m0s activeLeases="[us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4(refCount=1)]"
+--- [soci Step 4b] Verifying /run/ate/drain-complete is NOT written while refCount=1 ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- sh -c 
+    if [ -f /run/ate/drain-complete ]; then
+      echo "ERROR: /run/ate/drain-complete exists prematurely!"
+      exit 1
+    else
+      echo "CONFIRMED: /run/ate/drain-complete does not exist while refCount=1 (preStop is holding provider container alive)"
+    fi
+  
+CONFIRMED: /run/ate/drain-complete does not exist while refCount=1 (preStop is holding provider container alive)
+--- [soci Step 4c] Probing /run/ate/image-accelerator.sock during lame-duck drain (expect CanProvide=false) ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 -bypass-ttl=true
+{
+  "provider": "soci",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "canProvide": false,
+  "canProvideMs": 1.41,
+  "prepareMs": 0,
+  "releaseMs": 0,
+  "verifiedLayers": 0
+}
+--- [soci Step 4d] Verifying active actor up-soci-stream reads uncached file from FUSE/EROFS during SIGTERM drain (zero ENOTCONN) ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=exec --cmd=python3 -c "data = open(\"/testbed/lib/matplotlib/axes/_axes.py\").read(); print(\"LAME_DUCK_DRAIN_READ_OK bytes=\", len(data))" --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-soci-stream
+{"stdout":"LAME_DUCK_DRAIN_READ_OK bytes= 320619\n","stderr":"","exitCode":0}
+--- [soci Step 4e] Booting new actor up-soci-fallback during lame-duck drain (verifying automatic fallback to local image-cache) ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=create-boot-run --adapter=baseline --scenario=upgrade_soci_fallback --workload=small --cmd=cat -- "/testbed/lib/matplotlib/pyplot.py" | wc -c --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --template=tmpl-cos-oci --actor=up-soci-fallback
+{"adapter":"baseline","scenario":"upgrade_soci_fallback","workload":"small","actor_ref":"ate-bench-stream/up-soci-fallback","worker_pod":"wp-c3-cos-6ddc6bb74b-zplgc","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792644620563907686,"resume_rpc_done_ns":1792644644873374775,"resume_rpc_dur_ms":24309.4671,"cmd_t0_ns":1792644644909929056,"cmd_t1_ns":1792644644921321890,"http_done_ns":1792644644923430718,"client_ttce_ms":24346.02137,"workload_run_ms":11.392834,"client_e2e_ms":24357.414204,"exit_code":0,"stdout_preview":"112403"}
+--- [soci Step 4f] Inspecting rootfs-overlay.json of both actors (up-soci-stream streamed=true vs up-soci-fallback image-cache) ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- sh -c 
+    for f in /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; do
+      echo "=== ${f} ==="
+      cat "${f}"; echo ""
+    done
+  
+=== /var/lib/ate/actors/a6108809-f472-4fe8-8061-eb5248715f1f/bundles/sandbox/rootfs-overlay.json ===
+{
+  "version": 1,
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "streamed": true,
+  "layers": [
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+  ]
+}
+=== /var/lib/ate/actors/e118a22f-f3fc-4f8e-a6b6-1d494bc5c719/bundles/sandbox/rootfs-overlay.json ===
+{
+  "version": 1,
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "layers": [
+    "/var/lib/ate/image-cache/layers/sha256/ea16cace89338c84eb6bcb91a7efdfcae6838fff359efe951858227436486c34",
+    "/var/lib/ate/image-cache/layers/sha256/fd14681b3f78357c6ffbcef2d304d2323c29797bde46a32f3037701f7a431fd6",
+    "/var/lib/ate/image-cache/layers/sha256/17e3008119c76df2e3a50da6fe465488993955150901315b1f09d9fded346507",
+    "/var/lib/ate/image-cache/layers/sha256/8512b779ac15768e46d1c70d0c7d0031eae14a47cd0c3ce7588d843419cee4d1",
+    "/var/lib/ate/image-cache/layers/sha256/f5f3409de2bcb398e84055464ed1a8b701f7e964f019e9c5d679002e6a0bea93",
+    "/var/lib/ate/image-cache/layers/sha256/fc77ab78e128550fbf89806ef258df94a58ff8a9cdcb5c66241c7815bf630de0",
+    "/var/lib/ate/image-cache/layers/sha256/584c997258045503a652a2773234cd3f9c48e320ebbeb037b7a703d8a684d2b8",
+    "/var/lib/ate/image-cache/layers/sha256/ffe56a1c5f3878e9b5f803842adb9e2ce81584b6bd027e8599582aefe14a975b",
+    "/var/lib/ate/image-cache/layers/sha256/b80be4baa9e9d46a68c44421143a8241fc7f7e03178118805f002b931332caa1",
+    "/var/lib/ate/image-cache/layers/sha256/4d18cef730e0121c58eea34494a964e0c7f1b9798262dcdb2ca6ad7d1f3902f0"
+  ]
+}
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=delete --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-soci-fallback
+{"action":"delete","actor_ref":"ate-bench-stream/up-soci-fallback"}
+--- [soci Step 5] Deleting streamed actor up-soci-stream to drop refCount -> 0 and complete RollingUpdate ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=delete --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MTQ4NywiaWF0IjoxNzkyNjQ0Mjg3LCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiI0NDRiMjg0ZS0zMDNjLTQzYmMtOWM1ZC01Y2YxNWJhZjAxYjkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ0Mjg3LCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.pfM7VacZJT1E4S7IBQfyQ1K6HUWirHRDHOPABxL8ObLqmGSe5MjjpyWibxoQJeXSYKiSxMPp8-ltm__k9tlO7rgeB2nM4JqQ2_AJ9sLoRr4SYsFYPLvp9zwnC-f6NCK_Z7I_jTTxgip_Z90PW2c4A0MM4ZBos6Nwm5i0XrvvJdF2lb8Ec8b0HR69czBJdjwE0QWUOW5H4LurTbZlhnwiIGXzJP4WRvSywoG18e1O5iSJpcdKU1oX7Tm-tHbp26FqZ_C6IfhRXGIDeiViQXZ4D9wVnbmgxmJz6yJ2ZtXZpivQ64KqM4WbYhn68HrpmhxDs2DLqdLD6HFgpU6UJUZJGw --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-soci-stream
+{"action":"delete","actor_ref":"ate-bench-stream/up-soci-stream"}
+--- [soci Step 5b] Waiting for ds/ate-accelerator-soci RollingUpdate replacement pod to become Ready ---
+$ kubectl -n ate-system rollout status ds/ate-accelerator-soci --timeout=180s
+Waiting for daemon set "ate-accelerator-soci" rollout to finish: 0 out of 1 new pods have been updated...
+Waiting for daemon set "ate-accelerator-soci" rollout to finish: 0 out of 1 new pods have been updated...
+Waiting for daemon set "ate-accelerator-soci" rollout to finish: 0 of 1 updated pods are available...
+daemon set "ate-accelerator-soci" successfully rolled out
+Replacement soci pod Ready: ate-accelerator-soci-n4hlv (UID=432bd3da-9f6e-4540-ab9f-d76bcf54406c, rev=v2)
+--- [soci Step 5c] Probing new v2 soci pod (ate-accelerator-soci-n4hlv) to verify clean streaming ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 -bypass-ttl=true
+{
+  "provider": "soci",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "canProvide": true,
+  "layerDirs": [
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/accelerator/soci/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+  ],
+  "canProvideMs": 3.006,
+  "prepareMs": 286.313,
+  "releaseMs": 20.121,
+  "verifiedLayers": 10
+}
+$ kubectl -n ate-system logs ate-accelerator-soci-n4hlv -c accelerator-soci
+2026/10/22 04:50:56 INFO ImageAccelerator adapter listening provider=soci listenSocket=/run/ate/image-accelerator.sock snapshotterSocket=/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock
+2026/10/22 04:51:05 INFO Synchronized registry credentials to docker config path=/run/soci-snapshotter-grpc/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 server=us-central1-docker.pkg.dev username=_token
+2026/10/22 04:51:05 INFO PrepareImage timing breakdown provider=soci image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=237.911 stat_ms=3.242 prepare_ms=0 view_ms=41.983 listable_ms=1.669 wrapper_ms=2.009 total_ms=285.504
+================================================================================
+ROLLING UPDATE TEST (nydus-dragonfly): Fresh Deploy -> Streamed Actor -> SIGTERM Lame-Duck Drain -> Rollover
+================================================================================
+--- Cleaning all existing adapter DaemonSets and node labels ---
+$ kubectl label nodes --all ate.dev/image-accelerator- --overwrite
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p unlabeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-e2-std32-ssd-poo-cadaf832-bpft not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-49x6 not labeled
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc unlabeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-65vz not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-sae4 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz not labeled
+$ kubectl -n ate-system delete ds ate-accelerator-riptide ate-accelerator-soci ate-accelerator-nydus-dragonfly ate-accelerator-spegel --ignore-not-found --wait=true
+daemonset.apps "ate-accelerator-nydus-dragonfly" deleted from ate-system namespace
+--- [nydus-dragonfly Step 1] Freshly applying oci-image-accelerator/manifests/nydus-dragonfly.yaml and labeling gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p ---
+$ sed 's|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly|us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-43b7cd7fcc690e313d1d8d22b48fc00d@sha256:2b968fbe6f8af7d8bdd4ed007a07c2a0b6bf11338183c8585fb9ba0cf98328b4|g' oci-image-accelerator/manifests/nydus-dragonfly.yaml | kubectl apply -f -
+service/dragonfly-redis unchanged
+deployment.apps/dragonfly-redis unchanged
+service/dragonfly-mysql unchanged
+deployment.apps/dragonfly-mysql unchanged
+configmap/dragonfly-controlplane-config unchanged
+service/dragonfly-manager unchanged
+deployment.apps/dragonfly-manager unchanged
+service/dragonfly-scheduler unchanged
+deployment.apps/dragonfly-scheduler unchanged
+daemonset.apps/ate-accelerator-nydus-dragonfly created
+networkpolicy.networking.k8s.io/dragonfly-backing-stores unchanged
+networkpolicy.networking.k8s.io/dragonfly-controlplane-and-peers unchanged
+$ kubectl -n ate-system rollout status deployment/dragonfly-redis deployment/dragonfly-mysql deployment/dragonfly-manager deployment/dragonfly-scheduler --timeout=180s
+deployment "dragonfly-redis" successfully rolled out
+deployment "dragonfly-mysql" successfully rolled out
+deployment "dragonfly-manager" successfully rolled out
+deployment "dragonfly-scheduler" successfully rolled out
+$ kubectl label node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc ate.dev/image-accelerator=nydus-dragonfly --overwrite
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc labeled
+Seeding us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 on Dragonfly peer node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc...
+$ kubectl -n ate-system exec bench-helper-fkxc -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 -bypass-ttl=false
+{
+  "provider": "nydus-dragonfly",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "imageDigest": "sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "canProvide": true,
+  "layerDirs": [
+    "/var/lib/ate/accelerator/nydus-dragonfly/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7/layer-0"
+  ],
+  "canProvideMs": 7.288,
+  "prepareMs": 1030.529,
+  "releaseMs": 0.44,
+  "verifiedLayers": 1
+}
+$ kubectl label node gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p ate.dev/image-accelerator=nydus-dragonfly --overwrite
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p labeled
+$ kubectl -n ate-system get ds ate-accelerator-nydus-dragonfly -o wide
+NAME                              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS                                         IMAGES                                                                                                                                                                                                                                                                                                                   SELECTOR
+ate-accelerator-nydus-dragonfly   2         2         2       2            2           <none>          13s   dfdaemon,nydus-snapshotter,accelerator-dragonfly   dragonflyoss/dfdaemon:v2.1.49,debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132,us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-43b7cd7fcc690e313d1d8d22b48fc00d@sha256:2b968fbe6f8af7d8bdd4ed007a07c2a0b6bf11338183c8585fb9ba0cf98328b4   app=ate-image-accelerator,ate.dev/image-accelerator=nydus-dragonfly
+$ kubectl -n ate-system get pods -l app=ate-image-accelerator,ate.dev/image-accelerator=nydus-dragonfly -o wide
+NAME                                    READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+ate-accelerator-nydus-dragonfly-fzmkr   3/3     Running   0          12s   10.1.15.220   gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc   <none>           <none>
+ate-accelerator-nydus-dragonfly-hq4w8   3/3     Running   0          5s    10.1.15.238   gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p   <none>           <none>
+Initial nydus-dragonfly pod on gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p: ate-accelerator-nydus-dragonfly-hq4w8 (UID=bf2a09a5-cf00-4857-a049-6f13a2f66793)
+--- [nydus-dragonfly Step 2] Booting streamed actor up-nydus-dragonfly-stream on gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p ---
+$ kubectl -n ate-system exec bench-helper-5h2p -- /home/kubernetes/bin/bench-runner --mode=create-boot-run --adapter=nydus-dragonfly --scenario=upgrade_nydus-dragonfly_streamed --workload=small --cmd=cat -- "/testbed/lib/matplotlib/pyplot.py" | wc -c --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MjIxMiwiaWF0IjoxNzkyNjQ1MDEyLCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiJlNjYxNDIzOS0xMjdkLTQ1M2MtOWM5MC03NWM1MGM5ZGI2ZTQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ1MDEyLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.RDF3txo3TUQq3hnOfeibEo6_J8E0iflNxpuc6jUbNh1MSBi_ERNAcFk3hE3r3av8cjg9yrZ74gzsArQv0C1QLYtYHpsVye40k2n02-b4fGJM7FflrHNRnI2JfSWXJyulze6o1AfAmn0QhbpjB0oD8GMgcbpRrjPtMX2V5bwSjdp2TcbqvMf9f793CME-087o1cZmYAjIEgREsFwnt1bbQG_IUNdzJsEocnYFqvr9ZMIlDCS0xTRW6FhqUmYgqDQb65BxVFb4-pt0yEdqJn6HbbsbxF08oqBNXsbBZe2hUZoh2JAajdt15y0XI3UKcztq-NQvybs70asM6HRUsMP-ag --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --template=tmpl-ubuntu-nydus --actor=up-nydus-dragonfly-stream
+{"adapter":"nydus-dragonfly","scenario":"upgrade_nydus-dragonfly_streamed","workload":"small","actor_ref":"ate-bench-stream/up-nydus-dragonfly-stream","worker_pod":"wp-c3-ubuntu-565b998d86-x4fz8","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/84f1c736-b152-466d-b3bc-71be8bfe12de","resume_rpc_start_ns":1792645044651190954,"resume_rpc_done_ns":1792645045666050991,"resume_rpc_dur_ms":1014.860052,"cmd_t0_ns":1792645051559058903,"cmd_t1_ns":1792645051615481764,"http_done_ns":1792645051618286286,"client_ttce_ms":6907.867949,"workload_run_ms":56.422861,"client_e2e_ms":6964.29081,"exit_code":0,"stdout_preview":"112403"}
+--- [nydus-dragonfly Step 2b] Verifying rootfs-overlay.json for up-nydus-dragonfly-stream on gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p ---
+$ kubectl -n ate-system exec bench-helper-5h2p -- nsenter -t 1 -m -u -i -n -- sh -c 
+    cat /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; echo ""
+  
+{
+  "version": 1,
+  "imageDigest": "sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "streamed": true,
+  "layers": [
+    "/var/lib/ate/accelerator/nydus-dragonfly/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7/layer-0"
+  ]
+}
+--- [nydus-dragonfly Step 3] Triggering RollingUpdate on ds/ate-accelerator-nydus-dragonfly while up-nydus-dragonfly-stream holds active lease (refCount=1) ---
+$ kubectl label node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc ate.dev/image-accelerator- --overwrite
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc unlabeled
+$ kubectl -n ate-system patch ds ate-accelerator-nydus-dragonfly --type=merge -p {"spec":{"template":{"metadata":{"annotations":{"ate.dev/upgrade-test-rev":"v2"}}}}}
+daemonset.apps/ate-accelerator-nydus-dragonfly patched
+Waiting for ate-accelerator-nydus-dragonfly-hq4w8 to receive SIGTERM and enter lame-duck drain mode...
+--- [nydus-dragonfly Step 4a] Pod status and adapter lame-duck logs during active lease drain ---
+$ kubectl -n ate-system get pods -l app=ate-image-accelerator,ate.dev/image-accelerator=nydus-dragonfly -o wide
+NAME                                    READY   STATUS        RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+ate-accelerator-nydus-dragonfly-hq4w8   3/3     Terminating   0          76s   10.1.15.238   gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p   <none>           <none>
+$ kubectl -n ate-system logs ate-accelerator-nydus-dragonfly-hq4w8 -c accelerator-dragonfly
+2026/10/22 04:57:15 INFO Initialized cross-node Nydus + Dragonfly v2 (Kernel EROFS + fscache) ImageAccelerator driver dragonflyProxyAddr=http://127.0.0.1:65001 dragonflySchedulerAddr=dragonfly-scheduler.ate-system.svc.cluster.local:8002 dragonflyManagerAddr=dragonfly-manager.ate-system.svc.cluster.local:65003 verifyDragonflyPing=true procFilesystems=/proc/filesystems cachefilesDev=/dev/cachefiles
+2026/10/22 04:57:15 INFO ImageAccelerator adapter listening provider=nydus-dragonfly listenSocket=/run/ate/image-accelerator.sock snapshotterSocket=/run/containerd-nydus/containerd-nydus-grpc.sock
+2026/10/22 04:57:24 INFO Synchronized registry credentials to docker config path=/run/containerd-nydus/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 server=us-central1-docker.pkg.dev username=_token
+2026/10/22 04:57:25 INFO Materialized and committed Nydus RAFS v6 EROFS bootstrap layer layerIndex=9 layerDigest=sha256:4708d969ebe0d28faabdc8af15029c0af872add758901ba43b46223611c12b0a chainID=sha256:290c98e805703be418ed6428abb8738cc00c711707718b663a7605e7f983670b targetDir=/var/lib/ate/accelerator/nydus-snapshotter/snapshots/10/fs dragonflyProxy=http://127.0.0.1:65001 dragonflyScheduler=dragonfly-scheduler.ate-system.svc.cluster.local:8002 dragonflyManager=dragonfly-manager.ate-system.svc.cluster.local:65003
+2026/10/22 04:57:25 INFO PrepareImage timing breakdown provider=nydus-dragonfly image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 digest=sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 layers=1 resolve_ms=274.201 stat_ms=3.417 prepare_ms=26.971 view_ms=35.743 listable_ms=0.043 wrapper_ms=0.186 total_ms=833.766
+2026/10/22 04:57:36 INFO Shutdown signal received; entering lame-duck drain mode socket=/run/ate/image-accelerator.sock
+2026/10/22 04:57:36 INFO Entered lame-duck drain mode; waiting for active streamed image leases to release provider=nydus-dragonfly drainTimeout=30m0s activeLeases="[us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7(refCount=1)]"
+--- [nydus-dragonfly Step 4b] Verifying /run/ate/drain-complete is NOT written while refCount=1 ---
+$ kubectl -n ate-system exec bench-helper-5h2p -- nsenter -t 1 -m -u -i -n -- sh -c 
+    if [ -f /run/ate/drain-complete ]; then
+      echo "ERROR: /run/ate/drain-complete exists prematurely!"
+      exit 1
+    else
+      echo "CONFIRMED: /run/ate/drain-complete does not exist while refCount=1 (preStop is holding provider container alive)"
+    fi
+  
+CONFIRMED: /run/ate/drain-complete does not exist while refCount=1 (preStop is holding provider container alive)
+--- [nydus-dragonfly Step 4c] Probing /run/ate/image-accelerator.sock during lame-duck drain (expect CanProvide=false) ---
+$ kubectl -n ate-system exec bench-helper-5h2p -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 -bypass-ttl=true
+{
+  "provider": "nydus-dragonfly",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "canProvide": false,
+  "canProvideMs": 1.328,
+  "prepareMs": 0,
+  "releaseMs": 0,
+  "verifiedLayers": 0
+}
+--- [nydus-dragonfly Step 4d] Verifying active actor up-nydus-dragonfly-stream reads uncached file from FUSE/EROFS during SIGTERM drain (zero ENOTCONN) ---
+$ kubectl -n ate-system exec bench-helper-5h2p -- /home/kubernetes/bin/bench-runner --mode=exec --cmd=python3 -c "data = open(\"/testbed/lib/matplotlib/axes/_axes.py\").read(); print(\"LAME_DUCK_DRAIN_READ_OK bytes=\", len(data))" --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MjIxMiwiaWF0IjoxNzkyNjQ1MDEyLCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiJlNjYxNDIzOS0xMjdkLTQ1M2MtOWM5MC03NWM1MGM5ZGI2ZTQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ1MDEyLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.RDF3txo3TUQq3hnOfeibEo6_J8E0iflNxpuc6jUbNh1MSBi_ERNAcFk3hE3r3av8cjg9yrZ74gzsArQv0C1QLYtYHpsVye40k2n02-b4fGJM7FflrHNRnI2JfSWXJyulze6o1AfAmn0QhbpjB0oD8GMgcbpRrjPtMX2V5bwSjdp2TcbqvMf9f793CME-087o1cZmYAjIEgREsFwnt1bbQG_IUNdzJsEocnYFqvr9ZMIlDCS0xTRW6FhqUmYgqDQb65BxVFb4-pt0yEdqJn6HbbsbxF08oqBNXsbBZe2hUZoh2JAajdt15y0XI3UKcztq-NQvybs70asM6HRUsMP-ag --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-nydus-dragonfly-stream
+{"stdout":"LAME_DUCK_DRAIN_READ_OK bytes= 320619\n","stderr":"","exitCode":0}
+--- [nydus-dragonfly Step 4e] Booting new actor up-nydus-dragonfly-fallback during lame-duck drain (verifying automatic fallback to local image-cache) ---
+$ kubectl -n ate-system exec bench-helper-5h2p -- /home/kubernetes/bin/bench-runner --mode=create-boot-run --adapter=baseline --scenario=upgrade_nydus-dragonfly_fallback --workload=small --cmd=cat -- "/testbed/lib/matplotlib/pyplot.py" | wc -c --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MjIxMiwiaWF0IjoxNzkyNjQ1MDEyLCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiJlNjYxNDIzOS0xMjdkLTQ1M2MtOWM5MC03NWM1MGM5ZGI2ZTQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ1MDEyLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.RDF3txo3TUQq3hnOfeibEo6_J8E0iflNxpuc6jUbNh1MSBi_ERNAcFk3hE3r3av8cjg9yrZ74gzsArQv0C1QLYtYHpsVye40k2n02-b4fGJM7FflrHNRnI2JfSWXJyulze6o1AfAmn0QhbpjB0oD8GMgcbpRrjPtMX2V5bwSjdp2TcbqvMf9f793CME-087o1cZmYAjIEgREsFwnt1bbQG_IUNdzJsEocnYFqvr9ZMIlDCS0xTRW6FhqUmYgqDQb65BxVFb4-pt0yEdqJn6HbbsbxF08oqBNXsbBZe2hUZoh2JAajdt15y0XI3UKcztq-NQvybs70asM6HRUsMP-ag --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --template=tmpl-ubuntu-oci --actor=up-nydus-dragonfly-fallback
+{"adapter":"baseline","scenario":"upgrade_nydus-dragonfly_fallback","workload":"small","actor_ref":"ate-bench-stream/up-nydus-dragonfly-fallback","worker_pod":"wp-c3-ubuntu-565b998d86-x4fz8","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/70b632e5-8b84-44d3-b721-95a75edb6102","resume_rpc_start_ns":1792645115168424103,"resume_rpc_done_ns":1792645137042703697,"resume_rpc_dur_ms":21874.279591,"cmd_t0_ns":1792645137063955375,"cmd_t1_ns":1792645137073545402,"http_done_ns":1792645137075109304,"client_ttce_ms":21895.531272,"workload_run_ms":9.590027,"client_e2e_ms":21905.121299,"exit_code":0,"stdout_preview":"112403"}
+--- [nydus-dragonfly Step 4f] Inspecting rootfs-overlay.json of both actors (up-nydus-dragonfly-stream streamed=true vs up-nydus-dragonfly-fallback image-cache) ---
+$ kubectl -n ate-system exec bench-helper-5h2p -- nsenter -t 1 -m -u -i -n -- sh -c 
+    for f in /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; do
+      echo "=== ${f} ==="
+      cat "${f}"; echo ""
+    done
+  
+=== /var/lib/ate/actors/a074c9ab-f8f6-46fe-8d0e-03e3f8323f4b/bundles/sandbox/rootfs-overlay.json ===
+{
+  "version": 1,
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "layers": [
+    "/var/lib/ate/image-cache/layers/sha256/ea16cace89338c84eb6bcb91a7efdfcae6838fff359efe951858227436486c34",
+    "/var/lib/ate/image-cache/layers/sha256/fd14681b3f78357c6ffbcef2d304d2323c29797bde46a32f3037701f7a431fd6",
+    "/var/lib/ate/image-cache/layers/sha256/17e3008119c76df2e3a50da6fe465488993955150901315b1f09d9fded346507",
+    "/var/lib/ate/image-cache/layers/sha256/8512b779ac15768e46d1c70d0c7d0031eae14a47cd0c3ce7588d843419cee4d1",
+    "/var/lib/ate/image-cache/layers/sha256/f5f3409de2bcb398e84055464ed1a8b701f7e964f019e9c5d679002e6a0bea93",
+    "/var/lib/ate/image-cache/layers/sha256/fc77ab78e128550fbf89806ef258df94a58ff8a9cdcb5c66241c7815bf630de0",
+    "/var/lib/ate/image-cache/layers/sha256/584c997258045503a652a2773234cd3f9c48e320ebbeb037b7a703d8a684d2b8",
+    "/var/lib/ate/image-cache/layers/sha256/ffe56a1c5f3878e9b5f803842adb9e2ce81584b6bd027e8599582aefe14a975b",
+    "/var/lib/ate/image-cache/layers/sha256/b80be4baa9e9d46a68c44421143a8241fc7f7e03178118805f002b931332caa1",
+    "/var/lib/ate/image-cache/layers/sha256/4d18cef730e0121c58eea34494a964e0c7f1b9798262dcdb2ca6ad7d1f3902f0"
+  ]
+}
+=== /var/lib/ate/actors/ed83b310-17d4-40db-8bad-68c59dd8450a/bundles/sandbox/rootfs-overlay.json ===
+{
+  "version": 1,
+  "imageDigest": "sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "streamed": true,
+  "layers": [
+    "/var/lib/ate/accelerator/nydus-dragonfly/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7/layer-0"
+  ]
+}
+$ kubectl -n ate-system exec bench-helper-5h2p -- /home/kubernetes/bin/bench-runner --mode=delete --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MjIxMiwiaWF0IjoxNzkyNjQ1MDEyLCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiJlNjYxNDIzOS0xMjdkLTQ1M2MtOWM5MC03NWM1MGM5ZGI2ZTQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ1MDEyLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.RDF3txo3TUQq3hnOfeibEo6_J8E0iflNxpuc6jUbNh1MSBi_ERNAcFk3hE3r3av8cjg9yrZ74gzsArQv0C1QLYtYHpsVye40k2n02-b4fGJM7FflrHNRnI2JfSWXJyulze6o1AfAmn0QhbpjB0oD8GMgcbpRrjPtMX2V5bwSjdp2TcbqvMf9f793CME-087o1cZmYAjIEgREsFwnt1bbQG_IUNdzJsEocnYFqvr9ZMIlDCS0xTRW6FhqUmYgqDQb65BxVFb4-pt0yEdqJn6HbbsbxF08oqBNXsbBZe2hUZoh2JAajdt15y0XI3UKcztq-NQvybs70asM6HRUsMP-ag --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-nydus-dragonfly-fallback
+{"action":"delete","actor_ref":"ate-bench-stream/up-nydus-dragonfly-fallback"}
+--- [nydus-dragonfly Step 5] Deleting streamed actor up-nydus-dragonfly-stream to drop refCount -> 0 and complete RollingUpdate ---
+$ kubectl -n ate-system exec bench-helper-5h2p -- /home/kubernetes/bin/bench-runner --mode=delete --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MjIxMiwiaWF0IjoxNzkyNjQ1MDEyLCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiJlNjYxNDIzOS0xMjdkLTQ1M2MtOWM5MC03NWM1MGM5ZGI2ZTQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ1MDEyLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.RDF3txo3TUQq3hnOfeibEo6_J8E0iflNxpuc6jUbNh1MSBi_ERNAcFk3hE3r3av8cjg9yrZ74gzsArQv0C1QLYtYHpsVye40k2n02-b4fGJM7FflrHNRnI2JfSWXJyulze6o1AfAmn0QhbpjB0oD8GMgcbpRrjPtMX2V5bwSjdp2TcbqvMf9f793CME-087o1cZmYAjIEgREsFwnt1bbQG_IUNdzJsEocnYFqvr9ZMIlDCS0xTRW6FhqUmYgqDQb65BxVFb4-pt0yEdqJn6HbbsbxF08oqBNXsbBZe2hUZoh2JAajdt15y0XI3UKcztq-NQvybs70asM6HRUsMP-ag --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-nydus-dragonfly-stream
+{"action":"delete","actor_ref":"ate-bench-stream/up-nydus-dragonfly-stream"}
+--- [nydus-dragonfly Step 5b] Waiting for ds/ate-accelerator-nydus-dragonfly RollingUpdate replacement pod to become Ready ---
+$ kubectl -n ate-system rollout status ds/ate-accelerator-nydus-dragonfly --timeout=180s
+Waiting for daemon set "ate-accelerator-nydus-dragonfly" rollout to finish: 0 out of 1 new pods have been updated...
+Waiting for daemon set "ate-accelerator-nydus-dragonfly" rollout to finish: 0 out of 1 new pods have been updated...
+Waiting for daemon set "ate-accelerator-nydus-dragonfly" rollout to finish: 0 of 1 updated pods are available...
+daemon set "ate-accelerator-nydus-dragonfly" successfully rolled out
+Replacement nydus-dragonfly pod Ready: ate-accelerator-nydus-dragonfly-pdnzq (UID=4c67a327-c030-4cff-a35b-8f71c3dd51c1, rev=v2)
+--- [nydus-dragonfly Step 5c] Probing new v2 nydus-dragonfly pod (ate-accelerator-nydus-dragonfly-pdnzq) to verify clean streaming ---
+$ kubectl label node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc ate.dev/image-accelerator=nydus-dragonfly --overwrite
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc labeled
+$ kubectl -n ate-system exec bench-helper-5h2p -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 -bypass-ttl=true
+{
+  "provider": "nydus-dragonfly",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "imageDigest": "sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "canProvide": true,
+  "layerDirs": [
+    "/var/lib/ate/accelerator/nydus-dragonfly/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7/layer-0"
+  ],
+  "canProvideMs": 5.127,
+  "prepareMs": 780.99,
+  "releaseMs": 1.632,
+  "verifiedLayers": 1
+}
+$ kubectl -n ate-system logs ate-accelerator-nydus-dragonfly-pdnzq -c accelerator-dragonfly
+2026/10/22 04:59:07 INFO Initialized cross-node Nydus + Dragonfly v2 (Kernel EROFS + fscache) ImageAccelerator driver dragonflyProxyAddr=http://127.0.0.1:65001 dragonflySchedulerAddr=dragonfly-scheduler.ate-system.svc.cluster.local:8002 dragonflyManagerAddr=dragonfly-manager.ate-system.svc.cluster.local:65003 verifyDragonflyPing=true procFilesystems=/proc/filesystems cachefilesDev=/dev/cachefiles
+2026/10/22 04:59:07 INFO ImageAccelerator adapter listening provider=nydus-dragonfly listenSocket=/run/ate/image-accelerator.sock snapshotterSocket=/run/containerd-nydus/containerd-nydus-grpc.sock
+2026/10/22 04:59:18 INFO Synchronized registry credentials to docker config path=/run/containerd-nydus/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 server=us-central1-docker.pkg.dev username=_token
+2026/10/22 04:59:18 INFO Materialized and committed Nydus RAFS v6 EROFS bootstrap layer layerIndex=9 layerDigest=sha256:4708d969ebe0d28faabdc8af15029c0af872add758901ba43b46223611c12b0a chainID=sha256:290c98e805703be418ed6428abb8738cc00c711707718b663a7605e7f983670b targetDir=/var/lib/ate/accelerator/nydus-snapshotter/snapshots/10/fs dragonflyProxy=http://127.0.0.1:65001 dragonflyScheduler=dragonfly-scheduler.ate-system.svc.cluster.local:8002 dragonflyManager=dragonfly-manager.ate-system.svc.cluster.local:65003
+2026/10/22 04:59:18 INFO PrepareImage timing breakdown provider=nydus-dragonfly image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 digest=sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 layers=1 resolve_ms=307.345 stat_ms=3.156 prepare_ms=27.785 view_ms=47.431 listable_ms=0.048 wrapper_ms=0.212 total_ms=780.426
+================================================================================
+ROLLING UPDATE TEST (spegel): Fresh Deploy -> P2P Unpacked Actor -> RollingUpdate -> Verify
+================================================================================
+--- Cleaning all existing adapter DaemonSets and node labels ---
+$ kubectl label nodes --all ate.dev/image-accelerator- --overwrite
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 not labeled
+node/gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p unlabeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-e2-std32-ssd-poo-cadaf832-bpft not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-49x6 not labeled
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc unlabeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-65vz not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-substrate-node-p-01c8a8ea-sae4 not labeled
+label "ate.dev/image-accelerator" not found.
+node/gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz not labeled
+$ kubectl -n ate-system delete ds ate-accelerator-riptide ate-accelerator-soci ate-accelerator-nydus-dragonfly ate-accelerator-spegel --ignore-not-found --wait=true
+daemonset.apps "ate-accelerator-nydus-dragonfly" deleted from ate-system namespace
+--- [spegel Step 1] Freshly applying oci-image-accelerator/manifests/spegel.yaml and labeling gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc & gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ---
+$ sed 's|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel|us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel-ce6b2efa1b67935797323cd43b9a6ab6@sha256:f1d1e28fd4b8bcfa524c59eeb4122d4467881071d81ddc0dbfd55aebb681ac1e|g' oci-image-accelerator/manifests/spegel.yaml | kubectl apply -f -
+service/spegel-bootstrap configured
+daemonset.apps/ate-accelerator-spegel created
+networkpolicy.networking.k8s.io/spegel-p2p created
+$ kubectl label node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 ate.dev/image-accelerator=spegel --overwrite
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc labeled
+node/gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 labeled
+$ kubectl -n ate-system get ds ate-accelerator-spegel -o wide
+NAME                     DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS           IMAGES                                                                                                                                                                                     SELECTOR
+ate-accelerator-spegel   2         2         2       2            2           <none>          10s   accelerator-spegel   us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel-ce6b2efa1b67935797323cd43b9a6ab6@sha256:f1d1e28fd4b8bcfa524c59eeb4122d4467881071d81ddc0dbfd55aebb681ac1e   app=ate-image-accelerator,ate.dev/image-accelerator=spegel
+$ kubectl -n ate-system get pods -l app=ate-image-accelerator,ate.dev/image-accelerator=spegel -o wide
+NAME                           READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+ate-accelerator-spegel-4tffp   1/1     Running   0          10s   10.1.15.236   gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62   <none>           <none>
+ate-accelerator-spegel-prqd5   1/1     Running   0          10s   10.1.15.220   gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc   <none>           <none>
+Seeding us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 on Spegel peer node gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc...
+$ kubectl -n ate-system exec bench-helper-fkxc -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 -bypass-ttl=false
+{
+  "provider": "spegel",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "canProvide": true,
+  "layerDirs": [
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+  ],
+  "canProvideMs": 2.91,
+  "prepareMs": 29506.286,
+  "releaseMs": 1.233,
+  "verifiedLayers": 10
+}
+Initial spegel pod on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62: ate-accelerator-spegel-4tffp (UID=d3092bfc-1be1-4bf8-a2ba-f0d5be6a29d9)
+--- [spegel Step 2] Booting actor up-spegel-actor on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62 via Spegel P2P ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=create-boot-run --adapter=spegel --scenario=upgrade_spegel_p2p --workload=small --cmd=cat -- "/testbed/lib/matplotlib/pyplot.py" | wc -c --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MjIxMiwiaWF0IjoxNzkyNjQ1MDEyLCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiJlNjYxNDIzOS0xMjdkLTQ1M2MtOWM5MC03NWM1MGM5ZGI2ZTQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ1MDEyLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.RDF3txo3TUQq3hnOfeibEo6_J8E0iflNxpuc6jUbNh1MSBi_ERNAcFk3hE3r3av8cjg9yrZ74gzsArQv0C1QLYtYHpsVye40k2n02-b4fGJM7FflrHNRnI2JfSWXJyulze6o1AfAmn0QhbpjB0oD8GMgcbpRrjPtMX2V5bwSjdp2TcbqvMf9f793CME-087o1cZmYAjIEgREsFwnt1bbQG_IUNdzJsEocnYFqvr9ZMIlDCS0xTRW6FhqUmYgqDQb65BxVFb4-pt0yEdqJn6HbbsbxF08oqBNXsbBZe2hUZoh2JAajdt15y0XI3UKcztq-NQvybs70asM6HRUsMP-ag --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --template=tmpl-cos-oci --actor=up-spegel-actor
+{"adapter":"spegel","scenario":"upgrade_spegel_p2p","workload":"small","actor_ref":"ate-bench-stream/up-spegel-actor","worker_pod":"wp-c3-cos-6ddc6bb74b-zplgc","snapshot_uri":"gs://snapshot-substrate-test-kuiyue-gke-dev/atespaces/ate-bench-stream/tags/a1fa23cd-851a-4b79-af4d-943e969eea08","resume_rpc_start_ns":1792645218361390569,"resume_rpc_done_ns":1792645240223528404,"resume_rpc_dur_ms":21862.137819,"cmd_t0_ns":1792645240245585131,"cmd_t1_ns":1792645240272936368,"http_done_ns":1792645240275051942,"client_ttce_ms":21884.194562,"workload_run_ms":27.351237,"client_e2e_ms":21911.545799,"exit_code":0,"stdout_preview":"112403"}
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- sh -c 
+    cat /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; echo ""
+  
+{
+  "version": 1,
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "streamed": true,
+  "layers": [
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+  ]
+}
+--- [spegel Step 3] Triggering RollingUpdate on ds/ate-accelerator-spegel while up-spegel-actor is RUNNING ---
+$ kubectl -n ate-system patch ds ate-accelerator-spegel --type=merge -p {"spec":{"template":{"metadata":{"annotations":{"ate.dev/upgrade-test-rev":"v2"}}}}}
+daemonset.apps/ate-accelerator-spegel patched
+$ kubectl -n ate-system rollout status ds/ate-accelerator-spegel --timeout=180s
+Waiting for daemon set "ate-accelerator-spegel" rollout to finish: 1 out of 2 new pods have been updated...
+Waiting for daemon set "ate-accelerator-spegel" rollout to finish: 1 out of 2 new pods have been updated...
+Waiting for daemon set "ate-accelerator-spegel" rollout to finish: 1 out of 2 new pods have been updated...
+Waiting for daemon set "ate-accelerator-spegel" rollout to finish: 1 of 2 updated pods are available...
+daemon set "ate-accelerator-spegel" successfully rolled out
+Replacement spegel pod on gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62: ate-accelerator-spegel-s7hjp (UID=14926d26-cf99-45bb-9d97-e70980cc2b69, rev=v2)
+--- [spegel Step 4] Verifying active actor up-spegel-actor continues reading unpacked layers after Spegel rollout ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=exec --cmd=python3 -c "data = open(\"/testbed/lib/matplotlib/figure.py\").read(); print(\"SPEGEL_ROLLOUT_READ_OK bytes=\", len(data))" --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MjIxMiwiaWF0IjoxNzkyNjQ1MDEyLCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiJlNjYxNDIzOS0xMjdkLTQ1M2MtOWM5MC03NWM1MGM5ZGI2ZTQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ1MDEyLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.RDF3txo3TUQq3hnOfeibEo6_J8E0iflNxpuc6jUbNh1MSBi_ERNAcFk3hE3r3av8cjg9yrZ74gzsArQv0C1QLYtYHpsVye40k2n02-b4fGJM7FflrHNRnI2JfSWXJyulze6o1AfAmn0QhbpjB0oD8GMgcbpRrjPtMX2V5bwSjdp2TcbqvMf9f793CME-087o1cZmYAjIEgREsFwnt1bbQG_IUNdzJsEocnYFqvr9ZMIlDCS0xTRW6FhqUmYgqDQb65BxVFb4-pt0yEdqJn6HbbsbxF08oqBNXsbBZe2hUZoh2JAajdt15y0XI3UKcztq-NQvybs70asM6HRUsMP-ag --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-spegel-actor
+{"stdout":"SPEGEL_ROLLOUT_READ_OK bytes= 131407\n","stderr":"","exitCode":0}
+$ kubectl -n ate-system exec bench-helper-wj62 -- /home/kubernetes/bin/bench-runner --mode=delete --token=eyJhbGciOiJSUzI1NiIsImtpZCI6Il85RWxucUpnbG9qQ2pKMVZMZ0xCVmc3cFlSelptZkJDWjdzVHluVXZiZ3MifQ.eyJhdWQiOlsiYXBpLmF0ZS1zeXN0ZW0uc3ZjIl0sImV4cCI6MTc5MjY1MjIxMiwiaWF0IjoxNzkyNjQ1MDEyLCJpc3MiOiJodHRwczovL2NvbnRhaW5lci5nb29nbGVhcGlzLmNvbS92MS9wcm9qZWN0cy9rdWl5dWUtZ2tlLWRldi9sb2NhdGlvbnMvdXMtY2VudHJhbDEtYS9jbHVzdGVycy9zdWJzdHJhdGUtc3RyZWFtLXRlc3QiLCJqdGkiOiJlNjYxNDIzOS0xMjdkLTQ1M2MtOWM5MC03NWM1MGM5ZGI2ZTQiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6ImF0ZS1zeXN0ZW0iLCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoiYXRlLWNsaWVudCIsInVpZCI6ImE3ZDdmZDIwLTJhN2EtNGY1MC1hYTQ0LTk3N2E2MWNiNGQ2OSJ9fSwibmJmIjoxNzkyNjQ1MDEyLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6YXRlLXN5c3RlbTphdGUtY2xpZW50In0.RDF3txo3TUQq3hnOfeibEo6_J8E0iflNxpuc6jUbNh1MSBi_ERNAcFk3hE3r3av8cjg9yrZ74gzsArQv0C1QLYtYHpsVye40k2n02-b4fGJM7FflrHNRnI2JfSWXJyulze6o1AfAmn0QhbpjB0oD8GMgcbpRrjPtMX2V5bwSjdp2TcbqvMf9f793CME-087o1cZmYAjIEgREsFwnt1bbQG_IUNdzJsEocnYFqvr9ZMIlDCS0xTRW6FhqUmYgqDQb65BxVFb4-pt0yEdqJn6HbbsbxF08oqBNXsbBZe2hUZoh2JAajdt15y0XI3UKcztq-NQvybs70asM6HRUsMP-ag --ateapi=10.96.6.70:443 --atenet=34.118.238.160:443 --atespace=ate-bench-stream --actor=up-spegel-actor
+{"action":"delete","actor_ref":"ate-bench-stream/up-spegel-actor"}
+--- [spegel Step 5] Probing new v2 spegel pod (ate-accelerator-spegel-s7hjp) ---
+$ kubectl -n ate-system exec bench-helper-wj62 -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 -bypass-ttl=true
+{
+  "provider": "spegel",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "imageDigest": "sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4",
+  "canProvide": true,
+  "layerDirs": [
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-0",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-1",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-2",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-3",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-4",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-5",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-6",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-7",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-8",
+    "/var/lib/ate/accelerator/spegel/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4/layer-9"
+  ],
+  "canProvideMs": 1.64,
+  "prepareMs": 288.44,
+  "releaseMs": 1.32,
+  "verifiedLayers": 10
+}
+$ kubectl -n ate-system logs ate-accelerator-spegel-s7hjp -c accelerator-spegel
+2026/10/22 05:01:03 INFO Initialized Spegel P2P ImageAccelerator driver spegelMirrorAddr=http://127.0.0.1:5000 spegelRouterAddr=:5001 spegelBootstrapDNS=spegel-bootstrap.ate-system.svc.cluster.local storeDir=/var/lib/ate/accelerator/spegel-store enableP2PServer=true verifySpegelReady=true idleTTL=10m0s
+2026/10/22 05:01:03 INFO ImageAccelerator adapter listening provider=spegel listenSocket=/run/ate/image-accelerator.sock snapshotterSocket=""
+2026/10/22 05:01:14 INFO Synchronized registry credentials to docker config path=/run/ate/spegel/docker/config.json image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 server=us-central1-docker.pkg.dev username=_token
+2026/10/22 05:01:14 INFO PrepareImage timing breakdown provider=spegel image=us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 digest=sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4 layers=10 resolve_ms=285.665 stat_ms=0.082 prepare_ms=0 view_ms=0 listable_ms=0.431 wrapper_ms=1.638 total_ms=287.69
+================================================================================
+ALL 4 ADAPTER ROLLING UPDATE TESTS + ATELET UPGRADE TEST PASSED SUCCESSFULLY!
+================================================================================

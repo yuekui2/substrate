@@ -106,7 +106,7 @@ func TestEnsureContainerImage_StreamingAndFallback(t *testing.T) {
 	}
 }
 
-func TestDynamicDrain_SkipsStreamingAndBypassesTTLOnRelease(t *testing.T) {
+func TestAdapterLameDuckDrain_FallsBackToImageCacheAndReleasesActiveLeases(t *testing.T) {
 	ctx := context.Background()
 	tmpBase := t.TempDir()
 	origActorsDir := nodepath.ActorsDir
@@ -122,8 +122,15 @@ func TestDynamicDrain_SkipsStreamingAndBypassesTTLOnRelease(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(fakeLayerDir, "fs"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
+	draining := false
 	layerClient := mock.New("riptide")
+	layerClient.CanProvideFunc = func(_ context.Context, _ *imageaccel.PrepareRequest) (bool, error) {
+		return !draining, nil
+	}
 	layerClient.PrepareImageFunc = func(_ context.Context, req *imageaccel.PrepareRequest) (*imageaccel.PrepareResult, error) {
+		if draining {
+			return nil, imageaccel.ErrNotSupported
+		}
 		return &imageaccel.PrepareResult{
 			LayerDirs:    []string{fakeLayerDir},
 			ImageDigest:  "sha256:2222222222222222222222222222222222222222222222222222222222222222",
@@ -139,9 +146,9 @@ func TestDynamicDrain_SkipsStreamingAndBypassesTTLOnRelease(t *testing.T) {
 		imageAcceleratorClient: layerClient,
 	}
 
-	// Step 1: Prepare bundle while streaming is enabled.
+	// Step 1: Prepare bundle while adapter is serving normally.
 	actor1 := "actor-streamed"
-	if _, err := prepareOCIDirectory(ctx, store, atelet.activeImageAcceleratorClient(), nil, nil, actor1, "app", ref, nil, nil); err != nil {
+	if _, err := prepareOCIDirectory(ctx, store, atelet.imageAcceleratorClient, nil, nil, actor1, "app", ref, nil, nil); err != nil {
 		t.Fatalf("prepareOCIDirectory(streamed) failed: %v", err)
 	}
 	spec1, err := imagecache.ReadSpec(ateletpath.OCIBundlePath(actor1, "app"))
@@ -152,15 +159,12 @@ func TestDynamicDrain_SkipsStreamingAndBypassesTTLOnRelease(t *testing.T) {
 		t.Fatalf("expected spec1.Streamed = true")
 	}
 
-	// Step 2: Enable dynamic drain on the node (simulating ate.dev/image-accelerator=disabled).
-	atelet.SetStreamingDraining(true)
-	if !atelet.IsStreamingDraining() {
-		t.Fatalf("expected IsStreamingDraining() = true")
-	}
+	// Step 2: Adapter enters lame-duck drain mode on SIGTERM (CanProvide returns false).
+	draining = true
 
-	// New or resuming actors immediately bypass ImageAccelerator and unpack into local imageCache.
+	// New or resuming actors immediately fall back to local imageCache with zero node-label coupling in atelet.
 	actor2 := "actor-drained"
-	if _, err := prepareOCIDirectory(ctx, store, atelet.activeImageAcceleratorClient(), nil, nil, actor2, "app", ref, nil, nil); err != nil {
+	if _, err := prepareOCIDirectory(ctx, store, atelet.imageAcceleratorClient, nil, nil, actor2, "app", ref, nil, nil); err != nil {
 		t.Fatalf("prepareOCIDirectory(drained) failed: %v", err)
 	}
 	spec2, err := imagecache.ReadSpec(ateletpath.OCIBundlePath(actor2, "app"))
@@ -168,11 +172,11 @@ func TestDynamicDrain_SkipsStreamingAndBypassesTTLOnRelease(t *testing.T) {
 		t.Fatalf("ReadSpec(actor2): %v", err)
 	}
 	if spec2.Streamed {
-		t.Errorf("expected spec2.Streamed = false when node is draining")
+		t.Errorf("expected spec2.Streamed = false when adapter is in lame-duck drain mode")
 	}
 
 	// Step 3: When the existing streamed actor checkpoints or terminates during drain,
-	// releaseStreamedLayersForActor sets BypassTTL=true so FUSE views unmount immediately.
+	// releaseStreamedLayersForActor calls ReleaseImage on the adapter so its refCount drops to 0.
 	workloadSpec := &ateletpb.WorkloadSpec{
 		Containers: []*ateletpb.Container{{Name: "app", Image: ref}},
 	}
@@ -180,7 +184,7 @@ func TestDynamicDrain_SkipsStreamingAndBypassesTTLOnRelease(t *testing.T) {
 	if len(layerClient.ReleaseCalls) != 1 {
 		t.Fatalf("expected 1 ReleaseImage call, got %d", len(layerClient.ReleaseCalls))
 	}
-	if !layerClient.ReleaseCalls[0].BypassTTL {
-		t.Errorf("expected BypassTTL = true when releasing during node drain")
+	if layerClient.ReleaseCalls[0].ImageRef != ref {
+		t.Errorf("ReleaseCalls[0].ImageRef = %q, want %q", layerClient.ReleaseCalls[0].ImageRef, ref)
 	}
 }

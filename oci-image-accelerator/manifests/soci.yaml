@@ -22,7 +22,7 @@
 # Because the FUSE server (soci-snapshotter-grpc) runs inside this DaemonSet
 # and holds open /dev/fuse file descriptors for active ateom actor sandboxes,
 # its lifecycle is decoupled from atelet rolling upgrades and uses
-# updateStrategy: OnDelete.
+# SIGTERM lame-duck self-draining under RollingUpdate.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -37,7 +37,9 @@ spec:
       app: ate-image-accelerator
       ate.dev/image-accelerator: soci
   updateStrategy:
-    type: OnDelete
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 10%
   template:
     metadata:
       labels:
@@ -46,7 +48,7 @@ spec:
     spec:
       hostPID: true
       hostNetwork: true
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 3600
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -56,7 +58,6 @@ spec:
                 operator: In
                 values:
                 - soci
-                - disabled
       tolerations:
       - key: ate.dev/sandboxClass
         operator: Exists
@@ -87,6 +88,7 @@ spec:
           readonly soci_run="/run/soci-snapshotter-grpc"
           readonly soci_bin="${KUBE_HOME}/bin/soci-snapshotter-grpc"
 
+          rm -f "${soci_run}/soci-snapshotter-grpc.sock" /run/ate/drain-complete
           mkdir -p "${KUBE_HOME}/bin" "${soci_root}" "${soci_run}/bin" "${soci_run}/docker" /run/ate
 
           if [[ ! -x "${soci_bin}" ]]; then
@@ -117,12 +119,19 @@ spec:
             min_layer_size = ${SOCI_MIN_LAYER_SIZE:-0}
           EOF
 
-          rm -f "${soci_run}/soci-snapshotter-grpc.sock"
+          rm -f "${soci_run}/soci-snapshotter-grpc.sock" /run/ate/drain-complete
           exec "${soci_bin}" \
             --log-level=info \
             --config="${soci_root}/config.toml" \
             --address="${soci_run}/soci-snapshotter-grpc.sock" \
             --root="${soci_root}"
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done
         readinessProbe:
           exec:
             command:
@@ -136,6 +145,8 @@ spec:
         volumeMounts:
         - name: kube-home
           mountPath: /home/kubernetes
+        - name: run-ate
+          mountPath: /run/ate
         - name: run-soci
           mountPath: /run/soci-snapshotter-grpc
         - name: ate-base
@@ -151,6 +162,8 @@ spec:
         - --docker-config=/run/soci-snapshotter-grpc/docker/config.json
         - --work-dir=/var/lib/ate/accelerator/soci
         - --idle-ttl=10m
+        - --drain-timeout=30m
+        - --drain-complete-file=/run/ate/drain-complete
         securityContext:
           privileged: true
           runAsUser: 0

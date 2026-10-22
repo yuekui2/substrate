@@ -304,3 +304,148 @@ func TestServerReconcileImagesRestoresAndSweepsOrphans(t *testing.T) {
 		t.Errorf("active layer dir missing after ReconcileImages: %v", err)
 	}
 }
+
+func TestLameDuckDrainAndDrainCompleteMarker(t *testing.T) {
+	ctx := context.Background()
+	diffIDs := []string{"sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+	snapClient := newFakeSnapshotsClient(t, diffIDs)
+	tmpDir := t.TempDir()
+	workDir := filepath.Join(tmpDir, "work")
+	sockPath := filepath.Join(tmpDir, "image-accelerator.sock")
+	drainMarker := filepath.Join(tmpDir, "drain-complete")
+
+	// Pre-create a stale drain-complete marker to verify ServeUnixSocket removes it on startup.
+	if err := os.WriteFile(drainMarker, []byte("stale\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile stale marker: %v", err)
+	}
+
+	driver, err := NewDriver("test-provider", "/run/test.sock", "test-snap",
+		WithWorkDir(workDir),
+		WithSnapshotsClient(snapClient),
+		WithLeaseIdleTTL(10*time.Minute),
+		WithDrainTimeout(5*time.Second),
+		WithDrainCompleteFile(drainMarker),
+		WithImageResolver(func(_ context.Context, _ string, _ *imageaccel.AuthConfig) (string, *v1.Config, []string, []string, error) {
+			return "sha256:1234", &v1.Config{}, diffIDs, diffIDs, nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewDriver: %v", err)
+	}
+	t.Cleanup(func() { _ = driver.Close() })
+
+	srvCtx, cancelSrv := context.WithCancel(ctx)
+	defer cancelSrv()
+	srvDone := make(chan error, 1)
+	go func() {
+		srvDone <- ServeUnixSocket(srvCtx, sockPath, driver)
+	}()
+
+	// Wait for the unix socket to appear and verify stale drain marker was removed.
+	for _, err := os.Stat(sockPath); err != nil; _, err = os.Stat(sockPath) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := os.Stat(drainMarker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale drain-complete marker was not removed on startup: err=%v", err)
+	}
+
+	client, err := imageaccel.NewGRPCClient(sockPath)
+	if err != nil {
+		t.Fatalf("NewGRPCClient: %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+
+	activeImg := "example.com/active:v1"
+	idleImg := "example.com/idle:v1"
+
+	// 1. Prepare activeImg (refCount=1) and idleImg (released so refCount=0, sitting in 10m idleTTL).
+	activeRes, err := client.PrepareImage(ctx, &imageaccel.PrepareRequest{ImageRef: activeImg})
+	if err != nil {
+		t.Fatalf("PrepareImage(activeImg): %v", err)
+	}
+	idleRes, err := client.PrepareImage(ctx, &imageaccel.PrepareRequest{ImageRef: idleImg})
+	if err != nil {
+		t.Fatalf("PrepareImage(idleImg): %v", err)
+	}
+	if err := client.ReleaseImage(ctx, &imageaccel.ReleaseRequest{ImageRef: idleImg, BypassTTL: false}); err != nil {
+		t.Fatalf("ReleaseImage(idleImg): %v", err)
+	}
+	if _, err := os.Stat(idleRes.LayerDirs[0]); err != nil {
+		t.Fatalf("expected idleImg to remain cached before drain: %v", err)
+	}
+
+	// 2. Cancel srvCtx (simulating SIGTERM). Adapter enters lame-duck mode:
+	//    - idleImg (refCount=0) is evicted immediately
+	//    - activeImg (refCount=1) keeps the server alive
+	//    - CanProvide returns false and PrepareImage returns ErrNotSupported
+	cancelSrv()
+	for !driver.IsDraining() {
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	canProvide, err := client.CanProvide(ctx, &imageaccel.PrepareRequest{ImageRef: activeImg})
+	if err != nil || canProvide {
+		t.Errorf("CanProvide during lame-duck drain = (%v, %v), want (false, nil)", canProvide, err)
+	}
+	if _, err := client.PrepareImage(ctx, &imageaccel.PrepareRequest{ImageRef: "example.com/new:v1"}); !errors.Is(err, imageaccel.ErrNotSupported) {
+		t.Errorf("PrepareImage during lame-duck drain = %v, want ErrNotSupported", err)
+	}
+
+	// Idle lease should be evicted while active lease remains mounted.
+	for _, err := os.Stat(idleRes.LayerDirs[0]); !errors.Is(err, os.ErrNotExist); _, err = os.Stat(idleRes.LayerDirs[0]) {
+		time.Sleep(2 * time.Millisecond)
+	}
+	if _, err := os.Stat(activeRes.LayerDirs[0]); err != nil {
+		t.Fatalf("activeImg layer dir was removed while refCount=1: %v", err)
+	}
+	if _, err := os.Stat(drainMarker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("drain-complete marker written before active lease released")
+	}
+
+	// 3. Release activeImg (even with BypassTTL=false, lame-duck mode auto-bypasses idleTTL).
+	if err := client.ReleaseImage(ctx, &imageaccel.ReleaseRequest{ImageRef: activeImg, BypassTTL: false}); err != nil {
+		t.Fatalf("ReleaseImage(activeImg): %v", err)
+	}
+
+	// ServeUnixSocket should now exit cleanly and write the drain-complete marker.
+	if err := <-srvDone; err != nil {
+		t.Fatalf("ServeUnixSocket returned error: %v", err)
+	}
+	if _, err := os.Stat(activeRes.LayerDirs[0]); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("activeImg layer dir still exists after release: err=%v", err)
+	}
+	if _, err := os.Stat(drainMarker); err != nil {
+		t.Errorf("expected drain-complete marker to be written on shutdown: %v", err)
+	}
+}
+
+func TestDrainTimeoutFallback(t *testing.T) {
+	ctx := context.Background()
+	diffIDs := []string{"sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+	snapClient := newFakeSnapshotsClient(t, diffIDs)
+
+	driver, err := NewDriver("test-provider", "/run/test.sock", "test-snap",
+		WithWorkDir(filepath.Join(t.TempDir(), "work")),
+		WithSnapshotsClient(snapClient),
+		WithDrainTimeout(20*time.Millisecond),
+		WithImageResolver(func(_ context.Context, _ string, _ *imageaccel.AuthConfig) (string, *v1.Config, []string, []string, error) {
+			return "sha256:1234", &v1.Config{}, diffIDs, diffIDs, nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewDriver: %v", err)
+	}
+	t.Cleanup(func() { _ = driver.Close() })
+
+	if _, err := driver.PrepareImage(ctx, &imageaccel.PrepareRequest{ImageRef: "example.com/stuck:v1"}); err != nil {
+		t.Fatalf("PrepareImage: %v", err)
+	}
+	if driver.ActiveLeaseCount() != 1 {
+		t.Fatalf("ActiveLeaseCount() = %d, want 1", driver.ActiveLeaseCount())
+	}
+
+	// Drain should time out after 20ms and return false because refCount never reaches 0.
+	if clean := driver.Drain(ctx); clean {
+		t.Errorf("Drain() = true, want false when active lease exceeds drainTimeout")
+	}
+}

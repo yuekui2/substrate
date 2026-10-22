@@ -70,6 +70,15 @@ const (
 	// DefaultLeaseIdleTTL is how long the driver keeps an image's layer views
 	// mounted after its reference count drops to zero.
 	DefaultLeaseIdleTTL = 10 * time.Minute
+
+	// DefaultDrainTimeout bounds how long the adapter waits in lame-duck mode
+	// after SIGTERM for active streamed image leases (refCount > 0) to reach 0,
+	// matching ateworker's 30m workloadGracePeriod.
+	DefaultDrainTimeout = 30 * time.Minute
+
+	// DefaultDrainCompleteFile is the marker file written after lame-duck lease
+	// draining completes, releasing the provider container's preStop hook.
+	DefaultDrainCompleteFile = "/run/ate/drain-complete"
 )
 
 // MountEnv provides the resolved image metadata, snapshotter client, and
@@ -252,6 +261,22 @@ func WithProbeHook(fn ProbeHookFunc) Option {
 	}
 }
 
+// WithDrainTimeout sets the maximum duration the adapter waits in lame-duck
+// mode after SIGTERM for active image leases (refCount > 0) to reach 0.
+func WithDrainTimeout(timeout time.Duration) Option {
+	return func(d *Driver) {
+		d.drainTimeout = timeout
+	}
+}
+
+// WithDrainCompleteFile sets the path to the drain-complete marker file written
+// once lame-duck draining finishes, releasing the provider container's preStop hook.
+func WithDrainCompleteFile(path string) Option {
+	return func(d *Driver) {
+		d.drainCompleteFile = path
+	}
+}
+
 type imageLease struct {
 	imageRef      string
 	digest        string
@@ -292,6 +317,8 @@ type Driver struct {
 	listableInterval    time.Duration
 	declineTTL          time.Duration
 	leaseIdleTTL        time.Duration
+	drainTimeout        time.Duration
+	drainCompleteFile   string
 	imageResolver       ImageResolverFunc
 	keychain            authn.Keychain
 	layerMounter        LayerMounterFunc
@@ -301,6 +328,9 @@ type Driver struct {
 
 	mu              sync.Mutex
 	closed          bool
+	draining        bool
+	drainedClosed   bool
+	drainedCh       chan struct{}
 	conn            *grpc.ClientConn
 	snapshotsClient snapshots.SnapshotsClient
 	clientInjected  bool
@@ -314,20 +344,23 @@ type Driver struct {
 // NewDriver creates a new shared Driver for a remote snapshotter provider.
 func NewDriver(name, defaultSocket, snapshotterName string, opts ...Option) (*Driver, error) {
 	d := &Driver{
-		name:             name,
-		socket:           defaultSocket,
-		workDir:          filepath.Join(DefaultBaseWorkDir, name),
-		namespace:        DefaultNamespace,
-		snapshotterName:  snapshotterName,
-		listableTimeout:  DefaultListableTimeout,
-		listableInterval: DefaultListableInterval,
-		declineTTL:       DefaultDeclineTTL,
-		leaseIdleTTL:     DefaultLeaseIdleTTL,
-		leases:           make(map[string]*imageLease),
-		resolvedMeta:     make(map[string]*resolvedImageMeta),
-		declined:         make(map[string]time.Time),
-		inflight:         make(map[string]*inflightPrep),
-		chainLocks:       make(map[string]*sync.Mutex),
+		name:              name,
+		socket:            defaultSocket,
+		workDir:           filepath.Join(DefaultBaseWorkDir, name),
+		namespace:         DefaultNamespace,
+		snapshotterName:   snapshotterName,
+		listableTimeout:   DefaultListableTimeout,
+		listableInterval:  DefaultListableInterval,
+		declineTTL:        DefaultDeclineTTL,
+		leaseIdleTTL:      DefaultLeaseIdleTTL,
+		drainTimeout:      DefaultDrainTimeout,
+		drainCompleteFile: DefaultDrainCompleteFile,
+		drainedCh:         make(chan struct{}),
+		leases:            make(map[string]*imageLease),
+		resolvedMeta:      make(map[string]*resolvedImageMeta),
+		declined:          make(map[string]time.Time),
+		inflight:          make(map[string]*inflightPrep),
+		chainLocks:        make(map[string]*sync.Mutex),
 	}
 	for _, opt := range opts {
 		opt(d)
@@ -442,17 +475,33 @@ func (d *Driver) isDeclinedLocked(ref string, now time.Time) bool {
 // CanProvide checks whether the image was recently declined and whether the
 // remote snapshotter daemon answers a bounded Probe RPC. If the image already
 // has a warm active or idle lease whose layers exist on disk, CanProvide
-// returns true immediately without a Probe RPC.
+// returns true immediately without a Probe RPC. While the driver is in
+// lame-duck drain mode (draining == true), CanProvide returns false so atelet
+// falls back to local imagecache.
 func (d *Driver) CanProvide(ctx context.Context, req *imageaccel.PrepareRequest) (bool, error) {
 	d.mu.Lock()
+	if d.draining || d.closed {
+		d.mu.Unlock()
+		return false, nil
+	}
 	if req != nil && req.ImageRef != "" {
 		if lease, ok := d.leases[req.ImageRef]; ok && !lease.evicted && lease.refCount >= 0 && len(lease.layers) > 0 {
 			layers := append([]string(nil), lease.layers...)
 			d.mu.Unlock()
 			if layersExist(layers) {
-				return true, nil
+				d.mu.Lock()
+				draining := d.draining || d.closed
+				d.mu.Unlock()
+				if !draining {
+					return true, nil
+				}
+				return false, nil
 			}
 			d.mu.Lock()
+			if d.draining || d.closed {
+				d.mu.Unlock()
+				return false, nil
+			}
 		}
 		if d.isDeclinedLocked(req.ImageRef, time.Now()) {
 			d.mu.Unlock()
@@ -518,7 +567,8 @@ func (d *Driver) Probe(ctx context.Context) error {
 // and returns read-only views of them. Concurrent calls for the same image are
 // coalesced so only one goroutine prepares the views while waiters share the
 // resulting lease and increment its reference count. If the snapshotter
-// declines the image, it returns an error wrapping imageaccel.ErrNotSupported.
+// declines the image or is in lame-duck drain mode, it returns an error
+// wrapping imageaccel.ErrNotSupported.
 func (d *Driver) PrepareImage(ctx context.Context, req *imageaccel.PrepareRequest) (*imageaccel.PrepareResult, error) {
 	if req == nil || req.ImageRef == "" {
 		return nil, errors.New("image reference is required")
@@ -527,6 +577,10 @@ func (d *Driver) PrepareImage(ctx context.Context, req *imageaccel.PrepareReques
 	var flight *inflightPrep
 	d.mu.Lock()
 	for {
+		if d.draining || d.closed {
+			d.mu.Unlock()
+			return nil, fmt.Errorf("adapter is draining: %w", imageaccel.ErrNotSupported)
+		}
 		if existingFlight, ok := d.inflight[req.ImageRef]; ok {
 			d.mu.Unlock()
 			select {
@@ -988,11 +1042,12 @@ func (d *Driver) ReleaseImage(ctx context.Context, req *imageaccel.ReleaseReques
 			continue
 		}
 		if lease.refCount <= 0 {
-			if req.BypassTTL && lease.idleTimer != nil {
+			if (req.BypassTTL || d.draining) && lease.idleTimer != nil {
 				flight = d.beginLeaseTeardownLocked(req.ImageRef, lease)
 				d.mu.Unlock()
 				break
 			}
+			d.notifyDrainIfIdleLocked()
 			d.mu.Unlock()
 			return nil
 		}
@@ -1001,7 +1056,7 @@ func (d *Driver) ReleaseImage(ctx context.Context, req *imageaccel.ReleaseReques
 			d.mu.Unlock()
 			return nil
 		}
-		if d.leaseIdleTTL > 0 && !req.BypassTTL && !d.closed {
+		if d.leaseIdleTTL > 0 && !req.BypassTTL && !d.draining && !d.closed {
 			if lease.idleTimer != nil {
 				lease.idleTimer.Stop()
 			}
@@ -1055,6 +1110,7 @@ func (d *Driver) finishLeaseTeardown(ctx context.Context, imageRef string, lease
 			delete(d.inflight, imageRef)
 		}
 		close(flight.done)
+		d.notifyDrainIfIdleLocked()
 		d.mu.Unlock()
 	}()
 
@@ -1102,6 +1158,171 @@ func (d *Driver) evictIdleLease(imageRef string, targetLease *imageLease) {
 		d.mu.Unlock()
 		d.finishLeaseTeardown(context.Background(), imageRef, targetLease, flight)
 		return
+	}
+}
+
+func (d *Driver) activeLeaseCountLocked() int {
+	seen := make(map[*imageLease]bool, len(d.leases))
+	count := 0
+	for _, l := range d.leases {
+		if l == nil || l.evicted || seen[l] {
+			continue
+		}
+		seen[l] = true
+		if l.refCount > 0 {
+			count++
+		}
+	}
+	return count
+}
+
+func (d *Driver) activeLeaseRefsLocked() []string {
+	seen := make(map[*imageLease]bool, len(d.leases))
+	var refs []string
+	for k, l := range d.leases {
+		if l == nil || l.evicted || seen[l] {
+			continue
+		}
+		seen[l] = true
+		if l.refCount > 0 {
+			ref := l.imageRef
+			if ref == "" {
+				ref = k
+			}
+			refs = append(refs, fmt.Sprintf("%s(refCount=%d)", ref, l.refCount))
+		}
+	}
+	return refs
+}
+
+func (d *Driver) notifyDrainIfIdleLocked() {
+	if !d.draining || d.drainedClosed || d.drainedCh == nil {
+		return
+	}
+	if d.activeLeaseCountLocked() == 0 {
+		d.drainedClosed = true
+		close(d.drainedCh)
+	}
+}
+
+// IsDraining reports whether the driver is in lame-duck drain mode.
+func (d *Driver) IsDraining() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.draining
+}
+
+// ActiveLeaseCount returns the number of unique image leases with refCount > 0.
+func (d *Driver) ActiveLeaseCount() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.activeLeaseCountLocked()
+}
+
+// ActiveLeaseRefs returns a formatted list of active image leases and their reference counts.
+func (d *Driver) ActiveLeaseRefs() []string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.activeLeaseRefsLocked()
+}
+
+// DrainTimeout returns the configured maximum duration to wait for active
+// leases to reach 0 during lame-duck shutdown.
+func (d *Driver) DrainTimeout() time.Duration {
+	return d.drainTimeout
+}
+
+// DrainCompleteFile returns the path of the drain-complete marker file.
+func (d *Driver) DrainCompleteFile() string {
+	return d.drainCompleteFile
+}
+
+// StartDrain transitions the driver into lame-duck mode: CanProvide returns
+// false, PrepareImage declines new requests, ReleaseImage bypasses idleTTL,
+// and any currently idle (refCount == 0) cached leases are evicted immediately.
+func (d *Driver) StartDrain(ctx context.Context) {
+	type idleTeardown struct {
+		key    string
+		lease  *imageLease
+		flight *inflightPrep
+	}
+	var idles []idleTeardown
+
+	d.mu.Lock()
+	d.draining = true
+	seen := make(map[*imageLease]bool, len(d.leases))
+	for k, l := range d.leases {
+		if l == nil || l.evicted || seen[l] {
+			continue
+		}
+		seen[l] = true
+		if l.refCount <= 0 {
+			refKey := l.imageRef
+			if refKey == "" {
+				refKey = k
+			}
+			flight := d.beginLeaseTeardownLocked(refKey, l)
+			idles = append(idles, idleTeardown{key: refKey, lease: l, flight: flight})
+		}
+	}
+	d.notifyDrainIfIdleLocked()
+	d.mu.Unlock()
+
+	for _, idle := range idles {
+		d.finishLeaseTeardown(ctx, idle.key, idle.lease, idle.flight)
+	}
+
+	d.mu.Lock()
+	d.notifyDrainIfIdleLocked()
+	d.mu.Unlock()
+}
+
+// Drain enters lame-duck mode and blocks until all active image leases reach
+// refCount == 0 or d.drainTimeout expires. Returns true if all active leases
+// drained cleanly, or false if the drain timeout expired first.
+func (d *Driver) Drain(ctx context.Context) bool {
+	d.StartDrain(ctx)
+
+	d.mu.Lock()
+	drainedCh := d.drainedCh
+	alreadyDrained := d.drainedClosed
+	activeRefs := d.activeLeaseRefsLocked()
+	d.mu.Unlock()
+
+	if alreadyDrained || len(activeRefs) == 0 {
+		slog.InfoContext(ctx, "Lame-duck drain complete; no active streamed image leases",
+			slog.String("provider", d.name))
+		return true
+	}
+
+	slog.InfoContext(ctx, "Entered lame-duck drain mode; waiting for active streamed image leases to release",
+		slog.String("provider", d.name),
+		slog.Duration("drainTimeout", d.drainTimeout),
+		slog.Any("activeLeases", activeRefs))
+
+	if d.drainTimeout <= 0 {
+		slog.WarnContext(ctx, "Lame-duck drain timeout is 0; proceeding with forced shutdown",
+			slog.String("provider", d.name),
+			slog.Any("remainingLeases", activeRefs))
+		return false
+	}
+
+	timer := time.NewTimer(d.drainTimeout)
+	defer timer.Stop()
+
+	select {
+	case <-drainedCh:
+		slog.InfoContext(ctx, "All active streamed image leases drained; completing shutdown",
+			slog.String("provider", d.name))
+		return true
+	case <-timer.C:
+		slog.WarnContext(ctx, "Lame-duck drain timeout expired with active leases; forcing shutdown",
+			slog.String("provider", d.name),
+			slog.Duration("drainTimeout", d.drainTimeout),
+			slog.Any("remainingLeases", d.ActiveLeaseRefs()))
+		return false
+	case <-ctx.Done():
+		return false
 	}
 }
 
@@ -1232,6 +1453,7 @@ func (d *Driver) ReconcileImages(ctx context.Context, active []*imageaccel.Activ
 			activeWorkDirs[l.workDir] = true
 		}
 	}
+	d.notifyDrainIfIdleLocked()
 	d.mu.Unlock()
 
 	for _, o := range orphans {
@@ -1289,6 +1511,11 @@ func (d *Driver) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.closed = true
+	d.draining = true
+	if !d.drainedClosed && d.drainedCh != nil {
+		d.drainedClosed = true
+		close(d.drainedCh)
+	}
 	for _, l := range d.leases {
 		if l != nil && l.idleTimer != nil {
 			l.idleTimer.Stop()

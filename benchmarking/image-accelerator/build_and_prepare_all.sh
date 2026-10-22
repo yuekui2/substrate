@@ -36,7 +36,7 @@ SOCI_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./oci-image-accelerator/cmd/soci
 NYDUS_DF_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./oci-image-accelerator/cmd/nydus-dragonfly)"
 SPEGEL_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./oci-image-accelerator/cmd/spegel)"
 ATELET_IMG="$(kubectl -n ate-system get ds atelet -o jsonpath='{.spec.template.spec.containers[0].image}')"
-WORKER_IMG="${WORKER_IMG:-$(kubectl get workerpool -A -o jsonpath='{.items[0].spec.workerImage}' 2>/dev/null || true)}"
+WORKER_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./cmd/ateworker-gvisor)"
 
 SWEBENCH_IMG="${SWEBENCH_IMG:-us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4}"
 SWEBENCH_TAG_IMG="${SWEBENCH_TAG_IMG:-us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd:swebench-matplotlib}"

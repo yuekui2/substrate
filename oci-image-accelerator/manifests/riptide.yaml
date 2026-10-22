@@ -17,7 +17,8 @@
 # Deployed onto nodes labeled ate.dev/image-accelerator=riptide. Because the
 # FUSE daemon and snapshotter views must survive atelet rolling upgrades,
 # the adapter and its dedicated Riptide stack run in their own DaemonSet with
-# updateStrategy: OnDelete rather than as an atelet sidecar.
+# SIGTERM lame-duck self-draining under RollingUpdate rather than as an atelet
+# sidecar.
 #
 # Uses the preloaded GKE node binaries under /home/kubernetes/bin (installed by
 # install-riptide in configure.sh on every GKE worker node) and mirrors the
@@ -48,7 +49,9 @@ spec:
       app: ate-image-accelerator
       ate.dev/image-accelerator: riptide
   updateStrategy:
-    type: OnDelete
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 10%
   template:
     metadata:
       labels:
@@ -57,7 +60,7 @@ spec:
     spec:
       hostPID: true
       hostNetwork: true
-      terminationGracePeriodSeconds: 5
+      terminationGracePeriodSeconds: 3600
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -67,7 +70,6 @@ spec:
                 operator: In
                 values:
                 - riptide
-                - disabled
       tolerations:
       - key: ate.dev/sandboxClass
         operator: Exists
@@ -115,7 +117,7 @@ spec:
           umount -l "${gcfsd_mnt_dir}" 2>/dev/null || true
           rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd" /var/lib/ate/accelerator/riptide/* 2>/dev/null || true
           mkdir -p /run/ate "${gcfs_run_dir}" "${gcfs_root}" "${gcfsd_mnt_dir}" /run/gcfsd /var/lib/ate/accelerator/riptide
-          rm -f "${gcfs_run_dir}/grpc.sock" "${gcfs_run_dir}/keychain.sock" "${gcfs_run_dir}/downloader.sock" /run/ate/gcfs-snapshotter.sock
+          rm -f "${gcfs_run_dir}/grpc.sock" "${gcfs_run_dir}/keychain.sock" "${gcfs_run_dir}/downloader.sock" /run/ate/gcfs-snapshotter.sock /run/ate/drain-complete
 
           if ! mountpoint -q "${gcfs_root}"; then
             mount --bind "${gcfs_root}" "${gcfs_root}"
@@ -237,6 +239,13 @@ spec:
             snapshotter_pid=$!
             wait -n "${gcfsd_pid}" "${snapshotter_pid}"
           '
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done
         readinessProbe:
           exec:
             command:
@@ -266,6 +275,8 @@ spec:
         - --keychain-socket=/run/ate/gcfsd/keychain.sock
         - --work-dir=/var/lib/ate/accelerator/riptide
         - --idle-ttl=10m
+        - --drain-timeout=30m
+        - --drain-complete-file=/run/ate/drain-complete
         securityContext:
           privileged: true
           runAsUser: 0

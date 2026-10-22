@@ -164,13 +164,46 @@ func (s *Server) ReconcileImages(ctx context.Context, req *imageaccelv1.Reconcil
 	return &imageaccelv1.ReconcileImagesResponse{}, nil
 }
 
+func removeStaleDrainMarker(path string) {
+	if path == "" {
+		return
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		slog.Warn("Failed to remove stale drain-complete marker", slog.String("path", path), slog.Any("err", err))
+	}
+}
+
+func writeDrainMarker(path string) {
+	if path == "" {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		slog.Warn("Failed to create drain-complete marker directory", slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	if err := os.WriteFile(path, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o644); err != nil {
+		slog.Warn("Failed to write drain-complete marker", slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	slog.Info("Drain-complete marker written", slog.String("path", path))
+}
+
 // ServeUnixSocket starts a gRPC server for driver on listenSocket and blocks
-// until ctx is cancelled or the server returns an error.
+// until ctx is cancelled or the server returns an error. On ctx cancellation
+// (SIGTERM), it enters lame-duck drain mode (returning CanProvide=false while
+// keeping the gRPC server open for ReleaseImage) until active leases reach 0
+// or driver.DrainTimeout() expires, then stops the gRPC server and writes the
+// drain-complete marker file.
 func ServeUnixSocket(ctx context.Context, listenSocket string, driver *Driver) error {
 	sockPath := strings.TrimPrefix(listenSocket, "unix://")
 	if err := os.MkdirAll(filepath.Dir(sockPath), 0o755); err != nil {
 		return fmt.Errorf("creating socket parent directory %s: %w", sockPath, err)
 	}
+	var drainMarkerPath string
+	if driver != nil {
+		drainMarkerPath = driver.DrainCompleteFile()
+	}
+	removeStaleDrainMarker(drainMarkerPath)
 	_ = os.Remove(sockPath)
 
 	lis, err := net.Listen("unix", sockPath)
@@ -186,6 +219,7 @@ func ServeUnixSocket(ctx context.Context, listenSocket string, driver *Driver) e
 		if curFi, err := os.Stat(sockPath); err == nil && createdFi != nil && os.SameFile(createdFi, curFi) {
 			_ = os.Remove(sockPath)
 		}
+		writeDrainMarker(drainMarkerPath)
 	}()
 
 	grpcServer := grpc.NewServer()
@@ -193,7 +227,11 @@ func ServeUnixSocket(ctx context.Context, listenSocket string, driver *Driver) e
 
 	go func() {
 		<-ctx.Done()
-		slog.Info("Shutting down ImageAccelerator server", slog.String("socket", sockPath))
+		slog.Info("Shutdown signal received; entering lame-duck drain mode", slog.String("socket", sockPath))
+		if driver != nil {
+			driver.Drain(context.Background())
+		}
+		slog.Info("Stopping ImageAccelerator gRPC server", slog.String("socket", sockPath))
 		stopped := make(chan struct{})
 		go func() {
 			grpcServer.GracefulStop()

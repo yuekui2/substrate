@@ -83,7 +83,6 @@ spec:
                 operator: In
                 values:
                 - spegel
-                - disabled
       tolerations:
       - key: ate.dev/sandboxClass
         operator: Exists

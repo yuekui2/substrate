@@ -91,9 +91,9 @@ ko resolve -f oci-image-accelerator/manifests/riptide.yaml | kubectl apply -f -
 kubectl label nodes --all ate.dev/image-accelerator=riptide --overwrite
 ```
 
-To dynamically drain and disable acceleration on a node:
+To dynamically drain and disable acceleration on a node (triggers `SIGTERM` lame-duck drain until active leases reach `refCount == 0` or `--drain-timeout=30m` elapses):
 ```bash
-kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite
+kubectl label node <node> ate.dev/image-accelerator-
 ```
 
 Once ready, the driver publishes the accelerator socket at `/run/ate/image-accelerator.sock`, and connected runtimes begin accelerating container startup immediately.

@@ -26,7 +26,7 @@ metadata:
   name: atelet
 rules:
 - apiGroups: [""]
-  resources: ["pods", "nodes"]
+  resources: ["pods"]
   verbs: ["get", "watch", "list"]
 - apiGroups: ["ate.dev"]
   resources: ["csidriverconfigs"]
