@@ -80,7 +80,9 @@ spec:
           readonly soci_bin="${KUBE_HOME}/bin/soci-snapshotter-grpc"
 
           rm -f "${soci_run}/soci-snapshotter-grpc.sock" /run/ate/drain-complete
-          mkdir -p "${KUBE_HOME}/bin" "${soci_root}" "${soci_run}/bin" "${soci_run}/docker" /run/ate
+          grep "${soci_root}" /proc/mounts | awk '{print $2}' | sort -r | xargs -r umount -lf 2>/dev/null || true
+          rm -rf "${soci_root:?}"/* /var/lib/ate/accelerator-image-cache/soci/* "${soci_run}/docker/config.json" 2>/dev/null || true
+          mkdir -p "${KUBE_HOME}/bin" "${soci_root}" "${soci_run}/bin" "${soci_run}/docker" /var/lib/ate/accelerator-image-cache/soci /run/ate
 
           if [[ ! -x "${soci_bin}" ]]; then
             echo "Installing soci-snapshotter-grpc v${SOCI_VERSION} into ${KUBE_HOME}/bin..."
@@ -95,9 +97,7 @@ spec:
           export PATH="${soci_run}/bin:${KUBE_HOME}/bin:${PATH}"
           export DOCKER_CONFIG="${soci_run}/docker"
 
-          if [[ ! -f "${DOCKER_CONFIG}/config.json" ]]; then
-            echo '{"auths":{}}' > "${DOCKER_CONFIG}/config.json"
-          fi
+          echo '{"auths":{}}' > "${DOCKER_CONFIG}/config.json"
 
           cat > "${soci_root}/config.toml" <<EOF
           [pull_modes]
