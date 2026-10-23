@@ -365,3 +365,48 @@ func TestBuildGCFSDAndSnapshotterCommands(t *testing.T) {
 		t.Errorf("Case 5 missing --enable-kubernetes-event-reporting=false in %v", snapArgs5)
 	}
 }
+
+func TestRiptideProbeKeychainSocket(t *testing.T) {
+	ctx := context.Background()
+	diffIDs := []string{"sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+	snapClient := newFakeSnapshotsClient(t, diffIDs)
+	tmpDir := t.TempDir()
+	kcSock := filepath.Join(tmpDir, "keychain.sock")
+
+	driver, err := NewRiptide(RiptideConfig{
+		KeychainSocket: kcSock,
+		AdapterOpts: []adapter.Option{
+			adapter.WithWorkDir(filepath.Join(tmpDir, "work")),
+			adapter.WithSnapshotsClient(snapClient),
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewRiptide: %v", err)
+	}
+	t.Cleanup(func() { _ = driver.Close() })
+
+	// 1. Missing keychain.sock -> Probe fails.
+	if err := driver.Probe(ctx); err == nil {
+		t.Fatalf("expected Probe to fail when keychain.sock does not exist")
+	}
+
+	// 2. Regular file at keychain.sock -> Probe fails (not a unix socket).
+	if err := os.WriteFile(kcSock, []byte("not-a-socket"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := driver.Probe(ctx); err == nil {
+		t.Fatalf("expected Probe to fail when keychain.sock is a regular file")
+	}
+	_ = os.Remove(kcSock)
+
+	// 3. Real unix socket at keychain.sock -> Probe succeeds.
+	lis, err := net.Listen("unix", kcSock)
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer func() { _ = lis.Close() }()
+
+	if err := driver.Probe(ctx); err != nil {
+		t.Fatalf("expected Probe to succeed when keychain.sock is a unix socket, got: %v", err)
+	}
+}

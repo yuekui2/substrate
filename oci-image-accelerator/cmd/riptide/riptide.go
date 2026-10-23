@@ -267,6 +267,7 @@ func NewRiptide(cfg RiptideConfig) (*RiptideDriver, error) {
 	opts := append([]adapter.Option{
 		adapter.WithLayerMounter(rd.mountLayers),
 		adapter.WithWarmHitHook(rd.onWarmHit),
+		adapter.WithProbeHook(rd.probeRiptide),
 	}, cfg.AdapterOpts...)
 
 	base, err := adapter.NewDriver(ProviderRiptide, DefaultRiptideSocket, "gcfs", opts...)
@@ -275,6 +276,20 @@ func NewRiptide(cfg RiptideConfig) (*RiptideDriver, error) {
 	}
 	rd.Driver = base
 	return rd, nil
+}
+
+func (rd *RiptideDriver) probeRiptide(_ context.Context) error {
+	if rd.keychainClientInjected || rd.keychainSocket == "" {
+		return nil
+	}
+	fi, err := os.Stat(rd.keychainSocket)
+	if err != nil {
+		return fmt.Errorf("riptide gcfsd keychain socket %s not ready: %w", rd.keychainSocket, err)
+	}
+	if fi.Mode()&os.ModeSocket == 0 {
+		return fmt.Errorf("riptide gcfsd keychain path %s is not a unix socket", rd.keychainSocket)
+	}
+	return nil
 }
 
 func (rd *RiptideDriver) mountLayers(ctx context.Context, env *adapter.MountEnv) (*adapter.MountedLayers, error) {

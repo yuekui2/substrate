@@ -107,6 +107,7 @@ spec:
         - --spegel-peer-port=5000
         - --verify-spegel-ready=true
         - --idle-ttl=10m
+        - --startup-timeout=2m
         ports:
         - name: registry
           containerPort: 5000
@@ -115,11 +116,13 @@ spec:
           containerPort: 5001
           protocol: TCP
         readinessProbe:
-          httpGet:
-            path: /healthz
-            port: 5000
+          exec:
+            command:
+            - /ko-app/spegel
+            - --probe
+            - --listen-socket=/run/ate/image-accelerator.sock
           initialDelaySeconds: 2
-          periodSeconds: 5
+          periodSeconds: 2
         securityContext:
           privileged: true
           runAsUser: 0

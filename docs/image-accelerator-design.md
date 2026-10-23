@@ -121,16 +121,16 @@ Because the adapter runs in its own DaemonSet pod (`ate-accelerator-<adapter>`),
 
 ### 4.3 Dynamic Node Drain (`ate.dev/image-accelerator=disabled`)
 `atelet` watches its own Kubernetes `Node` object via a metadata informer (`cmd/atelet/main.go:watchNodeImageAcceleratorLabel`):
-* **Enabled State (`ate.dev/image-accelerator=<adapter>` or unset when socket is present):**
+* **Enabled State (label unset when socket `/run/ate/image-accelerator.sock` is present):**
   * `imageAccelClient.SetDraining(false)`
   * `Run` and `Restore` call `CanProvide` $\to$ `PrepareImage`.
   * `ReleaseImage` uses normal idle TTL (`bypass_idle_ttl = false`).
 * **Draining / Disabled State (`ate.dev/image-accelerator=disabled`):**
   * `imageAccelClient.SetDraining(true)`
+  * **Adapter DaemonSet Pod Stays Running (Unused):** Because the adapter DaemonSet schedules onto all worker nodes by default without `nodeAffinity` excluding `disabled`, labeling a node `ate.dev/image-accelerator=disabled` **does not terminate the adapter pod**. Instead, `atelet` stops using the adapter on `<node>`.
   * **New & Restoring Actors (`Run` / `Restore`):** `atelet` immediately skips `ImageAccelerator` and pulls/unpacks layers into `/var/lib/ate/image-cache/layers/...`. Even an actor that was previously checkpointed while using streamed layers seamlessly restores its writable checkpoint `upperdir` onto local `imagecache` `lowerdir` layers on its next `Restore`.
-  * **Existing Running Streamed Actors:** Because the adapter DaemonSet uses `nodeAffinity` matching `ate.dev/image-accelerator In [<adapter>, disabled]`, Kubernetes **does not terminate the adapter pod** when the node is relabeled to `disabled`. Active FUSE mounts stay alive for running actors.
-  * **Immediate Lease Eviction on Teardown:** Whenever a running streamed actor checkpoints or terminates while `atelet` is draining (`IsDraining() == true`), `atelet` calls `ReleaseImage` with `bypass_idle_ttl = true`, immediately unmounting the FUSE view as soon as `refCount` reaches `0`.
-  * **Full Pod Removal (Optional):** Once all streamed actors have drained (`0` active views), removing the label (`kubectl label node <node> ate.dev/image-accelerator-`) causes Kubernetes to terminate the adapter DaemonSet pod on that node.
+  * **Evicting Active Streamed Actors (`SuspendActor` $\to$ `ResumeActor`):** `atelet` triggers `SIGTERM` eviction (`EvictWorkload`) on active `streamed: true` actors on `<node>` so they cycle through suspend and resume. Whenever a streamed actor checkpoints or terminates while `atelet` is draining (`IsDraining() == true`), `atelet` calls `ReleaseImage` with `bypass_idle_ttl = true`, immediately unmounting the FUSE view as soon as `refCount` reaches `0`.
+  * **Re-Enabling on the Node:** Removing the label (`kubectl label node <node> ate.dev/image-accelerator-`) sets `imageAccelClient.SetDraining(false)` and re-enables the adapter immediately without restarting the DaemonSet pod.
 
 ---
 
@@ -235,30 +235,26 @@ go run ./cmd/ate-setup deploy ate-system
 * Deploys `atelet` configured with `--image-accelerator-socket=/run/ate/image-accelerator.sock`.
 * Since no adapter DaemonSet is installed, `/run/ate/image-accelerator.sock` does not exist and `atelet` uses `internal/imagecache` (`0` overhead).
 
-#### Step 2: Separately Deploy and Enable an Accelerator Plugin
+#### Step 2: Separately Deploy an Accelerator Plugin (Enabled by Default on Worker Nodes)
 Installing an image accelerator is always a separate step outside Substrate's installer:
 ```bash
 ko resolve -f oci-image-accelerator/manifests/riptide.yaml | kubectl apply -f -
-kubectl label nodes --all ate.dev/image-accelerator=riptide --overwrite
 ```
-* Builds `oci-image-accelerator/cmd/riptide` with `ko` (or applies a pre-built release manifest) and deploys `ate-accelerator-riptide`.
-* Labels target nodes `ate.dev/image-accelerator=riptide` so the DaemonSet schedules onto them.
-* Once each pod creates `/run/ate/image-accelerator.sock`, `atelet` automatically begins streaming eligible images on that node without restarting `atelet`.
+* Builds `oci-image-accelerator/cmd/riptide` with `ko` (or applies a pre-built release manifest) and deploys `ate-accelerator-riptide` onto all worker nodes by default, with no node labeling required to enable streaming.
+* Once each pod creates `/run/ate/image-accelerator.sock`, `atelet` automatically detects the socket and begins streaming eligible images on that node without restarting `atelet`.
 
-#### Step 3: Dynamically Disable / Drain Image Acceleration on a Node (or Re-Enable)
+#### Step 3: Dynamically Disable Image Acceleration on a Node (or Re-Enable)
 ```bash
-kubectl label node <node-name> ate.dev/image-accelerator-
+kubectl label node <node-name> ate.dev/image-accelerator=disabled --overwrite
 ```
-* Removing the `ate.dev/image-accelerator` node label causes Kubernetes to send `SIGTERM` to the adapter pod on `<node-name>`.
-* On `SIGTERM`, the adapter immediately enters lame-duck mode (`driver.Drain`): `CanProvide` returns `false`, `PrepareImage` returns `ErrNotSupported` (`codes.FailedPrecondition`) so all new (`Run`) and restoring (`Restore`) actors immediately use `/var/lib/ate/image-cache/layers/...`, and idle cached leases (`refCount == 0`) are unmounted immediately.
-* The provider container (`riptide-provider`, `soci-snapshotter`, `nydus-snapshotter`) holds a `lifecycle.preStop` hook (`while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done`) so the FUSE daemon stays running while active actors finish reading their FUSE mounts and unmounts each streamed image immediately (auto-bypassing `idleTTL`) when its `refCount` reaches `0` (up to `--drain-timeout=30m`).
-* Re-enable on a node anytime via `kubectl label node <node-name> ate.dev/image-accelerator=riptide --overwrite`.
+* Labeling a node `ate.dev/image-accelerator=disabled` does **not** terminate the adapter DaemonSet pod on `<node-name>`; instead, `atelet` marks the adapter on `<node-name>` as unused (`SetDraining(true)`).
+* `atelet` immediately falls back to `/var/lib/ate/image-cache/layers/...` for all new (`Run`) and restoring (`Restore`) actors, and triggers `SIGTERM` eviction on active `streamed: true` actors on `<node-name>` so they cycle through suspend/resume (`SuspendActor` $\to$ `ResumeActor`) and release their leases (`ReleaseImage` with `bypass_idle_ttl = true`) until `refCount` reaches `0` and all FUSE views are unmounted, while the adapter DaemonSet pod remains running idle.
+* Re-enable on `<node-name>` anytime by removing the opt-out label (`kubectl label node <node-name> ate.dev/image-accelerator-`), which takes effect immediately without restarting the DaemonSet pod.
 
 ### 6.3 Out-of-Tree & Custom Customer Adapter Extensibility
-Because `atelet` only knows the socket endpoint (`/run/ate/image-accelerator.sock`) and has zero K8s API or node-label coupling, any out-of-tree or customer-built `ImageAccelerator` DaemonSet works without modifying Substrate:
+Because `atelet` only knows the socket endpoint (`/run/ate/image-accelerator.sock`) and the opt-out `ate.dev/image-accelerator=disabled` node label, any out-of-tree or customer-built `ImageAccelerator` DaemonSet works without modifying Substrate:
 ```bash
 kubectl apply -f https://internal.example.com/manifests/mycompany-accelerator.yaml
-kubectl label node <node-name> ate.dev/image-accelerator=mycompany --overwrite
 ```
 
 ### 6.4 Upgrade & Version-Skew Lifecycle ([`docs/upgrade.md`](upgrade.md) & [`docs/version-skew-policy.md`](version-skew-policy.md))

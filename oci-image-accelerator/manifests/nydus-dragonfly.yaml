@@ -664,8 +664,17 @@ spec:
         - --work-dir=/var/lib/ate/accelerator/nydus-dragonfly
         - --verify-dragonfly-ping=true
         - --idle-ttl=10m
+        - --startup-timeout=2m
         - --drain-timeout=30m
         - --drain-complete-file=/run/ate/drain-complete
+        readinessProbe:
+          exec:
+            command:
+            - /ko-app/nydus-dragonfly
+            - --probe
+            - --listen-socket=/run/ate/image-accelerator.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
         securityContext:
           privileged: true
           runAsUser: 0

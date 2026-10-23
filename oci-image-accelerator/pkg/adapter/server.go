@@ -206,6 +206,12 @@ func ServeUnixSocket(ctx context.Context, listenSocket string, driver *Driver) e
 	removeStaleDrainMarker(drainMarkerPath)
 	_ = os.Remove(sockPath)
 
+	if driver != nil {
+		if err := driver.WaitReady(ctx); err != nil {
+			return fmt.Errorf("waiting for provider %s readiness: %w", driver.Name(), err)
+		}
+	}
+
 	lis, err := net.Listen("unix", sockPath)
 	if err != nil {
 		return fmt.Errorf("listening on %s: %w", sockPath, err)
@@ -244,10 +250,45 @@ func ServeUnixSocket(ctx context.Context, listenSocket string, driver *Driver) e
 		}
 	}()
 
+	var providerName, snapshotterSock string
+	if driver != nil {
+		providerName = driver.Name()
+		snapshotterSock = driver.SocketPath()
+	}
 	slog.Info("ImageAccelerator adapter listening",
-		slog.String("provider", driver.Name()),
+		slog.String("provider", providerName),
 		slog.String("listenSocket", sockPath),
-		slog.String("snapshotterSocket", driver.SocketPath()))
+		slog.String("snapshotterSocket", snapshotterSock))
 
 	return grpcServer.Serve(lis)
+}
+
+// ProbeUnixSocket dials the ImageAccelerator Unix domain socket at listenSocket
+// and verifies that CanProvide returns true.
+func ProbeUnixSocket(ctx context.Context, listenSocket string) error {
+	sockPath := strings.TrimPrefix(listenSocket, "unix://")
+	fi, err := os.Stat(sockPath)
+	if err != nil {
+		return fmt.Errorf("stat adapter socket %s: %w", sockPath, err)
+	}
+	if fi.Mode()&os.ModeSocket == 0 {
+		return fmt.Errorf("adapter path %s is not a unix socket", sockPath)
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 2*DefaultProbeTimeout)
+	defer cancel()
+
+	client, err := imageaccel.NewGRPCClient(sockPath)
+	if err != nil {
+		return fmt.Errorf("dialing adapter socket %s: %w", sockPath, err)
+	}
+	defer func() { _ = client.Close() }()
+
+	ok, err := client.CanProvide(probeCtx, &imageaccel.PrepareRequest{})
+	if err != nil {
+		return fmt.Errorf("probing adapter %s: %w", sockPath, err)
+	}
+	if !ok {
+		return fmt.Errorf("adapter %s reported CanProvide=false (provider=%s)", sockPath, client.Name())
+	}
+	return nil
 }

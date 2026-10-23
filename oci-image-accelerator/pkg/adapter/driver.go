@@ -79,6 +79,14 @@ const (
 	// DefaultDrainCompleteFile is the marker file written after lame-duck lease
 	// draining completes, releasing the provider container's preStop hook.
 	DefaultDrainCompleteFile = "/run/ate/drain-complete"
+
+	// DefaultStartupTimeout bounds how long ServeUnixSocket waits for the
+	// underlying provider to pass Driver.Probe before binding the adapter socket.
+	DefaultStartupTimeout = 2 * time.Minute
+
+	// DefaultStartupPollInterval is the polling interval between Driver.Probe
+	// attempts during startup readiness checks.
+	DefaultStartupPollInterval = 200 * time.Millisecond
 )
 
 // MountEnv provides the resolved image metadata, snapshotter client, and
@@ -277,6 +285,21 @@ func WithDrainCompleteFile(path string) Option {
 	}
 }
 
+// WithStartupTimeout sets the maximum duration WaitReady waits for the
+// underlying provider to pass Probe before ServeUnixSocket binds the adapter socket.
+func WithStartupTimeout(timeout time.Duration) Option {
+	return func(d *Driver) {
+		d.startupTimeout = timeout
+	}
+}
+
+// WithStartupPollInterval sets the polling interval between Probe attempts in WaitReady.
+func WithStartupPollInterval(interval time.Duration) Option {
+	return func(d *Driver) {
+		d.startupPollInterval = interval
+	}
+}
+
 type imageLease struct {
 	imageRef      string
 	digest        string
@@ -317,6 +340,8 @@ type Driver struct {
 	listableInterval    time.Duration
 	declineTTL          time.Duration
 	leaseIdleTTL        time.Duration
+	startupTimeout      time.Duration
+	startupPollInterval time.Duration
 	drainTimeout        time.Duration
 	drainCompleteFile   string
 	imageResolver       ImageResolverFunc
@@ -344,23 +369,25 @@ type Driver struct {
 // NewDriver creates a new shared Driver for a remote snapshotter provider.
 func NewDriver(name, defaultSocket, snapshotterName string, opts ...Option) (*Driver, error) {
 	d := &Driver{
-		name:              name,
-		socket:            defaultSocket,
-		workDir:           filepath.Join(DefaultBaseWorkDir, name),
-		namespace:         DefaultNamespace,
-		snapshotterName:   snapshotterName,
-		listableTimeout:   DefaultListableTimeout,
-		listableInterval:  DefaultListableInterval,
-		declineTTL:        DefaultDeclineTTL,
-		leaseIdleTTL:      DefaultLeaseIdleTTL,
-		drainTimeout:      DefaultDrainTimeout,
-		drainCompleteFile: DefaultDrainCompleteFile,
-		drainedCh:         make(chan struct{}),
-		leases:            make(map[string]*imageLease),
-		resolvedMeta:      make(map[string]*resolvedImageMeta),
-		declined:          make(map[string]time.Time),
-		inflight:          make(map[string]*inflightPrep),
-		chainLocks:        make(map[string]*sync.Mutex),
+		name:                name,
+		socket:              defaultSocket,
+		workDir:             filepath.Join(DefaultBaseWorkDir, name),
+		namespace:           DefaultNamespace,
+		snapshotterName:     snapshotterName,
+		listableTimeout:     DefaultListableTimeout,
+		listableInterval:    DefaultListableInterval,
+		declineTTL:          DefaultDeclineTTL,
+		leaseIdleTTL:        DefaultLeaseIdleTTL,
+		startupTimeout:      DefaultStartupTimeout,
+		startupPollInterval: DefaultStartupPollInterval,
+		drainTimeout:        DefaultDrainTimeout,
+		drainCompleteFile:   DefaultDrainCompleteFile,
+		drainedCh:           make(chan struct{}),
+		leases:              make(map[string]*imageLease),
+		resolvedMeta:        make(map[string]*resolvedImageMeta),
+		declined:            make(map[string]time.Time),
+		inflight:            make(map[string]*inflightPrep),
+		chainLocks:          make(map[string]*sync.Mutex),
 	}
 	for _, opt := range opts {
 		opt(d)
@@ -372,6 +399,12 @@ func NewDriver(name, defaultSocket, snapshotterName string, opts ...Option) (*Dr
 		d.layerMounter = StandardMountLayers
 	}
 	return d, nil
+}
+
+// StartupTimeout returns the configured maximum duration to wait on startup for
+// the underlying provider to pass Probe.
+func (d *Driver) StartupTimeout() time.Duration {
+	return d.startupTimeout
 }
 
 // Keychain returns the configured authn.Keychain, or the default
@@ -512,8 +545,9 @@ func (d *Driver) CanProvide(ctx context.Context, req *imageaccel.PrepareRequest)
 	d.mu.Unlock()
 
 	sock := d.SocketPath()
-	if !injected {
-		if _, err := os.Stat(sock); err != nil {
+	if !injected && sock != "" {
+		fi, err := os.Stat(sock)
+		if err != nil || fi.Mode()&os.ModeSocket == 0 {
 			return false, nil
 		}
 	}
@@ -528,13 +562,25 @@ func (d *Driver) CanProvide(ctx context.Context, req *imageaccel.PrepareRequest)
 
 const probeKey = "ate-streaming-probe"
 
-// Probe reports whether the snapshotter answers Snapshots.v1 requests.
+// Probe reports whether the snapshotter answers Snapshots.v1 requests and any
+// provider-specific ProbeHook succeeds.
 func (d *Driver) Probe(ctx context.Context) error {
 	d.mu.Lock()
 	client := d.snapshotsClient
+	injected := d.clientInjected
 	d.mu.Unlock()
+	sock := d.SocketPath()
+	if !injected && sock != "" {
+		fi, err := os.Stat(sock)
+		if err != nil {
+			return fmt.Errorf("stat snapshotter socket %s: %w", sock, err)
+		}
+		if fi.Mode()&os.ModeSocket == 0 {
+			return fmt.Errorf("snapshotter path %s is not a unix socket", sock)
+		}
+	}
 	if client == nil {
-		conn, err := grpc.NewClient("unix://"+d.SocketPath(),
+		conn, err := grpc.NewClient("unix://"+sock,
 			grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return fmt.Errorf("creating client: %w", err)
@@ -560,6 +606,55 @@ func (d *Driver) Probe(ctx context.Context) error {
 		return nil
 	default:
 		return fmt.Errorf("stat probe snapshot: %w", err)
+	}
+}
+
+// WaitReady polls Probe until the underlying provider is ready to serve or
+// StartupTimeout (or ctx) expires. If StartupTimeout <= 0, WaitReady returns
+// nil without probing.
+func (d *Driver) WaitReady(ctx context.Context) error {
+	if d.startupTimeout <= 0 {
+		return nil
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, d.startupTimeout)
+	defer cancel()
+
+	interval := d.startupPollInterval
+	if interval <= 0 {
+		interval = DefaultStartupPollInterval
+	}
+
+	start := time.Now()
+	var lastErr error
+	for attempt := 0; ; attempt++ {
+		probeCtx, probeCancel := context.WithTimeout(waitCtx, DefaultProbeTimeout)
+		err := d.Probe(probeCtx)
+		probeCancel()
+		if err == nil {
+			if attempt > 0 {
+				slog.InfoContext(ctx, "Underlying provider passed readiness probe",
+					slog.String("provider", d.name),
+					slog.Int("attempts", attempt+1),
+					slog.Duration("elapsed", time.Since(start)))
+			}
+			return nil
+		}
+		lastErr = err
+		if attempt == 0 {
+			slog.InfoContext(ctx, "Waiting for underlying provider to pass readiness probe",
+				slog.String("provider", d.name),
+				slog.String("socket", d.SocketPath()),
+				slog.Duration("startupTimeout", d.startupTimeout),
+				slog.Any("lastErr", err))
+		}
+		select {
+		case <-waitCtx.Done():
+			if ctx.Err() != nil {
+				return fmt.Errorf("context cancelled while waiting for provider %s (last error: %v): %w", d.name, lastErr, ctx.Err())
+			}
+			return fmt.Errorf("provider %s not ready within %s: %w", d.name, d.startupTimeout, lastErr)
+		case <-time.After(interval):
+		}
 	}
 }
 

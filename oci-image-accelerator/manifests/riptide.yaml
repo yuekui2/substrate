@@ -251,7 +251,7 @@ spec:
             command:
             - /bin/sh
             - -c
-            - test -S /run/ate/gcfs-snapshotter.sock && test -S /run/ate/image-accelerator.sock
+            - test -S /run/ate/gcfs-snapshotter.sock && test -S /run/ate/gcfsd/keychain.sock && test -S /run/ate/image-accelerator.sock
           initialDelaySeconds: 2
           periodSeconds: 2
         securityContext:
@@ -275,8 +275,17 @@ spec:
         - --keychain-socket=/run/ate/gcfsd/keychain.sock
         - --work-dir=/var/lib/ate/accelerator/riptide
         - --idle-ttl=10m
+        - --startup-timeout=2m
         - --drain-timeout=30m
         - --drain-complete-file=/run/ate/drain-complete
+        readinessProbe:
+          exec:
+            command:
+            - /ko-app/riptide
+            - --probe
+            - --listen-socket=/run/ate/image-accelerator.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
         securityContext:
           privileged: true
           runAsUser: 0

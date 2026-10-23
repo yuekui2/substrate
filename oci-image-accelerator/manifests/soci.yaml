@@ -162,8 +162,17 @@ spec:
         - --docker-config=/run/soci-snapshotter-grpc/docker/config.json
         - --work-dir=/var/lib/ate/accelerator/soci
         - --idle-ttl=10m
+        - --startup-timeout=2m
         - --drain-timeout=30m
         - --drain-complete-file=/run/ate/drain-complete
+        readinessProbe:
+          exec:
+            command:
+            - /ko-app/soci
+            - --probe
+            - --listen-socket=/run/ate/image-accelerator.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
         securityContext:
           privileged: true
           runAsUser: 0

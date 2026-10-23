@@ -449,3 +449,130 @@ func TestDrainTimeoutFallback(t *testing.T) {
 		t.Errorf("Drain() = true, want false when active lease exceeds drainTimeout")
 	}
 }
+
+func TestServeUnixSocketWaitReadyAndProbe(t *testing.T) {
+	ctx := context.Background()
+	diffIDs := []string{"sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+	snapClient := newFakeSnapshotsClient(t, diffIDs)
+	tmpDir := t.TempDir()
+
+	var (
+		mu             sync.Mutex
+		providerReady  bool
+		firstProbeOnce sync.Once
+		firstProbedCh  = make(chan struct{})
+	)
+
+	driver, err := NewDriver("test-provider", "/run/test.sock", "test-snap",
+		WithWorkDir(filepath.Join(tmpDir, "work")),
+		WithSnapshotsClient(snapClient),
+		WithStartupTimeout(2*time.Second),
+		WithStartupPollInterval(10*time.Millisecond),
+		WithDrainTimeout(5*time.Second),
+		WithDrainCompleteFile(filepath.Join(tmpDir, "drain-complete")),
+		WithProbeHook(func(_ context.Context) error {
+			firstProbeOnce.Do(func() { close(firstProbedCh) })
+			mu.Lock()
+			ready := providerReady
+			mu.Unlock()
+			if !ready {
+				return errors.New("underlying provider not ready yet")
+			}
+			return nil
+		}),
+		WithImageResolver(func(_ context.Context, _ string, _ *imageaccel.AuthConfig) (string, *v1.Config, []string, []string, error) {
+			return "sha256:1234", &v1.Config{}, diffIDs, diffIDs, nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewDriver: %v", err)
+	}
+	t.Cleanup(func() { _ = driver.Close() })
+
+	sockPath := filepath.Join(tmpDir, "image-accelerator.sock")
+	srvCtx, cancelSrv := context.WithCancel(ctx)
+	defer cancelSrv()
+
+	srvDone := make(chan error, 1)
+	go func() {
+		srvDone <- ServeUnixSocket(srvCtx, sockPath, driver)
+	}()
+
+	// Wait for WaitReady to execute its first probe while providerReady is false.
+	<-firstProbedCh
+	if _, err := os.Stat(sockPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("expected %s not to exist before provider is ready, got err=%v", sockPath, err)
+	}
+	if err := ProbeUnixSocket(ctx, sockPath); err == nil {
+		t.Fatalf("expected ProbeUnixSocket to fail before provider is ready")
+	}
+
+	// Mark the underlying provider ready; ServeUnixSocket should bind sockPath and pass ProbeUnixSocket.
+	mu.Lock()
+	providerReady = true
+	mu.Unlock()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if err := ProbeUnixSocket(ctx, sockPath); err == nil {
+			break
+		} else if time.Now().After(deadline) {
+			t.Fatalf("timed out waiting for ProbeUnixSocket to succeed: %v", err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Hold an active lease and trigger SIGTERM (cancelSrv): ProbeUnixSocket must immediately fail during lame-duck drain.
+	activeImg := "example.com/active:v1"
+	if _, err := driver.PrepareImage(ctx, &imageaccel.PrepareRequest{ImageRef: activeImg}); err != nil {
+		t.Fatalf("PrepareImage: %v", err)
+	}
+	cancelSrv()
+
+	drainDeadline := time.Now().Add(2 * time.Second)
+	for !driver.IsDraining() {
+		if time.Now().After(drainDeadline) {
+			t.Fatalf("timed out waiting for driver to enter draining state")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if err := ProbeUnixSocket(ctx, sockPath); err == nil {
+		t.Errorf("expected ProbeUnixSocket to fail while adapter is in lame-duck drain mode")
+	}
+
+	if err := driver.ReleaseImage(ctx, &imageaccel.ReleaseRequest{ImageRef: activeImg}); err != nil {
+		t.Fatalf("ReleaseImage: %v", err)
+	}
+	if err := <-srvDone; err != nil {
+		t.Fatalf("ServeUnixSocket returned error: %v", err)
+	}
+}
+
+func TestWaitReadyTimeout(t *testing.T) {
+	ctx := context.Background()
+	diffIDs := []string{"sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+	snapClient := newFakeSnapshotsClient(t, diffIDs)
+	tmpDir := t.TempDir()
+
+	driver, err := NewDriver("test-provider", "/run/test.sock", "test-snap",
+		WithWorkDir(filepath.Join(tmpDir, "work")),
+		WithSnapshotsClient(snapClient),
+		WithStartupTimeout(40*time.Millisecond),
+		WithStartupPollInterval(10*time.Millisecond),
+		WithProbeHook(func(_ context.Context) error {
+			return errors.New("provider daemon offline")
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewDriver: %v", err)
+	}
+	t.Cleanup(func() { _ = driver.Close() })
+
+	sockPath := filepath.Join(tmpDir, "image-accelerator.sock")
+	if err := ServeUnixSocket(ctx, sockPath, driver); err == nil {
+		t.Fatalf("expected ServeUnixSocket to fail when provider never passes readiness probe")
+	}
+	if _, err := os.Stat(sockPath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("expected %s not to be created when WaitReady fails, got err=%v", sockPath, err)
+	}
+}

@@ -46,13 +46,23 @@ func main() {
 		idleTTL            = flag.Duration("idle-ttl", adapter.DefaultLeaseIdleTTL, "How long to keep an image's layer lease active after refCount drops to 0 (0 disables)")
 		declineTTL         = flag.Duration("decline-ttl", adapter.DefaultDeclineTTL, "How long to cache declined (non-streamable) images")
 		listableTimeout    = flag.Duration("listable-timeout", adapter.DefaultListableTimeout, "Maximum time to wait for a layer directory to become listable")
+		startupTimeout     = flag.Duration("startup-timeout", adapter.DefaultStartupTimeout, "Maximum duration to wait on startup for the underlying provider to pass readiness probe")
 		drainTimeout       = flag.Duration("drain-timeout", adapter.DefaultDrainTimeout, "Maximum duration to wait in lame-duck mode after SIGTERM for active image leases to reach 0")
 		drainCompleteFile  = flag.String("drain-complete-file", adapter.DefaultDrainCompleteFile, "Path to the drain-complete marker file written once lame-duck draining finishes")
+		probe              = flag.Bool("probe", false, "Probe the running ImageAccelerator socket for readiness and exit")
 	)
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	if *probe {
+		if err := adapter.ProbeUnixSocket(ctx, *listenSocket); err != nil {
+			slog.Error("ImageAccelerator readiness probe failed", slog.String("socket", *listenSocket), slog.Any("err", err))
+			os.Exit(1)
+		}
+		return
+	}
 
 	var staticPeers []string
 	if strings.TrimSpace(*spegelPeers) != "" {
@@ -80,6 +90,7 @@ func main() {
 			adapter.WithLeaseIdleTTL(*idleTTL),
 			adapter.WithDeclineTTL(*declineTTL),
 			adapter.WithListableTimeout(*listableTimeout),
+			adapter.WithStartupTimeout(*startupTimeout),
 			adapter.WithDrainTimeout(*drainTimeout),
 			adapter.WithDrainCompleteFile(*drainCompleteFile),
 		},
