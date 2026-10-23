@@ -18,12 +18,12 @@ This directory contains the reusable scripts, Go benchmark/probe CLIs, image env
 | [`build_and_prepare_all.sh`](./build_and_prepare_all.sh) | Builds/pushes all 4 `ImageAccelerator` adapter images with `ko`, updates `built_images.env`, and invokes `setup_ubuntu_c3_and_index.sh`. |
 | [`setup_ubuntu_c3_and_index.sh`](./setup_ubuntu_c3_and_index.sh) | Compiles `bench-runner` and `e2e-stream-probe`, deploys fresh `bench-helper` pods in `ate-system`, copies the binaries into `/home/kubernetes/bin`, and installs `soci` v0.15.0 on the target nodes. |
 | [`run_full_benchmark_matrix.sh`](./run_full_benchmark_matrix.sh) | Deploys all 4 adapter DaemonSets (`oci-image-accelerator/manifests/*.yaml`), provisions `1 CPU / 2 GiB` `WorkerPool`s and `ActorTemplate`s, verifies Riptide on both COS modes, and executes the complete 45-run benchmark matrix. |
-| [`run_upgrade_tests.sh`](./run_upgrade_tests.sh) | Executes live E2E verification of both decoupled upgrade workflows: (A) `ds/atelet` rolling upgrade with an active streamed actor (`ReconcileImages`), and (B) `ds/ate-accelerator-riptide` `OnDelete` upgrade with `ate.dev/image-accelerator=disabled` FUSE lease draining. |
+| [`run_upgrade_tests.sh`](./run_upgrade_tests.sh) | Executes live E2E verification from fresh DaemonSets/WorkerPools: (A1) `ds/atelet` rolling upgrade with an active streamed actor (`ReconcileImages`), (A2) dynamic node opt-out (`ate.dev/image-accelerator=disabled`) with `EvictWorkload` (`SIGTERM`) without terminating the adapter DaemonSet, and (B.1–B.4) `RollingUpdate` lame-duck drain and `EvictWorkload` verification across all 4 adapters (`riptide`, `soci`, `nydus-dragonfly`, `spegel`). |
 | [`bench-runner/main.go`](./bench-runner/main.go) | Standalone Go CLI that drives `ateapi` (`CreateActorTemplate`, `CreateActor`, `ResumeActor`, `SuspendActor`, `RevertActor`, `DeleteActor`), `atenet` HTTP workload requests, and `ImageAccelerator.ReleaseImage` cache eviction. |
 | [`e2e-stream-probe/main.go`](./e2e-stream-probe/main.go) | Standalone Go CLI that probes `/run/ate/image-accelerator.sock` (`CanProvide`, `PrepareImage`, layer directory verification, and `ReleaseImage`). |
 | [`results/benchmark_results.jsonl`](./results/benchmark_results.jsonl) | Structured JSONL output containing all 45 benchmark runs with nanosecond timestamps and latency breakdowns. |
 | [`results/benchmark_evidence.log`](./results/benchmark_evidence.log) | Detailed execution log including Riptide dual-mode probe output, `ateapi` `"Picked worker"` timestamps, and per-run adapter / `atelet` logs. |
-| [`results/upgrade_verification.log`](./results/upgrade_verification.log) | Step-by-step live cluster execution log for Upgrade Scenarios A and B. |
+| [`results/upgrade_verification.log`](./results/upgrade_verification.log) | Step-by-step live cluster execution log (commands, outputs, and logs) for Scenarios A1, A2, and B.1–B.4. |
 
 ---
 
@@ -36,7 +36,7 @@ The benchmark and E2E verification run on GKE cluster `substrate-stream-test` (`
    - Labeled with `bench-node=c3-cos` and hosts `WorkerPool` `wp-c3-cos` (`1 CPU`, `2 GiB`).
 2. **COS No-Streaming Node (`NO_STREAM_COS_NODE`)**: `gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz` (`c3-standard-4`, COS, GKE Image Streaming disabled)
    - Verifies that `ate-accelerator-riptide` works identically when host `gcfsd.service` is inactive by starting its own isolated `gcfsd-v2` + `containerd-gcfs-grpc` pair from `/home/kubernetes/bin`.
-3. **Ubuntu 24.04 Benchmark Node (`UBUNTU_NODE`)**: `gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p` (`c3-standard-22`, Ubuntu 24.04)
+3. **Ubuntu 24.04 Benchmark Node (`UBUNTU_NODE`)**: `gke-substrate-stream-c3-std22-ubuntu--5a335c0d-1261` (`c3-standard-22`, Ubuntu 24.04)
    - Runs **`nydus-dragonfly`** (Linux kernel `CONFIG_EROFS_FS_ONDEMAND=y` and `fscache` with `erofs` and `cachefiles` modules).
    - Labeled with `bench-node=c3-ubuntu` and hosts `WorkerPool` `wp-c3-ubuntu` (`1 CPU`, `2 GiB`).
 4. **P2P Seed Peer Node (`PEER_NODE`)**: `gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc` (`c3-standard-4`, Ubuntu 24.04)
@@ -97,7 +97,7 @@ Every workload is executed via `bench-runner` sending an HTTP POST to `atenet-ro
 ### 4.2 Per-Workload Lifecycle Scenarios
 For each `(adapter, workload)` pair:
 1. **`cold_boot` (`--mode=create-boot-run`)**:
-   - Run `wipe_node_cache` (purges `/var/lib/ate/images/*`, calls `ImageAccelerator.ReleaseImage(bypass_ttl=true)` on `/run/ate/image-accelerator.sock`, clears Spegel store if applicable, and drops kernel page caches).
+   - Run `wipe_node_cache` (purges `/var/lib/ate/image-cache/*`, calls `ImageAccelerator.ReleaseImage(bypass_ttl=true)` on `/run/ate/image-accelerator.sock`, clears Spegel store if applicable, and drops kernel page caches).
    - Call `CreateActor` from template, then `ResumeActor` to restore from the golden snapshot and mount the image layers on demand, then immediately run the workload command.
 2. **Suspend (`--mode=suspend --clean-pycache=true`)**:
    - Clean any `__pycache__` files written to the sandbox upperdir, then call `SuspendActor(DURABILITY_MODE_SYNCHRONOUS)` to checkpoint the running gVisor sandbox both locally and to GCS.
@@ -183,23 +183,35 @@ For each `(adapter, workload)` pair:
 
 ---
 
-## 6. Live Decoupled Upgrade Verification Summary (`results/upgrade_verification.log`)
+## 6. Live Decoupled Upgrade & Node Opt-Out Verification Summary (`results/upgrade_verification.log`)
 
-Both decoupled upgrade workflows defined in `docs/proposals/image-streaming/design.md` (§5.12) passed on the live cluster:
+All decoupled upgrade and dynamic node opt-out workflows defined in [`docs/image-accelerator-overview.md`](../../docs/image-accelerator-overview.md) and [`oci-image-accelerator/README.md`](../../oci-image-accelerator/README.md) passed from a freshly deployed state (zero reused DaemonSets or WorkerPools):
 
-1. **Scenario A — Substrate `atelet` Rolling Upgrade (`RollingUpdate`) with Active Streamed Actor**:
-   - Booted `ate-bench-stream/upgrade-actor-a` on `riptide` (`rootfs-overlay.json` persisted `"streamed": true` and 10 `/var/lib/ate/accelerator/riptide/...` layer paths).
-   - Rolled `ds/atelet` (`atelet-sggpj` -> `atelet-tpc5g`) while `upgrade-actor-a` remained `RUNNING`.
-   - Verified `ate-accelerator-riptide-z98mc` did **not** restart (`restarts=0`, unchanged pod UID).
-   - Verified `upgrade-actor-a` read uncached files from the FUSE mount after `atelet` restarted (`FUSE_READ_OK bytes= 131407`, zero `ENOTCONN`).
+1. **Scenario A1 — Substrate `atelet` Rolling Upgrade (`RollingUpdate`) with Active Streamed Actor**:
+   - Freshly deployed `ds/atelet`, `wp-c3-cos`, `wp-c3-ubuntu`, and `ds/ate-accelerator-riptide` (`ate-accelerator-riptide-gqxh8`, `WaitReady` passed in `2.83s`).
+   - Booted `ate-bench-stream/up-riptide-stream` on `riptide` (`rootfs-overlay.json` persisted `"streamed": true` and 10 `/var/lib/ate/accelerator-image-cache/riptide/.../layer-<i>` paths).
+   - Rolled `ds/atelet` (`atelet-bq8p9` -> `atelet-plg6b`) while `up-riptide-stream` remained `RUNNING`.
+   - Verified `ate-accelerator-riptide-gqxh8` did **not** restart (`restarts=0`, unchanged pod UID `87c87f80-92eb-40d9-af3e-28ad6cca381d`).
+   - Verified `up-riptide-stream` read uncached files from the FUSE mount after `atelet` restarted (`ATELET_ROLLOUT_FUSE_READ_OK bytes= 131407`, zero `ENOTCONN`).
    - Verified the new `atelet` pod reconciled active leases on startup:
      - `atelet`: `{"level":"INFO","msg":"Successfully reconciled streamed image leases on startup","provider":"image-accelerator","reconciledImages":1}`
      - `ate-accelerator-riptide`: `INFO Reconciled active streamed image lease provider=riptide ... refCount=1`
-2. **Scenario B — Adapter DaemonSet `OnDelete` Upgrade + `ate.dev/image-accelerator=disabled` FUSE Drain**:
-   - Booted `ate-bench-stream/upgrade-actor-b` on `riptide`.
-   - Patched `ds/ate-accelerator-riptide` pod template (`updateStrategy.type: OnDelete`) and verified `ate-accelerator-riptide-z98mc` remained running while `upgrade-actor-b` was active.
-   - Labeled the node `ate.dev/image-accelerator=disabled`; verified `atelet` logged `"ImageAccelerator node drain state changed" draining=true` and `ate-accelerator-riptide-z98mc` stayed `Running` (covered by `nodeAffinity` `In: [riptide, disabled]`) with `DRAIN_FUSE_READ_OK bytes= 131407`.
-   - Deleted `upgrade-actor-b`; verified `atelet` called `ReleaseImage(bypass_ttl=true)` and evicted `/var/lib/ate/accelerator/riptide/*` (`Remaining workdirs: []`).
-   - Booted `upgrade-actor-fallback` while the node was labeled `disabled` and verified `rootfs-overlay.json` fell back to `/var/lib/ate/image-cache/layers/sha256/...`.
-   - Deleted the drained adapter pod `ate-accelerator-riptide-z98mc`, relabeled the node `ate.dev/image-accelerator=riptide`, and verified the new adapter pod `ate-accelerator-riptide-w59dq` (`rev=v2`) started and passed `e2e-stream-probe` (`verifiedLayers: 10`).
+2. **Scenario A2 — Dynamic Node Opt-Out (`ate.dev/image-accelerator=disabled`) without Terminating Adapter DaemonSet**:
+   - Labeled `gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62` with `ate.dev/image-accelerator=disabled`.
+   - Verified `ate-accelerator-riptide-gqxh8` remained `2/2 Running` with unchanged UID `87c87f80-92eb-40d9-af3e-28ad6cca381d`.
+   - Verified `atelet` logged `"ImageAccelerator node drain state changed" draining=true` and `"Triggered SIGTERM eviction for active streamed actor" actorUID=88357fe7-6b61-45f5-8a26-4efc638184c1`, and `ateworker` executed `runsc kill container=sandbox signal=SIGTERM`.
+   - Booted `up-riptide-optout-fallback` while the node was labeled `disabled` and verified `rootfs-overlay.json` fell back to `/var/lib/ate/image-cache/layers/sha256/...` (`streamed` omitted/`false`).
+   - Removed the `ate.dev/image-accelerator=disabled` label (`draining=false`) and verified a new actor immediately resumed streaming on the same `ate-accelerator-riptide-gqxh8` pod (`streamed: true`, `123.77 ms` `ResumeActor`).
+3. **Scenario B.1 — Riptide (`ds/ate-accelerator-riptide`) `RollingUpdate` + `SIGTERM` Lame-Duck Drain + `EvictWorkload`**:
+   - Patched `ds/ate-accelerator-riptide` (`ate.dev/upgrade-test-rev=v2`) while `up-riptide-stream` held `refCount=1`.
+   - Verified `ate-accelerator-riptide-gqxh8` entered `Terminating` lame-duck drain mode (`activeLeases="[...refCount=1]"`, `/run/ate/drain-complete` held back, `e2e-stream-probe` returned `canProvide: false, evicting: true`).
+   - Verified `atelet` detected `evicting=true` and triggered `EvictWorkload` (`SIGTERM`) for `up-riptide-stream` (`actorUID=c24fc25f-d092-457d-be8d-8200f8dac9e2`), while the mounted FUSE layer continued serving uncached reads (`LAME_DUCK_DRAIN_READ_OK ... bytes=320619`) and concurrent `up-riptide-fallback` fell back to `/var/lib/ate/image-cache`.
+   - Released the lease (`DeleteActor`); verified `All active streamed image leases drained` and `/run/ate/drain-complete` were written, and replacement pod `ate-accelerator-riptide-9lqkk` (`rev=v2`) passed `WaitReady` and `e2e-stream-probe` (`verifiedLayers: 10`).
+4. **Scenario B.2 — AWS SOCI (`ds/ate-accelerator-soci`) `RollingUpdate` + `SIGTERM` Lame-Duck Drain + `EvictWorkload`**:
+   - Freshly deployed `ds/ate-accelerator-soci` (`ate-accelerator-soci-6jt6m`), booted `up-soci-stream` (`/var/lib/ate/accelerator-image-cache/soci/...`), triggered `RollingUpdate`, verified `Terminating` lame-duck drain (`canProvide: false, evicting: true`), `EvictWorkload` `SIGTERM` (`actorUID=48fc6163-8009-4cc7-8621-3e1de00ba37c`), uncached FUSE read (`LAME_DUCK_DRAIN_READ_OK ... bytes=320619`), fallback actor boot, lease release -> `/run/ate/drain-complete`, and replacement pod `ate-accelerator-soci-ztlmf` (`rev=v2`, `WaitReady` `2.81s`, `verifiedLayers: 10`).
+5. **Scenario B.3 — Nydus + Dragonfly (`ds/ate-accelerator-nydus-dragonfly`) `RollingUpdate` + `SIGTERM` Lame-Duck Drain + `EvictWorkload`**:
+   - Freshly deployed `ds/ate-accelerator-nydus-dragonfly` (`ate-accelerator-nydus-dragonfly-d56vq`, `WaitReady` `1.01s`), booted `up-nydus-dragonfly-stream` (`/var/lib/ate/accelerator-image-cache/nydus-dragonfly/.../layer-0`), triggered `RollingUpdate`, verified `Terminating` lame-duck drain (`canProvide: false, evicting: true`), `EvictWorkload` `SIGTERM` (`actorUID=1b1fff7e-ad04-475c-a4e3-60a5515d3077`), uncached EROFS+fscache read (`LAME_DUCK_DRAIN_READ_OK ... bytes=320619`), fallback actor boot, lease release -> `/run/ate/drain-complete`, and replacement pod `ate-accelerator-nydus-dragonfly-htggt` (`rev=v2`, `WaitReady` `1.21s`, `verifiedLayers: 1`).
+6. **Scenario B.4 — Spegel P2P (`ds/ate-accelerator-spegel`) Stateless `RollingUpdate`**:
+   - Freshly deployed `ds/ate-accelerator-spegel` (`ate-accelerator-spegel-mclgc` with `--drain-timeout=0s`), booted `up-spegel-actor` (`/var/lib/ate/accelerator-image-cache/spegel/...`), rolled `ds/ate-accelerator-spegel` to `ate-accelerator-spegel-8pcsj` (`rev=v2`) while `up-spegel-actor` remained `RUNNING`, verified `SPEGEL_ROLLOUT_READ_OK bytes= 131407` and `Reconciled active streamed image lease provider=spegel ... refCount=1`, and verified `e2e-stream-probe` (`verifiedLayers: 10`).
+
 

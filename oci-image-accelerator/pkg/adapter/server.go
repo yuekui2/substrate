@@ -69,7 +69,7 @@ func (s *Server) CanProvide(ctx context.Context, req *imageaccelv1.CanProvideReq
 	return &imageaccelv1.CanProvideResponse{
 		CanProvide:   ok,
 		ProviderName: s.driver.Name(),
-		Evicting:     s.driver.IsDraining(),
+		Evicting:     s.driver.IsDraining() && s.driver.DrainTimeout() > 0,
 	}, nil
 }
 
@@ -205,6 +205,7 @@ func ServeUnixSocket(ctx context.Context, listenSocket string, driver *Driver) e
 		drainMarkerPath = driver.DrainCompleteFile()
 	}
 	removeStaleDrainMarker(drainMarkerPath)
+	defer writeDrainMarker(drainMarkerPath)
 	_ = os.Remove(sockPath)
 
 	if driver != nil {
@@ -226,7 +227,6 @@ func ServeUnixSocket(ctx context.Context, listenSocket string, driver *Driver) e
 		if curFi, err := os.Stat(sockPath); err == nil && createdFi != nil && os.SameFile(createdFi, curFi) {
 			_ = os.Remove(sockPath)
 		}
-		writeDrainMarker(drainMarkerPath)
 	}()
 
 	grpcServer := grpc.NewServer()

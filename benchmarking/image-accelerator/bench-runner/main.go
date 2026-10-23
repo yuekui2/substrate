@@ -82,6 +82,7 @@ type ProbeReport struct {
 	ImageRef       string   `json:"imageRef"`
 	ImageDigest    string   `json:"imageDigest,omitempty"`
 	CanProvide     bool     `json:"canProvide"`
+	Evicting       bool     `json:"evicting"`
 	LayerDirs      []string `json:"layerDirs,omitempty"`
 	CanProvideMs   float64  `json:"canProvideMs"`
 	PrepareMs      float64  `json:"prepareMs"`
@@ -193,10 +194,12 @@ func main() {
 		if err != nil {
 			log.Fatalf("CanProvide: %v", err)
 		}
+		evicting, _ := client.IsEvicting(ctx)
 		report := ProbeReport{
 			Provider:     client.Name(),
 			ImageRef:     *imageRef,
 			CanProvide:   ok,
+			Evicting:     evicting,
 			CanProvideMs: float64(canDur.Microseconds()) / 1000.0,
 		}
 		if ok {

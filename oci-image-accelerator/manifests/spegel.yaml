@@ -99,6 +99,7 @@ spec:
         - --verify-spegel-ready=true
         - --idle-ttl=10m
         - --startup-timeout=2m
+        - --drain-timeout=0s
         ports:
         - name: registry
           containerPort: 5000

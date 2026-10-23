@@ -27,16 +27,22 @@ if [[ -f "${ROOT}/.ate-dev-env.sh" ]]; then
   source "${ROOT}/.ate-dev-env.sh"
 fi
 
-echo "=== [1] Checking atelet pods in ate-system ==="
-kubectl get pods -n ate-system -l app=atelet -o wide
-
-echo "=== [2] Building and publishing all 4 ImageAccelerator adapter images with ko ==="
+echo "=== [1] Building and publishing atelet, objectstore-plugin, ateworker-gvisor, and all 4 ImageAccelerator adapter images with ko ==="
 RIPTIDE_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./oci-image-accelerator/cmd/riptide)"
 SOCI_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./oci-image-accelerator/cmd/soci)"
 NYDUS_DF_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./oci-image-accelerator/cmd/nydus-dragonfly)"
 SPEGEL_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./oci-image-accelerator/cmd/spegel)"
-ATELET_IMG="$(kubectl -n ate-system get ds atelet -o jsonpath='{.spec.template.spec.containers[0].image}')"
+ATELET_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./cmd/atelet)"
+OBJECTSTORE_PLUGIN_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./cmd/objectstore-plugin)"
 WORKER_IMG="$("${ROOT}/hack/run-tool.sh" ko build ./cmd/ateworker-gvisor)"
+
+echo "=== [2] Deleting existing ds/atelet and freshly deploying manifests/ate-install/atelet.yaml ==="
+kubectl -n ate-system delete ds atelet --ignore-not-found --wait=true
+sed -e "s|ko://go.ate.dev/substrate/cmd/atelet|${ATELET_IMG}|g" \
+    -e "s|ko://go.ate.dev/substrate/cmd/objectstore-plugin|${OBJECTSTORE_PLUGIN_IMG}|g" \
+    "${ROOT}/manifests/ate-install/atelet.yaml" | kubectl apply -f -
+kubectl -n ate-system rollout status ds/atelet --timeout=180s
+kubectl get pods -n ate-system -l app=atelet -o wide
 
 SWEBENCH_IMG="${SWEBENCH_IMG:-us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:c8c61a46b939c1b801e08930a2a7cc850b6f8790672634dd26cb8a38ba2965d4}"
 SWEBENCH_TAG_IMG="${SWEBENCH_TAG_IMG:-us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd:swebench-matplotlib}"
@@ -59,6 +65,7 @@ cat > "${BENCH_DIR}/built_images.env" <<EOF
 # limitations under the License.
 
 export ATELET_IMG="${ATELET_IMG}"
+export OBJECTSTORE_PLUGIN_IMG="${OBJECTSTORE_PLUGIN_IMG}"
 export WORKER_IMG="${WORKER_IMG}"
 export RIPTIDE_IMG="${RIPTIDE_IMG}"
 export SOCI_IMG="${SOCI_IMG}"
@@ -72,3 +79,4 @@ EOF
 
 echo "=== [3] Running setup_ubuntu_c3_and_index.sh ==="
 bash "${BENCH_DIR}/setup_ubuntu_c3_and_index.sh"
+

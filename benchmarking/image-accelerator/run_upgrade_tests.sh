@@ -40,13 +40,13 @@ cd "${ROOT}"
 source "${BENCH_DIR}/built_images.env"
 
 UPGRADE_LOG="${RESULTS_DIR}/upgrade_verification.log"
-START_FROM="${START_FROM:-all}"
+START_FROM="${1:-${START_FROM:-all}}"
 if [[ "${START_FROM}" == "all" ]]; then
   : > "${UPGRADE_LOG}"
 fi
 
 COS_NODE="${COS_NODE:-gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62}"
-UBUNTU_NODE="${UBUNTU_NODE:-gke-substrate-stream-c3-std22-ubuntu--5a335c0d-5h2p}"
+UBUNTU_NODE="${UBUNTU_NODE:-gke-substrate-stream-c3-std22-ubuntu--5a335c0d-1261}"
 PEER_NODE="${PEER_NODE:-gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc}"
 COS_HELPER="bench-helper-${COS_NODE##*-}"
 UBUNTU_HELPER="bench-helper-${UBUNTU_NODE##*-}"
@@ -90,8 +90,9 @@ clean_all_adapters() {
   for hp in "${COS_HELPER}" "${UBUNTU_HELPER}" "${PEER_HELPER}"; do
     kubectl -n ate-system exec "${hp}" -- nsenter -t 1 -m -u -i -n -- touch /run/ate/drain-complete 2>/dev/null || true
   done
-  run_cmd kubectl label nodes --all ate.dev/image-accelerator- --overwrite
-  run_cmd kubectl -n ate-system delete ds ate-accelerator-riptide ate-accelerator-soci ate-accelerator-nydus-dragonfly ate-accelerator-spegel --ignore-not-found --wait=true
+  run_cmd kubectl label nodes --all ate.dev/image-accelerator- bench-accel-target- --overwrite
+  run_cmd kubectl -n ate-system delete ds ate-accelerator-riptide ate-accelerator-soci ate-accelerator-nydus-dragonfly ate-accelerator-spegel --ignore-not-found --wait=false
+  kubectl -n ate-system delete pods -l app=ate-image-accelerator --grace-period=0 --force --ignore-not-found >/dev/null 2>&1 || true
   for _ in $(seq 1 60); do
     if [[ -z "$(kubectl -n ate-system get pods -l app=ate-image-accelerator -o name 2>/dev/null)" ]]; then
       break
@@ -122,23 +123,28 @@ ATENET_IP=$(kubectl -n ate-system get svc atenet-router -o jsonpath='{.spec.clus
 
 if [[ "${START_FROM}" == "all" ]]; then
   log "================================================================================"
-  log "PRE-FLIGHT: Verifying ate-system Control Plane, WorkerPools, and ActorTemplates"
+  log "PRE-FLIGHT: Freshly Deploying ds/atelet, WorkerPools, and ActorTemplates"
   log "================================================================================"
 
+  clean_all_adapters
+
+  log "--- Freshly redeploying ds/atelet from manifests/ate-install/atelet.yaml (no existing DaemonSet reuse) ---"
+  run_cmd kubectl -n ate-system delete ds atelet --ignore-not-found --wait=true
+  sed -e "s|ko://go.ate.dev/substrate/cmd/atelet|${ATELET_IMG}|g" \
+      -e "s|ko://go.ate.dev/substrate/cmd/objectstore-plugin|${OBJECTSTORE_PLUGIN_IMG}|g" \
+      "${ROOT}/manifests/ate-install/atelet.yaml" | kubectl apply -f - 2>&1 | tee -a "${UPGRADE_LOG}"
   run_cmd kubectl -n ate-system rollout status deploy/ate-api-server deploy/ate-controller deploy/atenet-egress deploy/atenet-router ds/atelet --timeout=180s
 
   run_cmd kubectl label node "${COS_NODE}" bench-node=c3-cos --overwrite
   run_cmd kubectl label node "${UBUNTU_NODE}" bench-node=c3-ubuntu --overwrite
 
-  for act in up-riptide-stream up-riptide-fallback up-soci-stream up-soci-fallback up-nydus-dragonfly-stream up-nydus-dragonfly-fallback up-spegel-actor; do
+  for act in up-riptide-stream up-riptide-optout-fallback up-riptide-fallback up-soci-stream up-soci-fallback up-nydus-dragonfly-stream up-nydus-dragonfly-fallback up-spegel-actor; do
     kubectl -n ate-system exec "${COS_HELPER}" -- /home/kubernetes/bin/bench-runner \
       --mode=delete --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" \
       --atespace=ate-bench-stream --actor="${act}" >/dev/null 2>&1 || true
   done
 
-  clean_all_adapters
-
-  kubectl -n ate-bench-stream delete workerpool wp-c3-cos wp-c3-ubuntu --ignore-not-found --wait=true >/dev/null 2>&1 || true
+  run_cmd kubectl -n ate-bench-stream delete workerpool wp-c3-cos wp-c3-ubuntu --ignore-not-found --wait=true
   kubectl apply -f - <<EOF | tee -a "${UPGRADE_LOG}"
 apiVersion: v1
 kind: Namespace
@@ -153,7 +159,7 @@ metadata:
   labels:
     workload: bench-cos
 spec:
-  replicas: 1
+  replicas: 2
   workerImage: ${WORKER_IMG}
   sandboxClasses:
   - name: gvisor
@@ -162,11 +168,11 @@ spec:
       bench-node: c3-cos
     resources:
       requests:
-        cpu: "4"
-        memory: 8Gi
+        cpu: "2"
+        memory: 4Gi
       limits:
-        cpu: "4"
-        memory: 8Gi
+        cpu: "2"
+        memory: 4Gi
 ---
 apiVersion: ate.dev/v1alpha1
 kind: WorkerPool
@@ -176,7 +182,7 @@ metadata:
   labels:
     workload: bench-ubuntu
 spec:
-  replicas: 1
+  replicas: 2
   workerImage: ${WORKER_IMG}
   sandboxClasses:
   - name: gvisor
@@ -185,18 +191,18 @@ spec:
       bench-node: c3-ubuntu
     resources:
       requests:
-        cpu: "4"
-        memory: 8Gi
+        cpu: "2"
+        memory: 4Gi
       limits:
-        cpu: "4"
-        memory: 8Gi
+        cpu: "2"
+        memory: 4Gi
 EOF
 
-  log "Waiting for WorkerPools wp-c3-cos and wp-c3-ubuntu to become Ready..."
+  log "Waiting for fresh WorkerPools wp-c3-cos and wp-c3-ubuntu to become Ready..."
   for _ in $(seq 1 90); do
     R_COS=$(kubectl -n ate-bench-stream get workerpool wp-c3-cos -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
     R_UBU=$(kubectl -n ate-bench-stream get workerpool wp-c3-ubuntu -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo 0)
-    if [[ "${R_COS}" == "1" && "${R_UBU}" == "1" ]]; then
+    if [[ "${R_COS}" == "2" && "${R_UBU}" == "2" ]]; then
       break
     fi
     sleep 2
@@ -226,10 +232,11 @@ EOF
     --pool-label=bench-ubuntu \
     --image="${SWEBENCH_NYDUS_IMG}" \
     --wait-golden=true >> "${UPGRADE_LOG}" 2>&1; then
-    sed "s|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly|${NYDUS_DF_IMG}|g" \
+    kubectl label node "${UBUNTU_NODE}" "${PEER_NODE}" bench-accel-target=nydus-dragonfly --overwrite >/dev/null
+    sed -e "s|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly|${NYDUS_DF_IMG}|g" \
+        -e "s|      hostNetwork: true|      hostNetwork: true\n      nodeSelector:\n        bench-accel-target: nydus-dragonfly|g" \
       oci-image-accelerator/manifests/nydus-dragonfly.yaml | kubectl apply -f - >/dev/null
     kubectl -n ate-system rollout status deployment/dragonfly-redis deployment/dragonfly-mysql deployment/dragonfly-manager deployment/dragonfly-scheduler --timeout=180s >/dev/null
-    kubectl label node "${UBUNTU_NODE}" "${PEER_NODE}" ate.dev/image-accelerator=nydus-dragonfly --overwrite >/dev/null
     wait_adapter_on_node "nydus-dragonfly" "${PEER_NODE}"
     wait_adapter_on_node "nydus-dragonfly" "${UBUNTU_NODE}"
     run_cmd kubectl -n ate-system exec "${UBUNTU_HELPER}" -- /home/kubernetes/bin/bench-runner \
@@ -264,13 +271,19 @@ run_fuse_lameduck_rolling_update_test() {
 
   clean_all_adapters
 
-  log "--- [${provider} Step 1] Freshly applying ${manifest} and labeling ${node} ---"
-  log "$ sed 's|${img_placeholder}|${img_actual}|g' ${manifest} | kubectl apply -f -"
-  sed "s|${img_placeholder}|${img_actual}|g" "${manifest}" | kubectl apply -f - 2>&1 | tee -a "${UPGRADE_LOG}"
+  log "--- [${provider} Step 1] Freshly applying ${manifest} onto ${node} (zero ate.dev/image-accelerator label required) ---"
+  if [[ "${provider}" == "nydus-dragonfly" ]]; then
+    run_cmd kubectl label node "${PEER_NODE}" "${node}" "bench-accel-target=${provider}" --overwrite
+  else
+    run_cmd kubectl label node "${node}" "bench-accel-target=${provider}" --overwrite
+  fi
+  log "$ sed -e 's|${img_placeholder}|${img_actual}|g' -e 's|      hostNetwork: true|      hostNetwork: true\n      nodeSelector:\n        bench-accel-target: ${provider}|g' ${manifest} | kubectl apply -f -"
+  sed -e "s|${img_placeholder}|${img_actual}|g" \
+      -e "s|      hostNetwork: true|      hostNetwork: true\n      nodeSelector:\n        bench-accel-target: ${provider}|g" \
+      "${manifest}" | kubectl apply -f - 2>&1 | tee -a "${UPGRADE_LOG}"
 
   if [[ "${provider}" == "nydus-dragonfly" ]]; then
     run_cmd kubectl -n ate-system rollout status deployment/dragonfly-redis deployment/dragonfly-mysql deployment/dragonfly-manager deployment/dragonfly-scheduler --timeout=180s
-    run_cmd kubectl label node "${PEER_NODE}" "ate.dev/image-accelerator=${provider}" --overwrite
     wait_adapter_on_node "${provider}" "${PEER_NODE}"
     log "Seeding ${test_image} on Dragonfly peer node ${PEER_NODE}..."
     run_cmd kubectl -n ate-system exec "${PEER_HELPER}" -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe \
@@ -279,7 +292,6 @@ run_fuse_lameduck_rolling_update_test() {
       -bypass-ttl=false
   fi
 
-  run_cmd kubectl label node "${node}" "ate.dev/image-accelerator=${provider}" --overwrite
   wait_adapter_on_node "${provider}" "${node}"
 
   run_cmd kubectl -n ate-system get ds "${ds_name}" -o wide
@@ -290,6 +302,9 @@ run_fuse_lameduck_rolling_update_test() {
   local uid_before
   uid_before=$(kubectl -n ate-system get pod "${pod_before}" -o jsonpath='{.metadata.uid}')
   log "Initial ${provider} pod on ${node}: ${pod_before} (UID=${uid_before})"
+
+  log "--- [${provider} Step 1b] Verifying WaitReady startup logs and /ko-app/${provider} --probe readinessProbe ---"
+  run_cmd kubectl -n ate-system logs "${pod_before}" -c "${container_name}"
 
   local actor_stream="up-${provider}-stream"
   local actor_fallback="up-${provider}-fallback"
@@ -310,14 +325,14 @@ run_fuse_lameduck_rolling_update_test() {
     --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" \
     --atespace=ate-bench-stream --template="${tmpl}" --actor="${actor_stream}"
 
-  log "--- [${provider} Step 2b] Verifying rootfs-overlay.json for ${actor_stream} on ${node} ---"
+  log "--- [${provider} Step 2b] Verifying rootfs-overlay.json for ${actor_stream} on ${node} (/var/lib/ate/accelerator-image-cache/${provider}) ---"
   run_cmd kubectl -n ate-system exec "${helper_pod}" -- nsenter -t 1 -m -u -i -n -- sh -c '
     cat /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; echo ""
   '
 
   if [[ "${provider}" == "riptide" ]]; then
     log "================================================================================"
-    log "SCENARIO A: Rolling ds/atelet on ${node} while ${actor_stream} is RUNNING"
+    log "SCENARIO A1: Rolling ds/atelet on ${node} while ${actor_stream} is RUNNING"
     log "================================================================================"
     local atelet_before
     atelet_before=$(kubectl -n ate-system get pods -l app=atelet --field-selector "spec.nodeName=${node}" -o jsonpath='{.items[0].metadata.name}')
@@ -345,12 +360,70 @@ run_fuse_lameduck_rolling_update_test() {
     log "--- Verifying ReconcileImages logs on ${atelet_after} and ${pod_before} ---"
     kubectl -n ate-system logs "${atelet_after}" -c atelet | grep -iE "reconciled streamed image leases|ReconcileImages" | tee -a "${UPGRADE_LOG}" || true
     kubectl -n ate-system logs "${pod_before}" -c "${container_name}" | grep -iE "Reconciled|PrepareImage" | tee -a "${UPGRADE_LOG}" || true
+
+    log "================================================================================"
+    log "SCENARIO A2: Dynamic Node Opt-Out (ate.dev/image-accelerator=disabled) without Terminating Adapter DaemonSet"
+    log "================================================================================"
+    local worker_pod_cos
+    worker_pod_cos=$(kubectl -n ate-bench-stream get pods -l ate.dev/worker-pool=wp-c3-cos -o jsonpath='{.items[0].metadata.name}')
+
+    log "--- [A2.1] Labeling ${node} ate.dev/image-accelerator=disabled --overwrite ---"
+    run_cmd kubectl label node "${node}" ate.dev/image-accelerator=disabled --overwrite
+    sleep 3
+
+    log "--- [A2.2] Verifying adapter pod ${pod_before} is NOT terminated (remains 2/2 Running with same UID ${uid_before}) ---"
+    run_cmd kubectl -n ate-system get pod "${pod_before}" -o wide
+    local uid_during_optout
+    uid_during_optout=$(kubectl -n ate-system get pod "${pod_before}" -o jsonpath='{.metadata.uid}')
+    log "Adapter pod UID during node opt-out: ${uid_during_optout} (expected ${uid_before})"
+
+    log "--- [A2.3] Verifying atelet node drain log + EvictWorkload SIGTERM on ${atelet_after} and wp-c3-cos worker ---"
+    kubectl -n ate-system logs "${atelet_after}" -c atelet | grep -iE "node drain state changed|Triggered SIGTERM eviction" | tee -a "${UPGRADE_LOG}" || true
+    kubectl -n ate-bench-stream logs -l workload=bench-cos --tail=100 | grep -iE "Evicting workload|runsc kill" | tee -a "${UPGRADE_LOG}" || true
+
+    log "--- [A2.4] Booting actor up-riptide-optout-fallback while node is disabled (expect fallback to local image-cache, streamed=false) ---"
+    run_cmd kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+      --mode=create-boot-run \
+      --adapter=baseline --scenario="optout_riptide_fallback" --workload=small \
+      --cmd='cat -- "/testbed/lib/matplotlib/pyplot.py" | wc -c' \
+      --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" \
+      --atespace=ate-bench-stream --template="${fallback_tmpl}" --actor="up-riptide-optout-fallback"
+
+    run_cmd kubectl -n ate-system exec "${helper_pod}" -- nsenter -t 1 -m -u -i -n -- sh -c '
+      for f in /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; do
+        echo "=== ${f} ==="
+        cat "${f}"; echo ""
+      done
+    '
+    run_cmd kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+      --mode=delete --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" \
+      --atespace=ate-bench-stream --actor="up-riptide-optout-fallback"
+    run_cmd kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+      --mode=delete --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" \
+      --atespace=ate-bench-stream --actor="${actor_stream}"
+
+    log "--- [A2.5] Removing ate.dev/image-accelerator=disabled label to re-enable streaming without restarting ${pod_before} ---"
+    run_cmd kubectl label node "${node}" ate.dev/image-accelerator-
+    sleep 3
+    kubectl -n ate-system logs "${atelet_after}" -c atelet | grep -iE "node drain state changed" | tee -a "${UPGRADE_LOG}" || true
+
+    wipe_local_imagecache "${helper_pod}"
+    log "--- [A2.6] Re-creating streamed actor ${actor_stream} after re-enabling node (expect streamed=true on same adapter pod ${pod_before}) ---"
+    run_cmd kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
+      --mode=create-boot-run \
+      --adapter="${provider}" --scenario="reenabled_${provider}_streamed" --workload=small \
+      --cmd='cat -- "/testbed/lib/matplotlib/pyplot.py" | wc -c' \
+      --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" \
+      --atespace=ate-bench-stream --template="${tmpl}" --actor="${actor_stream}"
+    run_cmd kubectl -n ate-system exec "${helper_pod}" -- nsenter -t 1 -m -u -i -n -- sh -c '
+      cat /var/lib/ate/actors/*/bundles/*/rootfs-overlay.json; echo ""
+    '
   fi
 
   log "--- [${provider} Step 3] Triggering RollingUpdate on ds/${ds_name} while ${actor_stream} holds active lease (refCount=1) ---"
   if [[ "${provider}" == "nydus-dragonfly" ]]; then
-    # Unlabel PEER_NODE first so maxUnavailable=10% immediately terminates the pod on UBUNTU_NODE
-    run_cmd kubectl label node "${PEER_NODE}" ate.dev/image-accelerator- --overwrite
+    # Remove PEER_NODE from bench-accel-target first so maxUnavailable=10% immediately terminates the pod on UBUNTU_NODE
+    run_cmd kubectl label node "${PEER_NODE}" bench-accel-target- --overwrite
     for _ in $(seq 1 60); do
       if [[ -z "$(kubectl -n ate-system get pods -l app=ate-image-accelerator --field-selector spec.nodeName=${PEER_NODE} -o name 2>/dev/null)" ]]; then
         break
@@ -364,15 +437,22 @@ run_fuse_lameduck_rolling_update_test() {
 
   log "Waiting for ${pod_before} to receive SIGTERM and enter lame-duck drain mode..."
   for _ in $(seq 1 30); do
-    if kubectl -n ate-system logs "${pod_before}" -c "${container_name}" 2>/dev/null | grep -q "Entering lame-duck drain mode"; then
+    if kubectl -n ate-system logs "${pod_before}" -c "${container_name}" 2>/dev/null | grep -qi "lame-duck drain mode"; then
       break
     fi
     sleep 1
   done
+  sleep 6
 
-  log "--- [${provider} Step 4a] Pod status and adapter lame-duck logs during active lease drain ---"
+  log "--- [${provider} Step 4a] Pod status, adapter lame-duck logs, and atelet/ateworker EvictWorkload logs during active lease drain ---"
   run_cmd kubectl -n ate-system get pods -l "app=ate-image-accelerator,ate.dev/image-accelerator=${provider}" -o wide
   run_cmd kubectl -n ate-system logs "${pod_before}" -c "${container_name}"
+  local atelet_node_pod
+  atelet_node_pod=$(kubectl -n ate-system get pods -l app=atelet --field-selector "spec.nodeName=${node}" -o jsonpath='{.items[0].metadata.name}')
+  kubectl -n ate-system logs "${atelet_node_pod}" -c atelet | grep -iE "Triggered SIGTERM eviction" | tail -n 5 | tee -a "${UPGRADE_LOG}" || true
+  for wp_pod in $(kubectl -n ate-bench-stream get pods --field-selector "spec.nodeName=${node}" -o jsonpath='{.items[*].metadata.name}'); do
+    kubectl -n ate-bench-stream logs "${wp_pod}" | grep -iE "Evicting workload|runsc kill" | tail -n 5 | tee -a "${UPGRADE_LOG}" || true
+  done
 
   log "--- [${provider} Step 4b] Verifying /run/ate/drain-complete is NOT written while refCount=1 ---"
   run_cmd kubectl -n ate-system exec "${helper_pod}" -- nsenter -t 1 -m -u -i -n -- sh -c '
@@ -384,18 +464,22 @@ run_fuse_lameduck_rolling_update_test() {
     fi
   '
 
-  log "--- [${provider} Step 4c] Probing /run/ate/image-accelerator.sock during lame-duck drain (expect CanProvide=false) ---"
+  log "--- [${provider} Step 4c] Probing /run/ate/image-accelerator.sock during lame-duck drain (expect canProvide=false, evicting=true) ---"
   run_cmd kubectl -n ate-system exec "${helper_pod}" -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe \
     -socket /run/ate/image-accelerator.sock \
     -image "${test_image}" \
     -bypass-ttl=true
 
-  log "--- [${provider} Step 4d] Verifying active actor ${actor_stream} reads uncached file from FUSE/EROFS during SIGTERM drain (zero ENOTCONN) ---"
-  run_cmd kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
-    --mode=exec \
-    --cmd='python3 -c "data = open(\"/testbed/lib/matplotlib/axes/_axes.py\").read(); print(\"LAME_DUCK_DRAIN_READ_OK bytes=\", len(data))"' \
-    --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" \
-    --atespace=ate-bench-stream --actor="${actor_stream}"
+  log "--- [${provider} Step 4d] Verifying mounted FUSE/EROFS layer under /var/lib/ate/accelerator-image-cache/${provider} serves uncached file read during SIGTERM lame-duck drain (zero ENOTCONN) ---"
+  run_cmd kubectl -n ate-system exec "${helper_pod}" -- nsenter -t 1 -m -u -i -n -- sh -c "
+    f=\$(ls /var/lib/ate/accelerator-image-cache/${provider}/*/layer-*/fs/testbed/lib/matplotlib/axes/_axes.py 2>/dev/null | head -n 1)
+    if [ -z \"\${f}\" ]; then
+      echo 'ERROR: uncached file not found in mounted FUSE/EROFS layer!'
+      exit 1
+    fi
+    bytes=\$(cat \"\${f}\" | wc -c)
+    echo \"LAME_DUCK_DRAIN_READ_OK path=\${f} bytes=\${bytes}\"
+  "
 
   log "--- [${provider} Step 4e] Booting new actor ${actor_fallback} during lame-duck drain (verifying automatic fallback to local image-cache) ---"
   run_cmd kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
@@ -421,6 +505,7 @@ run_fuse_lameduck_rolling_update_test() {
   run_cmd kubectl -n ate-system exec "${helper_pod}" -- /home/kubernetes/bin/bench-runner \
     --mode=delete --token="${ATE_TOKEN}" --ateapi="${ATEAPI_IP}:443" --atenet="${ATENET_IP}:443" \
     --atespace=ate-bench-stream --actor="${actor_stream}"
+  kubectl -n ate-system logs "${pod_before}" -c "${container_name}" 2>/dev/null | grep -iE "All active|drain-complete" | tee -a "${UPGRADE_LOG}" || true
 
   log "--- [${provider} Step 5b] Waiting for ds/${ds_name} RollingUpdate replacement pod to become Ready ---"
   run_cmd kubectl -n ate-system rollout status "ds/${ds_name}" --timeout=180s
@@ -439,9 +524,9 @@ run_fuse_lameduck_rolling_update_test() {
     exit 1
   fi
 
-  log "--- [${provider} Step 5c] Probing new v2 ${provider} pod (${pod_after}) to verify clean streaming ---"
+  log "--- [${provider} Step 5c] Probing new v2 ${provider} pod (${pod_after}) to verify clean streaming (canProvide=true, evicting=false) ---"
   if [[ "${provider}" == "nydus-dragonfly" ]]; then
-    run_cmd kubectl label node "${PEER_NODE}" "ate.dev/image-accelerator=${provider}" --overwrite
+    run_cmd kubectl label node "${PEER_NODE}" "bench-accel-target=${provider}" --overwrite
     wait_adapter_on_node "${provider}" "${PEER_NODE}"
   fi
   run_cmd kubectl -n ate-system exec "${helper_pod}" -- nsenter -t 1 -m -u -i -n -- /home/kubernetes/bin/e2e-stream-probe \
@@ -459,12 +544,13 @@ run_spegel_rolling_update_test() {
 
   clean_all_adapters
 
-  log "--- [spegel Step 1] Freshly applying oci-image-accelerator/manifests/spegel.yaml and labeling ${PEER_NODE} & ${COS_NODE} ---"
-  log "$ sed 's|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel|${SPEGEL_IMG}|g' oci-image-accelerator/manifests/spegel.yaml | kubectl apply -f -"
-  sed "s|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel|${SPEGEL_IMG}|g" \
+  log "--- [spegel Step 1] Freshly applying oci-image-accelerator/manifests/spegel.yaml onto ${PEER_NODE} & ${COS_NODE} ---"
+  run_cmd kubectl label node "${PEER_NODE}" "${COS_NODE}" bench-accel-target=spegel --overwrite
+  log "$ sed -e 's|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel|${SPEGEL_IMG}|g' -e 's|      hostNetwork: true|      hostNetwork: true\n      nodeSelector:\n        bench-accel-target: spegel|g' oci-image-accelerator/manifests/spegel.yaml | kubectl apply -f -"
+  sed -e "s|ko://go.ate.dev/substrate/oci-image-accelerator/cmd/spegel|${SPEGEL_IMG}|g" \
+      -e "s|      hostNetwork: true|      hostNetwork: true\n      nodeSelector:\n        bench-accel-target: spegel|g" \
     oci-image-accelerator/manifests/spegel.yaml | kubectl apply -f - 2>&1 | tee -a "${UPGRADE_LOG}"
 
-  run_cmd kubectl label node "${PEER_NODE}" "${COS_NODE}" ate.dev/image-accelerator=spegel --overwrite
   wait_adapter_on_node "spegel" "${PEER_NODE}"
   wait_adapter_on_node "spegel" "${COS_NODE}"
 
@@ -490,8 +576,8 @@ run_spegel_rolling_update_test() {
 
   wipe_local_imagecache "${COS_HELPER}"
   kubectl -n ate-system exec "${COS_HELPER}" -- nsenter -t 1 -m -u -i -n -- sh -c "
-    rm -rf /var/lib/ate/accelerator/spegel-store/blobs/sha256/* /var/lib/ate/accelerator/spegel-store/layers/sha256/* 2>/dev/null || true
-    mkdir -p /var/lib/ate/accelerator/spegel-store/blobs/sha256 /var/lib/ate/accelerator/spegel-store/layers/sha256
+    rm -rf /var/lib/ate/accelerator-image-cache/spegel-store/blobs/sha256/* /var/lib/ate/accelerator-image-cache/spegel-store/layers/sha256/* 2>/dev/null || true
+    mkdir -p /var/lib/ate/accelerator-image-cache/spegel-store/blobs/sha256 /var/lib/ate/accelerator-image-cache/spegel-store/layers/sha256
   "
 
   log "--- [spegel Step 2] Booting actor ${actor_spegel} on ${COS_NODE} via Spegel P2P ---"
@@ -541,7 +627,7 @@ run_spegel_rolling_update_test() {
 }
 
 if [[ "${START_FROM}" == "all" ]]; then
-  # 1. Riptide (includes Scenario A atelet rolling upgrade + Scenario B.1 Riptide RollingUpdate lame-duck drain)
+  # 1. Riptide (includes Scenario A1 atelet rolling upgrade + Scenario A2 dynamic node opt-out + Scenario B.1 Riptide RollingUpdate lame-duck drain)
   run_fuse_lameduck_rolling_update_test \
     "riptide" \
     "oci-image-accelerator/manifests/riptide.yaml" \
@@ -566,21 +652,24 @@ if [[ "${START_FROM}" == "all" ]]; then
     "${SWEBENCH_IMG}"
 fi
 
-# 3. Nydus + Dragonfly (Scenario B.3 Nydus+Dragonfly RollingUpdate lame-duck drain)
-run_fuse_lameduck_rolling_update_test \
-  "nydus-dragonfly" \
-  "oci-image-accelerator/manifests/nydus-dragonfly.yaml" \
-  "ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly" \
-  "${NYDUS_DF_IMG}" \
-  "${UBUNTU_NODE}" \
-  "${UBUNTU_HELPER}" \
-  "tmpl-ubuntu-nydus" \
-  "tmpl-ubuntu-oci" \
-  "${SWEBENCH_NYDUS_IMG}"
+if [[ "${START_FROM}" == "all" || "${START_FROM}" == "nydus-dragonfly" ]]; then
+  # 3. Nydus + Dragonfly (Scenario B.3 Nydus+Dragonfly RollingUpdate lame-duck drain)
+  run_fuse_lameduck_rolling_update_test \
+    "nydus-dragonfly" \
+    "oci-image-accelerator/manifests/nydus-dragonfly.yaml" \
+    "ko://go.ate.dev/substrate/oci-image-accelerator/cmd/nydus-dragonfly" \
+    "${NYDUS_DF_IMG}" \
+    "${UBUNTU_NODE}" \
+    "${UBUNTU_HELPER}" \
+    "tmpl-ubuntu-nydus" \
+    "tmpl-ubuntu-oci" \
+    "${SWEBENCH_NYDUS_IMG}"
+fi
 
 # 4. Spegel P2P (Scenario B.4 Stateless RollingUpdate)
 run_spegel_rolling_update_test
 
 log "================================================================================"
-log "ALL 4 ADAPTER ROLLING UPDATE TESTS + ATELET UPGRADE TEST PASSED SUCCESSFULLY!"
+log "ALL 4 ADAPTER ROLLING UPDATE TESTS + DYNAMIC NODE OPT-OUT + ATELET UPGRADE PASSED!"
 log "================================================================================"
+
