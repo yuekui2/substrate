@@ -117,69 +117,69 @@ For each `(adapter, workload)` pair:
 
 ### 5.1 Riptide Dual-Mode COS Verification (`results/benchmark_evidence.log`)
 - **COS Node with GKE Image Streaming Enabled** (`gke-substrate-stream-c3-std22-cos-poo-1abf5470-wj62`):
-  - `CanProvide`: `true` (`44.19 ms`), `PrepareImage`: `10` layers (`1390.58 ms`), `ReleaseImage`: `19.65 ms`
+  - `CanProvide`: `true` (`1.75 ms`), `PrepareImage`: `10` layers (`1,338.30 ms`), `ReleaseImage`: `18.13 ms`
 - **COS Node with GKE Image Streaming Disabled** (`gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz`):
-  - `CanProvide`: `true` (`161.36 ms`), `PrepareImage`: `10` layers (`1838.68 ms`), `ReleaseImage`: `14.13 ms`
+  - `CanProvide`: `true` (`2.56 ms`), `PrepareImage`: `10` layers (`1,291.74 ms`), `ReleaseImage`: `17.57 ms`
 
 ### 5.2 `small` Workload (`cat /testbed/lib/matplotlib/pyplot.py`, `112,402` bytes)
 
 | Adapter | Scenario | `ResumeActor` RPC (ms) | Client TTCE (ms) | Workload Run (ms) | Client E2E (ms) |
 | :--- | :--- | ---: | ---: | ---: | ---: |
-| **`riptide`** | `cold_boot` | 918.02 | 1,075.88 | 16.62 | **1,092.51** |
-| **`riptide`** | `warm_resume` | 142.23 | 171.13 | 8.79 | **179.92** |
-| **`riptide`** | `cold_resume` | 571.29 | 712.09 | 16.71 | **728.80** |
-| **`nydus-dragonfly`** | `cold_boot` | 1,762.45 | 1,975.82 | 47.08 | **2,022.89** |
-| **`nydus-dragonfly`** | `warm_resume` | 127.94 | 190.60 | 5.70 | **196.31** |
-| **`nydus-dragonfly`** | `cold_resume` | 564.29 | 639.50 | 9.91 | **649.41** |
-| **`soci`** | `cold_boot` | 4,845.69 | 9,232.90 | 162.15 | **9,395.05** |
-| **`soci`** | `warm_resume` | 140.22 | 166.40 | 8.21 | **174.61** |
-| **`soci`** | `cold_resume` | 693.11 | 789.17 | 13.73 | **802.90** |
-| **`spegel`** | `cold_boot` | 19,073.79 | 19,098.55 | 6.56 | **19,105.11** |
-| **`spegel`** | `warm_resume` | 104.51 | 140.58 | 5.56 | **146.14** |
-| **`spegel`** | `cold_resume` | 15,180.40 | 15,208.07 | 5.81 | **15,213.88** |
-| **`baseline`** | `cold_boot` | 22,230.24 | 22,255.25 | 5.72 | **22,260.97** |
-| **`baseline`** | `warm_resume` | 102.55 | 144.09 | 15.84 | **159.93** |
-| **`baseline`** | `cold_resume` | 534.03 | 661.79 | 13.51 | **675.30** |
+| **`nydus-dragonfly`** | `cold_boot` | 633.43 | 826.63 | 48.58 | **875.21** |
+| **`nydus-dragonfly`** | `warm_resume` | 145.98 | 163.63 | 6.25 | **169.89** |
+| **`nydus-dragonfly`** | `cold_resume` | 487.60 | 550.51 | 10.17 | **560.67** |
+| **`soci`** | `cold_boot` | 810.78 | 1,600.06 | 103.81 | **1,703.86** |
+| **`soci`** | `warm_resume` | 123.69 | 166.55 | 8.28 | **174.84** |
+| **`soci`** | `cold_resume` | 935.30 | 1,007.17 | 12.19 | **1,019.36** |
+| **`riptide`** | `cold_boot` | 1,784.93 | 1,925.42 | 15.37 | **1,940.79** |
+| **`riptide`** | `warm_resume` | 171.19 | 194.21 | 7.91 | **202.11** |
+| **`riptide`** | `cold_resume` | 950.35 | 1,068.40 | 17.44 | **1,085.85** |
+| **`spegel`** | `cold_boot` | 18,345.76 | 18,399.60 | 5.47 | **18,405.07** |
+| **`spegel`** | `warm_resume` | 93.91 | 147.88 | 5.56 | **153.44** |
+| **`spegel`** | `cold_resume` | 17,926.53 | 17,951.12 | 5.63 | **17,956.75** |
+| **`baseline`** | `cold_boot` | 23,067.87 | 23,110.59 | 5.55 | **23,116.14** |
+| **`baseline`** | `warm_resume` | 106.93 | 137.79 | 6.76 | **144.55** |
+| **`baseline`** | `cold_resume` | 23,868.23 | 23,890.10 | 5.88 | **23,895.98** |
 
 ### 5.3 `medium` Workload (`python -m compileall -f -q /testbed/lib/matplotlib`, 245 files)
 
 | Adapter | Scenario | `ResumeActor` RPC (ms) | Client TTCE (ms) | Workload Run (ms) | Client E2E (ms) |
 | :--- | :--- | ---: | ---: | ---: | ---: |
-| **`riptide`** | `cold_boot` | 398.51 | 518.95 | 2,186.80 | **2,705.75** |
-| **`riptide`** | `warm_resume` | 149.52 | 173.22 | 1,602.68 | **1,775.91** |
-| **`riptide`** | `cold_resume` | 534.78 | 662.29 | 2,202.25 | **2,864.54** |
-| **`nydus-dragonfly`** | `cold_boot` | 369.90 | 441.67 | 1,897.37 | **2,339.04** |
-| **`nydus-dragonfly`** | `warm_resume` | 182.16 | 202.22 | 1,138.86 | **1,341.09** |
-| **`nydus-dragonfly`** | `cold_resume` | 498.23 | 565.09 | 1,275.14 | **1,840.23** |
-| **`soci`** | `cold_boot` | 417.80 | 522.70 | 4,745.47 | **5,268.17** |
-| **`soci`** | `warm_resume` | 117.82 | 169.05 | 1,511.08 | **1,680.13** |
-| **`soci`** | `cold_resume` | 482.92 | 642.27 | 2,170.26 | **2,812.53** |
-| **`spegel`** | `cold_boot` | 15,435.89 | 15,456.86 | 1,402.78 | **16,859.64** |
-| **`spegel`** | `warm_resume` | 194.03 | 211.42 | 1,276.63 | **1,488.06** |
-| **`spegel`** | `cold_resume` | 15,240.97 | 15,283.93 | 1,401.82 | **16,685.76** |
-| **`baseline`** | `cold_boot` | 416.14 | 530.17 | 1,752.29 | **2,282.46** |
-| **`baseline`** | `warm_resume` | 116.31 | 165.59 | 1,453.97 | **1,619.57** |
-| **`baseline`** | `cold_resume` | 593.55 | 683.77 | 1,622.23 | **2,306.00** |
+| **`nydus-dragonfly`** | `cold_boot` | 371.47 | 430.89 | 1,876.94 | **2,307.84** |
+| **`nydus-dragonfly`** | `warm_resume` | 155.46 | 172.33 | 1,167.12 | **1,339.45** |
+| **`nydus-dragonfly`** | `cold_resume` | 497.45 | 568.37 | 1,267.89 | **1,836.26** |
+| **`riptide`** | `cold_boot` | 473.25 | 573.66 | 1,833.05 | **2,406.72** |
+| **`riptide`** | `warm_resume` | 109.44 | 159.75 | 1,365.32 | **1,525.07** |
+| **`riptide`** | `cold_resume` | 505.46 | 649.77 | 1,704.78 | **2,354.54** |
+| **`soci`** | `cold_boot` | 518.35 | 619.62 | 3,361.91 | **3,981.53** |
+| **`soci`** | `warm_resume` | 182.84 | 205.35 | 1,327.47 | **1,532.82** |
+| **`soci`** | `cold_resume` | 633.55 | 745.38 | 1,917.53 | **2,662.91** |
+| **`spegel`** | `cold_boot` | 18,379.75 | 18,409.31 | 1,365.73 | **19,775.04** |
+| **`spegel`** | `warm_resume` | 170.21 | 214.64 | 1,223.51 | **1,438.15** |
+| **`spegel`** | `cold_resume` | 17,619.81 | 17,648.71 | 1,343.12 | **18,991.83** |
+| **`baseline`** | `cold_boot` | 23,229.71 | 23,255.36 | 1,228.18 | **24,483.54** |
+| **`baseline`** | `warm_resume` | 118.74 | 150.27 | 1,251.10 | **1,401.36** |
+| **`baseline`** | `cold_resume` | 23,840.91 | 23,874.36 | 1,228.22 | **25,102.58** |
 
 ### 5.4 `large` Workload (`tar -cf - --one-file-system / | wc -c`, `~3.0 GB` full rootfs read)
 
 | Adapter | Scenario | `ResumeActor` RPC (ms) | Client TTCE (ms) | Workload Run (ms) | Client E2E (ms) |
 | :--- | :--- | ---: | ---: | ---: | ---: |
-| **`riptide`** | `cold_boot` | 465.87 | 630.51 | 108,876.69 | **109,507.20** |
-| **`riptide`** | `warm_resume` | 228.40 | 255.95 | 50,258.58 | **50,514.52** |
-| **`riptide`** | `cold_resume` | 752.01 | 867.95 | 110,203.33 | **111,071.28** |
-| **`nydus-dragonfly`** | `cold_boot` | 382.03 | 458.63 | 74,209.40 | **74,668.02** |
-| **`nydus-dragonfly`** | `warm_resume` | 247.80 | 273.15 | 36,492.10 | **36,765.24** |
-| **`nydus-dragonfly`** | `cold_resume` | 574.61 | 639.48 | 39,234.54 | **39,874.01** |
-| **`soci`** | `cold_boot` | 458.14 | 578.08 | 162,965.79 | **163,543.87** |
-| **`soci`** | `warm_resume` | 203.74 | 227.14 | 34,757.30 | **34,984.45** |
-| **`soci`** | `cold_resume` | 500.14 | 639.20 | 44,696.19 | **45,335.39** |
-| **`spegel`** | `cold_boot` | 15,270.44 | 15,296.86 | 19,035.46 | **34,332.32** |
-| **`spegel`** | `warm_resume` | 235.20 | 252.03 | 19,799.44 | **20,051.47** |
-| **`spegel`** | `cold_resume` | 15,301.64 | 15,323.91 | 18,795.43 | **34,119.35** |
-| **`baseline`** | `cold_boot` | 863.93 | 967.26 | 72,329.78 | **73,297.04** |
-| **`baseline`** | `warm_resume` | 151.75 | 170.35 | 61,571.63 | **61,741.98** |
-| **`baseline`** | `cold_resume` | 628.51 | 742.31 | 72,808.29 | **73,550.61** |
+| **`riptide`** | `cold_boot` | 816.58 | 923.25 | 96,461.45 | **97,384.70** |
+| **`riptide`** | `warm_resume` | 183.60 | 221.14 | 41,927.58 | **42,148.72** |
+| **`riptide`** | `cold_resume` | 546.84 | 681.31 | 95,210.09 | **95,891.40** |
+| **`nydus-dragonfly`** | `cold_boot` | 392.06 | 470.50 | 75,643.16 | **76,113.66** |
+| **`nydus-dragonfly`** | `warm_resume` | 211.92 | 266.23 | 37,152.16 | **37,418.40** |
+| **`nydus-dragonfly`** | `cold_resume` | 537.10 | 598.71 | 40,893.92 | **41,492.63** |
+| **`soci`** | `cold_boot` | 423.88 | 542.03 | 112,748.04 | **113,290.07** |
+| **`soci`** | `warm_resume` | 258.48 | 294.76 | 34,309.23 | **34,603.99** |
+| **`soci`** | `cold_resume` | 609.50 | 712.78 | 43,739.09 | **44,451.88** |
+| **`spegel`** | `cold_boot` | 18,049.01 | 18,096.27 | 18,293.40 | **36,389.67** |
+| **`spegel`** | `warm_resume` | 255.65 | 273.47 | 19,381.43 | **19,654.90** |
+| **`spegel`** | `cold_resume` | 17,499.02 | 17,524.36 | 18,657.79 | **36,182.15** |
+| **`baseline`** | `cold_boot` | 24,228.17 | 24,257.82 | 18,370.27 | **42,628.08** |
+| **`baseline`** | `warm_resume` | 108.14 | 125.89 | 19,565.04 | **19,690.93** |
+| **`baseline`** | `cold_resume` | 23,934.21 | 23,994.54 | 18,636.57 | **42,631.11** |
 
 ---
 
