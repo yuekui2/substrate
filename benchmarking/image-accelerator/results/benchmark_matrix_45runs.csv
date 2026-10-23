@@ -1,0 +1,46 @@
+Workload,Scenario,Adapter,Target Node OS,Worker Pod,ResumeActor RPC (ms),Client TTCE (ms),Workload Run (ms),Client E2E (ms),TTCE Speedup vs Baseline (x),E2E Speedup vs Baseline (x)
+small,cold_boot,nydus-dragonfly,GKE Ubuntu 24.04 (c3-standard-22),wp-c3-ubuntu-86dd786b4b-8zprf,633.43,826.63,48.58,875.21,27.96,26.41
+small,cold_boot,soci,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,810.78,1600.06,103.81,1703.86,14.44,13.57
+small,cold_boot,riptide,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,1784.93,1925.42,15.37,1940.79,12.00,11.91
+small,cold_boot,spegel,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,18345.76,18399.60,5.47,18405.07,1.26,1.26
+small,cold_boot,baseline,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,23067.87,23110.59,5.55,23116.14,1.00,1.00
+small,warm_resume,baseline,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,106.93,137.79,6.76,144.55,1.00,1.00
+small,warm_resume,spegel,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,93.91,147.88,5.56,153.44,0.93,0.94
+small,warm_resume,nydus-dragonfly,GKE Ubuntu 24.04 (c3-standard-22),wp-c3-ubuntu-86dd786b4b-8zprf,145.98,163.63,6.25,169.89,0.84,0.85
+small,warm_resume,soci,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,123.69,166.55,8.28,174.84,0.83,0.83
+small,warm_resume,riptide,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,171.19,194.21,7.91,202.11,0.71,0.72
+small,cold_resume,nydus-dragonfly,GKE Ubuntu 24.04 (c3-standard-22),wp-c3-ubuntu-86dd786b4b-8zprf,487.60,550.51,10.17,560.67,43.40,42.62
+small,cold_resume,soci,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,935.30,1007.17,12.19,1019.36,23.72,23.44
+small,cold_resume,riptide,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,950.35,1068.40,17.44,1085.85,22.36,22.01
+small,cold_resume,spegel,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,17926.53,17951.12,5.63,17956.75,1.33,1.33
+small,cold_resume,baseline,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,23868.23,23890.10,5.88,23895.98,1.00,1.00
+medium,cold_boot,nydus-dragonfly,GKE Ubuntu 24.04 (c3-standard-22),wp-c3-ubuntu-86dd786b4b-8zprf,371.47,430.89,1876.94,2307.84,53.97,10.61
+medium,cold_boot,riptide,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,473.25,573.66,1833.05,2406.72,40.54,10.17
+medium,cold_boot,soci,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,518.35,619.62,3361.91,3981.53,37.53,6.15
+medium,cold_boot,spegel,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,18379.75,18409.31,1365.73,19775.04,1.26,1.24
+medium,cold_boot,baseline,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,23229.71,23255.36,1228.18,24483.54,1.00,1.00
+medium,warm_resume,nydus-dragonfly,GKE Ubuntu 24.04 (c3-standard-22),wp-c3-ubuntu-86dd786b4b-8zprf,155.46,172.33,1167.12,1339.45,0.87,1.05
+medium,warm_resume,baseline,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,118.74,150.27,1251.10,1401.36,1.00,1.00
+medium,warm_resume,spegel,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,170.21,214.64,1223.51,1438.15,0.70,0.97
+medium,warm_resume,riptide,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,109.44,159.75,1365.32,1525.07,0.94,0.92
+medium,warm_resume,soci,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,182.84,205.35,1327.47,1532.82,0.73,0.91
+medium,cold_resume,nydus-dragonfly,GKE Ubuntu 24.04 (c3-standard-22),wp-c3-ubuntu-86dd786b4b-8zprf,497.45,568.37,1267.89,1836.26,42.00,13.67
+medium,cold_resume,riptide,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,505.46,649.77,1704.78,2354.54,36.74,10.66
+medium,cold_resume,soci,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,633.55,745.38,1917.53,2662.91,32.03,9.43
+medium,cold_resume,spegel,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,17619.81,17648.71,1343.12,18991.83,1.35,1.32
+medium,cold_resume,baseline,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,23840.91,23874.36,1228.22,25102.58,1.00,1.00
+large,cold_boot,spegel,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,18049.01,18096.27,18293.40,36389.67,1.34,1.17
+large,cold_boot,baseline,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,24228.17,24257.82,18370.27,42628.08,1.00,1.00
+large,cold_boot,nydus-dragonfly,GKE Ubuntu 24.04 (c3-standard-22),wp-c3-ubuntu-86dd786b4b-8zprf,392.06,470.50,75643.16,76113.66,51.56,0.56
+large,cold_boot,riptide,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,816.58,923.25,96461.45,97384.70,26.27,0.44
+large,cold_boot,soci,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,423.88,542.03,112748.04,113290.07,44.75,0.38
+large,warm_resume,spegel,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,255.65,273.47,19381.43,19654.90,0.46,1.00
+large,warm_resume,baseline,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,108.14,125.89,19565.04,19690.93,1.00,1.00
+large,warm_resume,soci,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,258.48,294.76,34309.23,34603.99,0.43,0.57
+large,warm_resume,nydus-dragonfly,GKE Ubuntu 24.04 (c3-standard-22),wp-c3-ubuntu-86dd786b4b-8zprf,211.92,266.23,37152.16,37418.40,0.47,0.53
+large,warm_resume,riptide,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,183.60,221.14,41927.58,42148.72,0.57,0.47
+large,cold_resume,spegel,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,17499.02,17524.36,18657.79,36182.15,1.37,1.18
+large,cold_resume,nydus-dragonfly,GKE Ubuntu 24.04 (c3-standard-22),wp-c3-ubuntu-86dd786b4b-8zprf,537.10,598.71,40893.92,41492.63,40.08,1.03
+large,cold_resume,baseline,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,23934.21,23994.54,18636.57,42631.11,1.00,1.00
+large,cold_resume,soci,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,609.50,712.78,43739.09,44451.88,33.66,0.96
+large,cold_resume,riptide,GKE COS (c3-standard-22),wp-c3-cos-67f5475486-mm5z4,546.84,681.31,95210.09,95891.40,35.22,0.44
