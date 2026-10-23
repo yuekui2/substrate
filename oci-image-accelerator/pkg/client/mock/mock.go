@@ -28,7 +28,9 @@ type Client struct {
 	mu sync.Mutex
 
 	ProviderName     string
+	Evicting         bool
 	CanProvideFunc   func(ctx context.Context, req *imageaccel.PrepareRequest) (bool, error)
+	IsEvictingFunc   func(ctx context.Context) (bool, error)
 	PrepareImageFunc func(ctx context.Context, req *imageaccel.PrepareRequest) (*imageaccel.PrepareResult, error)
 	ReleaseImageFunc func(ctx context.Context, req *imageaccel.ReleaseRequest) error
 	ReconcileFunc    func(ctx context.Context, active []*imageaccel.ActiveImageLayers) error
@@ -64,6 +66,18 @@ func (m *Client) CanProvide(ctx context.Context, req *imageaccel.PrepareRequest)
 		return m.CanProvideFunc(ctx, req)
 	}
 	return true, nil
+}
+
+// IsEvicting delegates to IsEvictingFunc if set, or returns m.Evicting.
+func (m *Client) IsEvicting(ctx context.Context) (bool, error) {
+	m.mu.Lock()
+	fn := m.IsEvictingFunc
+	evicting := m.Evicting
+	m.mu.Unlock()
+	if fn != nil {
+		return fn(ctx)
+	}
+	return evicting, nil
 }
 
 // PrepareImage records the call and delegates to PrepareImageFunc.

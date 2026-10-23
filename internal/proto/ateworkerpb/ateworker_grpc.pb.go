@@ -39,6 +39,7 @@ const (
 	Worker_GetWorkloadStats_FullMethodName       = "/ateworker.Worker/GetWorkloadStats"
 	Worker_GetActiveWorkloadStats_FullMethodName = "/ateworker.Worker/GetActiveWorkloadStats"
 	Worker_TerminateWorkload_FullMethodName      = "/ateworker.Worker/TerminateWorkload"
+	Worker_EvictWorkload_FullMethodName          = "/ateworker.Worker/EvictWorkload"
 )
 
 // WorkerClient is the client API for Worker service.
@@ -125,6 +126,10 @@ type WorkerClient interface {
 	// TerminateWorkload stops and deletes container workloads and cleans up
 	// network and bundle overlays on the worker.
 	TerminateWorkload(ctx context.Context, in *TerminateWorkloadRequest, opts ...grpc.CallOption) (*TerminateWorkloadResponse, error)
+	// EvictWorkload sends SIGTERM to the workload's processes (escalating to
+	// SIGKILL after workloadGracePeriod) so the actor's harness can suspend and
+	// resume without terminating the worker pod.
+	EvictWorkload(ctx context.Context, in *EvictWorkloadRequest, opts ...grpc.CallOption) (*EvictWorkloadResponse, error)
 }
 
 type workerClient struct {
@@ -189,6 +194,16 @@ func (c *workerClient) TerminateWorkload(ctx context.Context, in *TerminateWorkl
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TerminateWorkloadResponse)
 	err := c.cc.Invoke(ctx, Worker_TerminateWorkload_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *workerClient) EvictWorkload(ctx context.Context, in *EvictWorkloadRequest, opts ...grpc.CallOption) (*EvictWorkloadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EvictWorkloadResponse)
+	err := c.cc.Invoke(ctx, Worker_EvictWorkload_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -279,6 +294,10 @@ type WorkerServer interface {
 	// TerminateWorkload stops and deletes container workloads and cleans up
 	// network and bundle overlays on the worker.
 	TerminateWorkload(context.Context, *TerminateWorkloadRequest) (*TerminateWorkloadResponse, error)
+	// EvictWorkload sends SIGTERM to the workload's processes (escalating to
+	// SIGKILL after workloadGracePeriod) so the actor's harness can suspend and
+	// resume without terminating the worker pod.
+	EvictWorkload(context.Context, *EvictWorkloadRequest) (*EvictWorkloadResponse, error)
 	mustEmbedUnimplementedWorkerServer()
 }
 
@@ -306,6 +325,9 @@ func (UnimplementedWorkerServer) GetActiveWorkloadStats(context.Context, *GetAct
 }
 func (UnimplementedWorkerServer) TerminateWorkload(context.Context, *TerminateWorkloadRequest) (*TerminateWorkloadResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method TerminateWorkload not implemented")
+}
+func (UnimplementedWorkerServer) EvictWorkload(context.Context, *EvictWorkloadRequest) (*EvictWorkloadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EvictWorkload not implemented")
 }
 func (UnimplementedWorkerServer) mustEmbedUnimplementedWorkerServer() {}
 func (UnimplementedWorkerServer) testEmbeddedByValue()                {}
@@ -436,6 +458,24 @@ func _Worker_TerminateWorkload_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Worker_EvictWorkload_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EvictWorkloadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkerServer).EvictWorkload(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Worker_EvictWorkload_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkerServer).EvictWorkload(ctx, req.(*EvictWorkloadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Worker_ServiceDesc is the grpc.ServiceDesc for Worker service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -466,6 +506,10 @@ var Worker_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "TerminateWorkload",
 			Handler:    _Worker_TerminateWorkload_Handler,
+		},
+		{
+			MethodName: "EvictWorkload",
+			Handler:    _Worker_EvictWorkload_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

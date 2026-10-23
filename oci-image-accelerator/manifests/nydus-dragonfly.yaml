@@ -370,15 +370,6 @@ spec:
       hostNetwork: true
       terminationGracePeriodSeconds: 3600
       dnsPolicy: ClusterFirstWithHostNet
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: ate.dev/image-accelerator
-                operator: In
-                values:
-                - nydus-dragonfly
       tolerations:
       - key: ate.dev/sandboxClass
         operator: Exists
@@ -517,7 +508,7 @@ spec:
         - /bin/bash
         - -ec
         - |
-          readonly nydus_root="/var/lib/ate/accelerator/nydus-snapshotter"
+          readonly nydus_root="/var/lib/ate/accelerator-image-cache/nydus-snapshotter"
           readonly nydus_run="/run/containerd-nydus"
           readonly nydusd_bin="${KUBE_HOME}/bin/nydusd"
           readonly snapshotter_bin="${KUBE_HOME}/bin/containerd-nydus-grpc"
@@ -581,7 +572,7 @@ spec:
           for mnt in $(awk '$3 == "erofs" {print $2}' /proc/mounts); do
             umount -l "${mnt}" 2>/dev/null || true
           done
-          rm -rf "${nydus_root:?}"/* /var/lib/ate/accelerator/nydus-dragonfly/* 2>/dev/null || true
+          rm -rf "${nydus_root:?}"/* /var/lib/ate/accelerator-image-cache/nydus-dragonfly/* 2>/dev/null || true
           mkdir -p "${nydus_root}/snapshots" "${nydus_root}/cache/metadata" "${nydus_root}/mnt"
 
           cat > "${nydus_root}/nydusd-config.json" <<EOF
@@ -661,7 +652,7 @@ spec:
         - --listen-socket=/run/ate/image-accelerator.sock
         - --snapshotter-socket=/run/containerd-nydus/containerd-nydus-grpc.sock
         - --docker-config=/run/containerd-nydus/docker/config.json
-        - --work-dir=/var/lib/ate/accelerator/nydus-dragonfly
+        - --work-dir=/var/lib/ate/accelerator-image-cache/nydus-dragonfly
         - --verify-dragonfly-ping=true
         - --idle-ttl=10m
         - --startup-timeout=2m

@@ -44,7 +44,7 @@ const (
 
 	// DefaultRiptideRootDir is the default isolated root directory for
 	// Substrate's dedicated containerd-gcfs-grpc and gcfsd-v2 state.
-	DefaultRiptideRootDir = "/var/lib/ate/accelerator/riptide-gcfs"
+	DefaultRiptideRootDir = "/var/lib/ate/accelerator-image-cache/riptide-gcfs"
 
 	// DefaultGCFSDMountPoint is the FUSE mount point for gcfsd-v2.
 	DefaultGCFSDMountPoint = "/run/gcfsd/mnt"

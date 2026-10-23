@@ -118,7 +118,7 @@ func TestAdapterLameDuckDrain_FallsBackToImageCacheAndReleasesActiveLeases(t *te
 	pushTestImage(t, ref, singleFileLayer(t, "bin/run", "#!/bin/sh\n"))
 
 	store := newImageVolumeStore(t)
-	fakeLayerDir := filepath.Join(tmpBase, "accelerator", "layer-0")
+	fakeLayerDir := filepath.Join(tmpBase, "accelerator-image-cache", "layer-0")
 	if err := os.MkdirAll(filepath.Join(fakeLayerDir, "fs"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -159,10 +159,15 @@ func TestAdapterLameDuckDrain_FallsBackToImageCacheAndReleasesActiveLeases(t *te
 		t.Fatalf("expected spec1.Streamed = true")
 	}
 
-	// Step 2: Adapter enters lame-duck drain mode on SIGTERM (CanProvide returns false).
+	// Step 2: Adapter enters lame-duck drain mode on SIGTERM (CanProvide returns false, Evicting=true).
 	draining = true
+	layerClient.Evicting = true
+	evicting, err := layerClient.IsEvicting(ctx)
+	if err != nil || !evicting {
+		t.Fatalf("IsEvicting() = (%v, %v), want (true, nil)", evicting, err)
+	}
 
-	// New or resuming actors immediately fall back to local imageCache with zero node-label coupling in atelet.
+	// New or resuming actors immediately fall back to local imageCache.
 	actor2 := "actor-drained"
 	if _, err := prepareOCIDirectory(ctx, store, atelet.imageAcceleratorClient, nil, nil, actor2, "app", ref, nil, nil); err != nil {
 		t.Fatalf("prepareOCIDirectory(drained) failed: %v", err)
@@ -186,5 +191,81 @@ func TestAdapterLameDuckDrain_FallsBackToImageCacheAndReleasesActiveLeases(t *te
 	}
 	if layerClient.ReleaseCalls[0].ImageRef != ref {
 		t.Errorf("ReleaseCalls[0].ImageRef = %q, want %q", layerClient.ReleaseCalls[0].ImageRef, ref)
+	}
+}
+
+func TestDynamicNodeDisable_DrainsAndReEnablesWithoutPodRestart(t *testing.T) {
+	ctx := context.Background()
+	tmpBase := t.TempDir()
+	origActorsDir := nodepath.ActorsDir
+	nodepath.ActorsDir = filepath.Join(tmpBase, "actors")
+	t.Cleanup(func() { nodepath.ActorsDir = origActorsDir })
+
+	host := imageVolumeTestRegistry(t)
+	ref := host + "/optout-app:v1"
+	pushTestImage(t, ref, singleFileLayer(t, "bin/run", "#!/bin/sh\n"))
+
+	store := newImageVolumeStore(t)
+	fakeLayerDir := filepath.Join(tmpBase, "accelerator-image-cache", "layer-0")
+	if err := os.MkdirAll(filepath.Join(fakeLayerDir, "fs"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	layerClient := mock.New("riptide")
+	layerClient.PrepareImageFunc = func(_ context.Context, _ *imageaccel.PrepareRequest) (*imageaccel.PrepareResult, error) {
+		return &imageaccel.PrepareResult{
+			LayerDirs:    []string{fakeLayerDir},
+			ImageDigest:  "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+			ProviderName: "riptide",
+			Config:       &v1.Config{Entrypoint: []string{"/bin/run"}},
+		}, nil
+	}
+
+	atelet := &Atelet{
+		imageCache:             store,
+		imageAcceleratorClient: layerClient,
+	}
+
+	// 1. Node enabled by default: actor1 uses ImageAccelerator.
+	actor1 := "actor-enabled-1"
+	if _, err := prepareOCIDirectory(ctx, store, atelet.activeImageAcceleratorClient(), nil, nil, actor1, "app", ref, nil, nil); err != nil {
+		t.Fatalf("prepareOCIDirectory(actor1) failed: %v", err)
+	}
+	spec1, err := imagecache.ReadSpec(ateletpath.OCIBundlePath(actor1, "app"))
+	if err != nil || !spec1.Streamed {
+		t.Fatalf("ReadSpec(actor1) Streamed = %v, err = %v; want true", spec1.Streamed, err)
+	}
+
+	// 2. Node labeled ate.dev/image-accelerator=disabled: SetStreamingDraining(true) marks adapter unused without stopping DaemonSet.
+	atelet.SetStreamingDraining(true)
+
+	actor2 := "actor-disabled"
+	if _, err := prepareOCIDirectory(ctx, store, atelet.activeImageAcceleratorClient(), nil, nil, actor2, "app", ref, nil, nil); err != nil {
+		t.Fatalf("prepareOCIDirectory(actor2) failed: %v", err)
+	}
+	spec2, err := imagecache.ReadSpec(ateletpath.OCIBundlePath(actor2, "app"))
+	if err != nil || spec2.Streamed {
+		t.Fatalf("ReadSpec(actor2) Streamed = %v, err = %v; want false", spec2.Streamed, err)
+	}
+
+	// Releasing actor1 while disabled passes BypassTTL=true so adapter unmounts immediately.
+	workloadSpec := &ateletpb.WorkloadSpec{
+		Containers: []*ateletpb.Container{{Name: "app", Image: ref}},
+	}
+	atelet.releaseStreamedLayersForActor(ctx, actor1, resources.ActorRef{Atespace: "default", Name: "a1"}, workloadSpec)
+	if len(layerClient.ReleaseCalls) != 1 || !layerClient.ReleaseCalls[0].BypassTTL {
+		t.Fatalf("ReleaseCalls = %+v, want 1 call with BypassTTL=true", layerClient.ReleaseCalls)
+	}
+
+	// 3. Removing ate.dev/image-accelerator=disabled label re-enables streaming immediately.
+	atelet.SetStreamingDraining(false)
+
+	actor3 := "actor-reenabled"
+	if _, err := prepareOCIDirectory(ctx, store, atelet.activeImageAcceleratorClient(), nil, nil, actor3, "app", ref, nil, nil); err != nil {
+		t.Fatalf("prepareOCIDirectory(actor3) failed: %v", err)
+	}
+	spec3, err := imagecache.ReadSpec(ateletpath.OCIBundlePath(actor3, "app"))
+	if err != nil || !spec3.Streamed {
+		t.Fatalf("ReadSpec(actor3) Streamed = %v, err = %v; want true", spec3.Streamed, err)
 	}
 }

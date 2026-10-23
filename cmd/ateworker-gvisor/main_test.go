@@ -65,6 +65,10 @@ func TestRPCsRejectInvalidRequests(t *testing.T) {
 			_, err := s.GetWorkloadStats(ctx, &ateworkerpb.GetWorkloadStatsRequest{})
 			return err
 		},
+		"EvictWorkload": func() error {
+			_, err := s.EvictWorkload(ctx, &ateworkerpb.EvictWorkloadRequest{})
+			return err
+		},
 	} {
 		if got := apierror.Code(call()); got != codes.InvalidArgument {
 			t.Errorf("%s() code = %v, want %v", name, got, codes.InvalidArgument)

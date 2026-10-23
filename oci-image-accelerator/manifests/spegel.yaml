@@ -19,7 +19,7 @@
 #    peer discovery across all worker nodes.
 # 2. Per-node DaemonSet (ate-accelerator-spegel) running:
 #    - accelerator-spegel: ImageAccelerator gRPC adapter + Spegel-compatible P2P
-#      OCI registry mirror (:5000) backed by /var/lib/ate/accelerator/spegel-store.
+#      OCI registry mirror (:5000) backed by /var/lib/ate/accelerator-image-cache/spegel-store.
 #
 # Usage:
 #   ko resolve -f oci-image-accelerator/manifests/spegel.yaml | kubectl apply -f -
@@ -74,15 +74,6 @@ spec:
       hostNetwork: true
       terminationGracePeriodSeconds: 5
       dnsPolicy: ClusterFirstWithHostNet
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: ate.dev/image-accelerator
-                operator: In
-                values:
-                - spegel
       tolerations:
       - key: ate.dev/sandboxClass
         operator: Exists
@@ -99,8 +90,8 @@ spec:
           value: "spegel-bootstrap.ate-system.svc.cluster.local"
         args:
         - --listen-socket=/run/ate/image-accelerator.sock
-        - --store-dir=/var/lib/ate/accelerator/spegel-store
-        - --work-dir=/var/lib/ate/accelerator/spegel
+        - --store-dir=/var/lib/ate/accelerator-image-cache/spegel-store
+        - --work-dir=/var/lib/ate/accelerator-image-cache/spegel
         - --docker-config=/run/ate/spegel/docker/config.json
         - --enable-p2p-server=true
         - --p2p-listen-addr=:5000

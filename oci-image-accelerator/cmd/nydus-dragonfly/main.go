@@ -40,7 +40,7 @@ func main() {
 		verifyDragonflyPing    = flag.Bool("verify-dragonfly-ping", true, "Verify that local Dragonfly dfdaemon responds 200 OK on /server/ping before serving images")
 		procFilesystems        = flag.String("proc-filesystems", DefaultProcFilesystemsPath, "Path to /proc/filesystems used to verify Kernel EROFS registration")
 		cachefilesDev          = flag.String("cachefiles-dev", DefaultCachefilesDevPath, "Path to /dev/cachefiles device required for Kernel EROFS fscache mode")
-		workDir                = flag.String("work-dir", "", "Directory for layer wrapper symlinks (defaults to /var/lib/ate/accelerator/nydus-dragonfly)")
+		workDir                = flag.String("work-dir", "", "Directory for layer wrapper symlinks (defaults to /var/lib/ate/accelerator-image-cache/nydus-dragonfly)")
 		namespace              = flag.String("namespace", adapter.DefaultNamespace, "containerd namespace header sent to containerd-nydus-grpc")
 		snapshotterName        = flag.String("snapshotter-name", "nydus", "Snapshotter plugin name sent in Prepare/View requests")
 		idleTTL                = flag.Duration("idle-ttl", adapter.DefaultLeaseIdleTTL, "Duration to keep layer views mounted after refCount drops to 0")

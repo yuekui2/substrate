@@ -103,6 +103,11 @@ service Worker {
   // TerminateWorkload stops and deletes container workloads and cleans up
   // network and bundle overlays on the worker.
   rpc TerminateWorkload(TerminateWorkloadRequest) returns (TerminateWorkloadResponse) {}
+
+  // EvictWorkload sends SIGTERM to the workload's processes (escalating to
+  // SIGKILL after workloadGracePeriod) so the actor's harness can suspend and
+  // resume without terminating the worker pod.
+  rpc EvictWorkload(EvictWorkloadRequest) returns (EvictWorkloadResponse) {}
 }
 
 // ActorDirs is the set of per-actor directories atelet prepares on the volume
@@ -188,6 +193,15 @@ message TerminateWorkloadRequest {
 }
 
 message TerminateWorkloadResponse {
+}
+
+message EvictWorkloadRequest {
+  // +k8s:required
+  // +k8s:format=k8s-uuid
+  string actor_uid = 1;
+}
+
+message EvictWorkloadResponse {
 }
 
 message RunWorkloadRequest {

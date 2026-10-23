@@ -282,8 +282,8 @@ func TestBuildGCFSDAndSnapshotterCommands(t *testing.T) {
 		"--mount_point=/run/gcfsd/mnt",
 		"--max_content_cache_size_mb=1024",
 		"--max_large_files_cache_size_mb=1024",
-		"--layer_cache_dir=/var/lib/ate/accelerator/riptide-gcfs/snapshotter/layers",
-		"--images_in_use_db_path=/var/lib/ate/accelerator/riptide-gcfs/gcfsd/images_in_use.db",
+		"--layer_cache_dir=/var/lib/ate/accelerator-image-cache/riptide-gcfs/snapshotter/layers",
+		"--images_in_use_db_path=/var/lib/ate/accelerator-image-cache/riptide-gcfs/gcfsd/images_in_use.db",
 		"--enable_pull_secret_keychain",
 		"--client_name=GKE",
 		"--enable_single_flighting=true",
@@ -306,7 +306,7 @@ func TestBuildGCFSDAndSnapshotterCommands(t *testing.T) {
 		"--log-level=info",
 		"--config=/etc/containerd-gcfs-grpc/config.toml",
 		"--address=/run/ate/gcfs-snapshotter.sock",
-		"--root=/var/lib/ate/accelerator/riptide-gcfs",
+		"--root=/var/lib/ate/accelerator-image-cache/riptide-gcfs",
 		"--gcfs-socket-path=/run/gcfsd/grpc.sock",
 		"--enable-image-proxy-keychain-client",
 		"--disable-duplicate-layer-support=false",
@@ -335,10 +335,10 @@ func TestBuildGCFSDAndSnapshotterCommands(t *testing.T) {
 
 	// Case 5: Isolated Substrate Riptide v2 stack (non-interfering with host gcfsd/containerd)
 	isolatedCfg := RiptideDaemonConfig{
-		MountPoint:                   "/var/lib/ate/accelerator/riptide-gcfs/mnt",
+		MountPoint:                   "/var/lib/ate/accelerator-image-cache/riptide-gcfs/mnt",
 		ControlServerSocketPath:      "/run/gcfsd/grpc.sock",
 		DownloaderUDSPath:            "/run/gcfsd/downloader.sock",
-		SentinelFilePath:             "/var/lib/ate/accelerator/riptide-gcfs/gcfsd_sentinel.txt",
+		SentinelFilePath:             "/var/lib/ate/accelerator-image-cache/riptide-gcfs/gcfsd_sentinel.txt",
 		DisableContainerdEvents:      true,
 		DisableKubeletEventReporting: true,
 		Port:                         11254,
@@ -348,10 +348,10 @@ func TestBuildGCFSDAndSnapshotterCommands(t *testing.T) {
 	}
 	_, args5, _ := BuildGCFSDCommand(isolatedCfg)
 	for _, want := range []string{
-		"--mount_point=/var/lib/ate/accelerator/riptide-gcfs/mnt",
+		"--mount_point=/var/lib/ate/accelerator-image-cache/riptide-gcfs/mnt",
 		"--control_server_socket_path=/run/gcfsd/grpc.sock",
 		"--downloader_uds_path=/run/gcfsd/downloader.sock",
-		"--sentinel_file_path=/var/lib/ate/accelerator/riptide-gcfs/gcfsd_sentinel.txt",
+		"--sentinel_file_path=/var/lib/ate/accelerator-image-cache/riptide-gcfs/gcfsd_sentinel.txt",
 		"--containerd_uds_path=",
 		"--event_reporter_type=none",
 		"--port=11254",

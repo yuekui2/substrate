@@ -374,10 +374,14 @@ func TestLameDuckDrainAndDrainCompleteMarker(t *testing.T) {
 		t.Fatalf("expected idleImg to remain cached before drain: %v", err)
 	}
 
+	if evicting, err := client.IsEvicting(ctx); err != nil || evicting {
+		t.Fatalf("IsEvicting before drain = (%v, %v), want (false, nil)", evicting, err)
+	}
+
 	// 2. Cancel srvCtx (simulating SIGTERM). Adapter enters lame-duck mode:
 	//    - idleImg (refCount=0) is evicted immediately
 	//    - activeImg (refCount=1) keeps the server alive
-	//    - CanProvide returns false and PrepareImage returns ErrNotSupported
+	//    - CanProvide returns false, IsEvicting returns true, and PrepareImage returns ErrNotSupported
 	cancelSrv()
 	for !driver.IsDraining() {
 		time.Sleep(2 * time.Millisecond)
@@ -386,6 +390,9 @@ func TestLameDuckDrainAndDrainCompleteMarker(t *testing.T) {
 	canProvide, err := client.CanProvide(ctx, &imageaccel.PrepareRequest{ImageRef: activeImg})
 	if err != nil || canProvide {
 		t.Errorf("CanProvide during lame-duck drain = (%v, %v), want (false, nil)", canProvide, err)
+	}
+	if evicting, err := client.IsEvicting(ctx); err != nil || !evicting {
+		t.Errorf("IsEvicting during lame-duck drain = (%v, %v), want (true, nil)", evicting, err)
 	}
 	if _, err := client.PrepareImage(ctx, &imageaccel.PrepareRequest{ImageRef: "example.com/new:v1"}); !errors.Is(err, imageaccel.ErrNotSupported) {
 		t.Errorf("PrepareImage during lame-duck drain = %v, want ErrNotSupported", err)

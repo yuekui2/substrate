@@ -1228,6 +1228,32 @@ func (s *AteWorkerService) TerminateWorkload(ctx context.Context, req *ateworker
 	return &ateworkerpb.TerminateWorkloadResponse{}, nil
 }
 
+func (s *AteWorkerService) EvictWorkload(ctx context.Context, req *ateworkerpb.EvictWorkloadRequest) (*ateworkerpb.EvictWorkloadResponse, error) {
+	if err := ateworkervalidation.ValidateEvictWorkloadRequest(ctx, req); err != nil {
+		return nil, err
+	}
+	s.actorsMu.RLock()
+	hosted := s.actors[req.GetActorUid()]
+	var session *workloadSession
+	if hosted != nil {
+		session = hosted.session
+	}
+	s.actorsMu.RUnlock()
+	if hosted == nil || session == nil {
+		return nil, apierror.NotFound("actor %s is not hosted here", req.GetActorUid())
+	}
+
+	deadline := time.Now().Add(workloadGracePeriod)
+	for _, name := range session.containers {
+		go func(rcmd *runsc, containerName string, actorCtx context.Context) {
+			if err := killContainer(actorCtx, rcmd, containerName, deadline); err != nil {
+				slog.WarnContext(actorCtx, "Failed to evict container", slog.String("container", containerName), slog.Any("err", err))
+			}
+		}(session.rcmd, name, hosted.ctx)
+	}
+	return &ateworkerpb.EvictWorkloadResponse{}, nil
+}
+
 func (s *AteWorkerService) terminateWorkload(ctx context.Context, actorRef resources.ActorRef, actorUID, runscPath string, actorDirs *ateworkerpb.ActorDirs, containers []*ateworkerpb.Container) error {
 	if hosted := s.lookupActor(actorUID); hosted != nil {
 		hosted.stopping.Store(true)

@@ -16,7 +16,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v4.25.3
-// source: accelerator.proto
+// source: oci-image-accelerator/proto/v1/accelerator.proto
 
 package imageaccelv1
 
@@ -297,5 +297,5 @@ var ImageAccelerator_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "accelerator.proto",
+	Metadata: "oci-image-accelerator/proto/v1/accelerator.proto",
 }

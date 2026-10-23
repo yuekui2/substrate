@@ -69,6 +69,7 @@ func (s *Server) CanProvide(ctx context.Context, req *imageaccelv1.CanProvideReq
 	return &imageaccelv1.CanProvideResponse{
 		CanProvide:   ok,
 		ProviderName: s.driver.Name(),
+		Evicting:     s.driver.IsDraining(),
 	}, nil
 }
 

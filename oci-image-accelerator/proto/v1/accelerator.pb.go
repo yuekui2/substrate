@@ -16,7 +16,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11-devel
 // 	protoc        v4.25.3
-// source: accelerator.proto
+// source: oci-image-accelerator/proto/v1/accelerator.proto
 
 package imageaccelv1
 
@@ -51,7 +51,7 @@ type RegistryAuth struct {
 
 func (x *RegistryAuth) Reset() {
 	*x = RegistryAuth{}
-	mi := &file_accelerator_proto_msgTypes[0]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63,7 +63,7 @@ func (x *RegistryAuth) String() string {
 func (*RegistryAuth) ProtoMessage() {}
 
 func (x *RegistryAuth) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[0]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -76,7 +76,7 @@ func (x *RegistryAuth) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegistryAuth.ProtoReflect.Descriptor instead.
 func (*RegistryAuth) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{0}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *RegistryAuth) GetUsername() string {
@@ -131,7 +131,7 @@ type CanProvideRequest struct {
 
 func (x *CanProvideRequest) Reset() {
 	*x = CanProvideRequest{}
-	mi := &file_accelerator_proto_msgTypes[1]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -143,7 +143,7 @@ func (x *CanProvideRequest) String() string {
 func (*CanProvideRequest) ProtoMessage() {}
 
 func (x *CanProvideRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[1]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -156,7 +156,7 @@ func (x *CanProvideRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanProvideRequest.ProtoReflect.Descriptor instead.
 func (*CanProvideRequest) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{1}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CanProvideRequest) GetImageRef() string {
@@ -174,16 +174,20 @@ func (x *CanProvideRequest) GetAuth() *RegistryAuth {
 }
 
 type CanProvideResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CanProvide    bool                   `protobuf:"varint,1,opt,name=can_provide,json=canProvide,proto3" json:"can_provide,omitempty"`
-	ProviderName  string                 `protobuf:"bytes,2,opt,name=provider_name,json=providerName,proto3" json:"provider_name,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	CanProvide   bool                   `protobuf:"varint,1,opt,name=can_provide,json=canProvide,proto3" json:"can_provide,omitempty"`
+	ProviderName string                 `protobuf:"bytes,2,opt,name=provider_name,json=providerName,proto3" json:"provider_name,omitempty"`
+	// evicting is true when the accelerator is in lame-duck drain mode (e.g.
+	// after receiving SIGTERM during a RollingUpdate) and active streamed
+	// workloads on the node should cycle to release their image leases.
+	Evicting      bool `protobuf:"varint,3,opt,name=evicting,proto3" json:"evicting,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CanProvideResponse) Reset() {
 	*x = CanProvideResponse{}
-	mi := &file_accelerator_proto_msgTypes[2]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +199,7 @@ func (x *CanProvideResponse) String() string {
 func (*CanProvideResponse) ProtoMessage() {}
 
 func (x *CanProvideResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[2]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,7 +212,7 @@ func (x *CanProvideResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanProvideResponse.ProtoReflect.Descriptor instead.
 func (*CanProvideResponse) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{2}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CanProvideResponse) GetCanProvide() bool {
@@ -225,6 +229,13 @@ func (x *CanProvideResponse) GetProviderName() string {
 	return ""
 }
 
+func (x *CanProvideResponse) GetEvicting() bool {
+	if x != nil {
+		return x.Evicting
+	}
+	return false
+}
+
 type PrepareImageRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ImageRef      string                 `protobuf:"bytes,1,opt,name=image_ref,json=imageRef,proto3" json:"image_ref,omitempty"`
@@ -235,7 +246,7 @@ type PrepareImageRequest struct {
 
 func (x *PrepareImageRequest) Reset() {
 	*x = PrepareImageRequest{}
-	mi := &file_accelerator_proto_msgTypes[3]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -247,7 +258,7 @@ func (x *PrepareImageRequest) String() string {
 func (*PrepareImageRequest) ProtoMessage() {}
 
 func (x *PrepareImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[3]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -260,7 +271,7 @@ func (x *PrepareImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareImageRequest.ProtoReflect.Descriptor instead.
 func (*PrepareImageRequest) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{3}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *PrepareImageRequest) GetImageRef() string {
@@ -295,7 +306,7 @@ type PrepareImageResponse struct {
 
 func (x *PrepareImageResponse) Reset() {
 	*x = PrepareImageResponse{}
-	mi := &file_accelerator_proto_msgTypes[4]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -307,7 +318,7 @@ func (x *PrepareImageResponse) String() string {
 func (*PrepareImageResponse) ProtoMessage() {}
 
 func (x *PrepareImageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[4]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -320,7 +331,7 @@ func (x *PrepareImageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PrepareImageResponse.ProtoReflect.Descriptor instead.
 func (*PrepareImageResponse) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{4}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PrepareImageResponse) GetImageDigest() string {
@@ -363,7 +374,7 @@ type ReleaseImageRequest struct {
 
 func (x *ReleaseImageRequest) Reset() {
 	*x = ReleaseImageRequest{}
-	mi := &file_accelerator_proto_msgTypes[5]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -375,7 +386,7 @@ func (x *ReleaseImageRequest) String() string {
 func (*ReleaseImageRequest) ProtoMessage() {}
 
 func (x *ReleaseImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[5]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -388,7 +399,7 @@ func (x *ReleaseImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseImageRequest.ProtoReflect.Descriptor instead.
 func (*ReleaseImageRequest) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{5}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ReleaseImageRequest) GetImageRef() string {
@@ -413,7 +424,7 @@ type ReleaseImageResponse struct {
 
 func (x *ReleaseImageResponse) Reset() {
 	*x = ReleaseImageResponse{}
-	mi := &file_accelerator_proto_msgTypes[6]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -425,7 +436,7 @@ func (x *ReleaseImageResponse) String() string {
 func (*ReleaseImageResponse) ProtoMessage() {}
 
 func (x *ReleaseImageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[6]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -438,7 +449,7 @@ func (x *ReleaseImageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReleaseImageResponse.ProtoReflect.Descriptor instead.
 func (*ReleaseImageResponse) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{6}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{6}
 }
 
 type ActiveImageLayers struct {
@@ -453,7 +464,7 @@ type ActiveImageLayers struct {
 
 func (x *ActiveImageLayers) Reset() {
 	*x = ActiveImageLayers{}
-	mi := &file_accelerator_proto_msgTypes[7]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -465,7 +476,7 @@ func (x *ActiveImageLayers) String() string {
 func (*ActiveImageLayers) ProtoMessage() {}
 
 func (x *ActiveImageLayers) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[7]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -478,7 +489,7 @@ func (x *ActiveImageLayers) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActiveImageLayers.ProtoReflect.Descriptor instead.
 func (*ActiveImageLayers) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{7}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ActiveImageLayers) GetImageRef() string {
@@ -518,7 +529,7 @@ type ReconcileImagesRequest struct {
 
 func (x *ReconcileImagesRequest) Reset() {
 	*x = ReconcileImagesRequest{}
-	mi := &file_accelerator_proto_msgTypes[8]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -530,7 +541,7 @@ func (x *ReconcileImagesRequest) String() string {
 func (*ReconcileImagesRequest) ProtoMessage() {}
 
 func (x *ReconcileImagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[8]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -543,7 +554,7 @@ func (x *ReconcileImagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReconcileImagesRequest.ProtoReflect.Descriptor instead.
 func (*ReconcileImagesRequest) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{8}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ReconcileImagesRequest) GetActiveImages() []*ActiveImageLayers {
@@ -561,7 +572,7 @@ type ReconcileImagesResponse struct {
 
 func (x *ReconcileImagesResponse) Reset() {
 	*x = ReconcileImagesResponse{}
-	mi := &file_accelerator_proto_msgTypes[9]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -573,7 +584,7 @@ func (x *ReconcileImagesResponse) String() string {
 func (*ReconcileImagesResponse) ProtoMessage() {}
 
 func (x *ReconcileImagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accelerator_proto_msgTypes[9]
+	mi := &file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -586,14 +597,14 @@ func (x *ReconcileImagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReconcileImagesResponse.ProtoReflect.Descriptor instead.
 func (*ReconcileImagesResponse) Descriptor() ([]byte, []int) {
-	return file_accelerator_proto_rawDescGZIP(), []int{9}
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP(), []int{9}
 }
 
-var File_accelerator_proto protoreflect.FileDescriptor
+var File_oci_image_accelerator_proto_v1_accelerator_proto protoreflect.FileDescriptor
 
-const file_accelerator_proto_rawDesc = "" +
+const file_oci_image_accelerator_proto_v1_accelerator_proto_rawDesc = "" +
 	"\n" +
-	"\x11accelerator.proto\x12\x17substrate.imageaccel.v1\"\xe3\x01\n" +
+	"0oci-image-accelerator/proto/v1/accelerator.proto\x12\x17substrate.imageaccel.v1\"\xe3\x01\n" +
 	"\fRegistryAuth\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1f\n" +
 	"\bpassword\x18\x02 \x01(\tB\x03\x80\x01\x01R\bpassword\x12\x17\n" +
@@ -603,11 +614,12 @@ const file_accelerator_proto_rawDesc = "" +
 	"\x0eregistry_token\x18\x06 \x01(\tB\x03\x80\x01\x01R\rregistryToken\"k\n" +
 	"\x11CanProvideRequest\x12\x1b\n" +
 	"\timage_ref\x18\x01 \x01(\tR\bimageRef\x129\n" +
-	"\x04auth\x18\x02 \x01(\v2%.substrate.imageaccel.v1.RegistryAuthR\x04auth\"Z\n" +
+	"\x04auth\x18\x02 \x01(\v2%.substrate.imageaccel.v1.RegistryAuthR\x04auth\"v\n" +
 	"\x12CanProvideResponse\x12\x1f\n" +
 	"\vcan_provide\x18\x01 \x01(\bR\n" +
 	"canProvide\x12#\n" +
-	"\rprovider_name\x18\x02 \x01(\tR\fproviderName\"m\n" +
+	"\rprovider_name\x18\x02 \x01(\tR\fproviderName\x12\x1a\n" +
+	"\bevicting\x18\x03 \x01(\bR\bevicting\"m\n" +
 	"\x13PrepareImageRequest\x12\x1b\n" +
 	"\timage_ref\x18\x01 \x01(\tR\bimageRef\x129\n" +
 	"\x04auth\x18\x02 \x01(\v2%.substrate.imageaccel.v1.RegistryAuthR\x04auth\"\x9e\x01\n" +
@@ -640,19 +652,19 @@ const file_accelerator_proto_rawDesc = "" +
 	"\x0fReconcileImages\x12/.substrate.imageaccel.v1.ReconcileImagesRequest\x1a0.substrate.imageaccel.v1.ReconcileImagesResponseBBZ@go.ate.dev/substrate/oci-image-accelerator/proto/v1;imageaccelv1b\x06proto3"
 
 var (
-	file_accelerator_proto_rawDescOnce sync.Once
-	file_accelerator_proto_rawDescData []byte
+	file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescOnce sync.Once
+	file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescData []byte
 )
 
-func file_accelerator_proto_rawDescGZIP() []byte {
-	file_accelerator_proto_rawDescOnce.Do(func() {
-		file_accelerator_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accelerator_proto_rawDesc), len(file_accelerator_proto_rawDesc)))
+func file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescGZIP() []byte {
+	file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescOnce.Do(func() {
+		file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_oci_image_accelerator_proto_v1_accelerator_proto_rawDesc), len(file_oci_image_accelerator_proto_v1_accelerator_proto_rawDesc)))
 	})
-	return file_accelerator_proto_rawDescData
+	return file_oci_image_accelerator_proto_v1_accelerator_proto_rawDescData
 }
 
-var file_accelerator_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
-var file_accelerator_proto_goTypes = []any{
+var file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_oci_image_accelerator_proto_v1_accelerator_proto_goTypes = []any{
 	(*RegistryAuth)(nil),            // 0: substrate.imageaccel.v1.RegistryAuth
 	(*CanProvideRequest)(nil),       // 1: substrate.imageaccel.v1.CanProvideRequest
 	(*CanProvideResponse)(nil),      // 2: substrate.imageaccel.v1.CanProvideResponse
@@ -664,7 +676,7 @@ var file_accelerator_proto_goTypes = []any{
 	(*ReconcileImagesRequest)(nil),  // 8: substrate.imageaccel.v1.ReconcileImagesRequest
 	(*ReconcileImagesResponse)(nil), // 9: substrate.imageaccel.v1.ReconcileImagesResponse
 }
-var file_accelerator_proto_depIdxs = []int32{
+var file_oci_image_accelerator_proto_v1_accelerator_proto_depIdxs = []int32{
 	0, // 0: substrate.imageaccel.v1.CanProvideRequest.auth:type_name -> substrate.imageaccel.v1.RegistryAuth
 	0, // 1: substrate.imageaccel.v1.PrepareImageRequest.auth:type_name -> substrate.imageaccel.v1.RegistryAuth
 	7, // 2: substrate.imageaccel.v1.ReconcileImagesRequest.active_images:type_name -> substrate.imageaccel.v1.ActiveImageLayers
@@ -683,26 +695,26 @@ var file_accelerator_proto_depIdxs = []int32{
 	0, // [0:3] is the sub-list for field type_name
 }
 
-func init() { file_accelerator_proto_init() }
-func file_accelerator_proto_init() {
-	if File_accelerator_proto != nil {
+func init() { file_oci_image_accelerator_proto_v1_accelerator_proto_init() }
+func file_oci_image_accelerator_proto_v1_accelerator_proto_init() {
+	if File_oci_image_accelerator_proto_v1_accelerator_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accelerator_proto_rawDesc), len(file_accelerator_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_oci_image_accelerator_proto_v1_accelerator_proto_rawDesc), len(file_oci_image_accelerator_proto_v1_accelerator_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_accelerator_proto_goTypes,
-		DependencyIndexes: file_accelerator_proto_depIdxs,
-		MessageInfos:      file_accelerator_proto_msgTypes,
+		GoTypes:           file_oci_image_accelerator_proto_v1_accelerator_proto_goTypes,
+		DependencyIndexes: file_oci_image_accelerator_proto_v1_accelerator_proto_depIdxs,
+		MessageInfos:      file_oci_image_accelerator_proto_v1_accelerator_proto_msgTypes,
 	}.Build()
-	File_accelerator_proto = out.File
-	file_accelerator_proto_goTypes = nil
-	file_accelerator_proto_depIdxs = nil
+	File_oci_image_accelerator_proto_v1_accelerator_proto = out.File
+	file_oci_image_accelerator_proto_v1_accelerator_proto_goTypes = nil
+	file_oci_image_accelerator_proto_v1_accelerator_proto_depIdxs = nil
 }

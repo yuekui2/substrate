@@ -89,6 +89,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -114,7 +115,7 @@ var (
 
 	localhostRegistryReplacement = pflag.String("localhost-registry-replacement", "", "The replacement registry endpoint for localhost and/or loopback IP addresses, useful for local development. for example kind-registry:5000")
 	imageCacheDir                = pflag.String("image-cache-dir", ateletpath.ImageCacheDir, "Directory for the node-local OCI image layer cache. Must be on the volume shared with the worker pods (the cached layers are their overlay lowerdirs), and on a disk sized for both capacity and IOPS: unpack throughput is gated by the volume's IOPS.")
-	imageAcceleratorSocket       = pflag.String("image-accelerator-socket", "", "Unix socket of the out-of-process ImageAccelerator adapter daemon (e.g. /run/substrate/imageaccel.sock). Empty disables image streaming and falls back to the local image cache.")
+	imageAcceleratorSocket       = pflag.String("image-accelerator-socket", imageaccel.DefaultSocketPath, "Unix socket of the out-of-process ImageAccelerator adapter daemon. Automatically detected when present on the node; empty disables image streaming and falls back to the local image cache.")
 
 	showVersion  = pflag.Bool("version", false, "Print version and exit.")
 	logLevelFlag = pflag.String("log-level", "info", "Minimum log level: debug, info, warn, or error.")
@@ -273,8 +274,10 @@ func main() {
 	}
 	if imageAcceleratorClient != nil {
 		defer imageAcceleratorClient.Close()
-		if err := reconcileStreamingLeases(ctx, imageAcceleratorClient, nodepath.ActorsDir); err != nil {
-			slog.WarnContext(ctx, "Failed to reconcile streamed image leases on startup", slog.Any("err", err))
+		if imageaccel.IsSocketAvailable(*imageAcceleratorSocket) {
+			if err := reconcileStreamingLeases(ctx, imageAcceleratorClient, nodepath.ActorsDir); err != nil {
+				slog.WarnContext(ctx, "Failed to reconcile streamed image leases on startup", slog.Any("err", err))
+			}
 		}
 	}
 
@@ -503,6 +506,7 @@ func main() {
 	// informers that exist when Start is called.
 	ateFactory.Start(stopCh)
 	workerPodFactory.Start(stopCh)
+	startImageAcceleratorMonitor(ctx, k8sClient, ateletIdentity.NodeName, *imageAcceleratorSocket, stopCh, wmService, nodepath.ActorsDir, nodepath.WorkersDir())
 
 	workerFacingTLS, err := ateletServerTLSConfig(*grpcServerCredBundle, *clientCACerts, verifyClientOnSameNode(ateletIdentity))
 	if err != nil {
@@ -710,6 +714,9 @@ type Atelet struct {
 	imageCache             *imagecache.Store
 	imageAcceleratorClient imageaccel.Client
 	imageKeychain          authn.Keychain
+	streamingDraining      atomic.Bool
+	evictedStreamedMu      sync.Mutex
+	evictedStreamedActors  map[string]bool
 	// sandboxAssetCache holds every sandbox asset on the node once; actors get hard
 	// links into their own directories (see ensureSandboxAssets).
 	sandboxAssetCache *filecache.Store
@@ -759,6 +766,27 @@ func (s *Atelet) lockActor(ctx context.Context, actorUID string) (func(), error)
 		return nil, fmt.Errorf("gave up waiting for the actor's lock: %w", ctx.Err())
 	}
 	return func() { s.actorLocks.Unlock(actorUID) }, nil
+}
+
+// SetStreamingDraining toggles whether new Run and Restore operations on this
+// node bypass ImageAccelerator (falling back to local imagecache) and whether
+// Checkpoint/Terminate operations bypass idle TTL when releasing streamed
+// layers. Returns the previous state.
+func (s *Atelet) SetStreamingDraining(draining bool) bool {
+	return s.streamingDraining.Swap(draining)
+}
+
+// IsStreamingDraining reports whether the node is currently draining streamed
+// layers via the ate.dev/image-accelerator=disabled node label.
+func (s *Atelet) IsStreamingDraining() bool {
+	return s.streamingDraining.Load()
+}
+
+func (s *Atelet) activeImageAcceleratorClient() imageaccel.Client {
+	if s.streamingDraining.Load() {
+		return nil
+	}
+	return s.imageAcceleratorClient
 }
 
 // NewService creates a new WorkersManagerService.
@@ -1260,6 +1288,7 @@ func (s *Atelet) releaseStreamedLayersForActor(ctx context.Context, actorUID str
 	if s.imageAcceleratorClient == nil || spec == nil {
 		return
 	}
+	bypassTTL := s.IsStreamingDraining()
 	if actorUID == "" {
 		s.releaseStreamedLayers(ctx, actorRef, spec)
 		return
@@ -1277,7 +1306,8 @@ func (s *Atelet) releaseStreamedLayersForActor(ctx context.Context, actorUID str
 			return
 		}
 		if err := s.imageAcceleratorClient.ReleaseImage(ctx, &imageaccel.ReleaseRequest{
-			ImageRef: ref,
+			ImageRef:  ref,
+			BypassTTL: bypassTTL,
 		}); err != nil {
 			slog.WarnContext(ctx, "Failed to release streamed image",
 				slog.String("actor", actorRef.String()),
@@ -1311,12 +1341,14 @@ func (s *Atelet) releaseStreamedLayers(ctx context.Context, actorRef resources.A
 	if s.imageAcceleratorClient == nil || spec == nil {
 		return
 	}
+	bypassTTL := s.IsStreamingDraining()
 	releaseRef := func(ref string) {
 		if ref == "" {
 			return
 		}
 		if err := s.imageAcceleratorClient.ReleaseImage(ctx, &imageaccel.ReleaseRequest{
-			ImageRef: ref,
+			ImageRef:  ref,
+			BypassTTL: bypassTTL,
 		}); err != nil {
 			slog.WarnContext(ctx, "Failed to release streamed image",
 				slog.String("actor", actorRef.String()),
@@ -2161,7 +2193,7 @@ func (s *Atelet) prepareOCIBundles(
 		}
 	}
 
-	layerClient := s.imageAcceleratorClient
+	layerClient := s.activeImageAcceleratorClient()
 	g, gCtx := errgroup.WithContext(ctx)
 
 	// Application containers.

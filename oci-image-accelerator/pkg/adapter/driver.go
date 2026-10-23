@@ -45,7 +45,7 @@ const (
 	// DefaultBaseWorkDir is the default root directory where ImageAccelerator
 	// adapters write per-layer wrapper directories and provider state under
 	// /var/lib/ate.
-	DefaultBaseWorkDir = "/var/lib/ate/accelerator"
+	DefaultBaseWorkDir = "/var/lib/ate/accelerator-image-cache"
 
 	// DefaultNamespace is the default containerd namespace passed to the snapshotter.
 	DefaultNamespace = "default"

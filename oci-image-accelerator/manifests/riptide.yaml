@@ -28,7 +28,7 @@
 # 1. Node with GKE Image Streaming enabled (host gcfsd.service active):
 #    Runs an isolated gcfsd-v2 + containerd-gcfs-grpc pair in a child mount
 #    namespace where /run/gcfsd is privately bound to /run/ate/gcfsd
-#    and FUSE mounts under /var/lib/ate/accelerator/riptide-gcfs/mnt propagate
+#    and FUSE mounts under /var/lib/ate/accelerator-image-cache/riptide-gcfs/mnt propagate
 #    bidirectionally to the host. This avoids both Snapshots.v1 BoltDB GC
 #    interference and gcfsd-v2 CreateView/DeleteView chainID collisions with
 #    host containerd.
@@ -61,15 +61,6 @@ spec:
       hostPID: true
       hostNetwork: true
       terminationGracePeriodSeconds: 3600
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: ate.dev/image-accelerator
-                operator: In
-                values:
-                - riptide
       tolerations:
       - key: ate.dev/sandboxClass
         operator: Exists
@@ -98,7 +89,7 @@ spec:
         - /bin/bash
         - -ec
         - |
-          readonly gcfs_root="/var/lib/ate/accelerator/riptide-gcfs"
+          readonly gcfs_root="/var/lib/ate/accelerator-image-cache/riptide-gcfs"
           readonly gcfs_run_dir="/run/ate/gcfsd"
           readonly gcfsd_mnt_dir="${gcfs_root}/mnt"
 
@@ -115,8 +106,8 @@ spec:
           done
 
           umount -l "${gcfsd_mnt_dir}" 2>/dev/null || true
-          rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd" /var/lib/ate/accelerator/riptide/* 2>/dev/null || true
-          mkdir -p /run/ate "${gcfs_run_dir}" "${gcfs_root}" "${gcfsd_mnt_dir}" /run/gcfsd /var/lib/ate/accelerator/riptide
+          rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd" /var/lib/ate/accelerator-image-cache/riptide/* 2>/dev/null || true
+          mkdir -p /run/ate "${gcfs_run_dir}" "${gcfs_root}" "${gcfsd_mnt_dir}" /run/gcfsd /var/lib/ate/accelerator-image-cache/riptide
           rm -f "${gcfs_run_dir}/grpc.sock" "${gcfs_run_dir}/keychain.sock" "${gcfs_run_dir}/downloader.sock" /run/ate/gcfs-snapshotter.sock /run/ate/drain-complete
 
           if ! mountpoint -q "${gcfs_root}"; then
@@ -125,7 +116,7 @@ spec:
           mount --make-rshared "${gcfs_root}"
 
           exec unshare -m --propagation unchanged -- /bin/bash -ec '
-            readonly gcfs_root="/var/lib/ate/accelerator/riptide-gcfs"
+            readonly gcfs_root="/var/lib/ate/accelerator-image-cache/riptide-gcfs"
             readonly gcfsd_mnt_dir="${gcfs_root}/mnt"
             readonly gcfs_socket_path="/run/gcfsd/grpc.sock"
             readonly layer_cache_dir="${gcfs_root}/snapshotter/layers"
@@ -273,7 +264,7 @@ spec:
         - --listen-socket=/run/ate/image-accelerator.sock
         - --snapshotter-socket=/run/ate/gcfs-snapshotter.sock
         - --keychain-socket=/run/ate/gcfsd/keychain.sock
-        - --work-dir=/var/lib/ate/accelerator/riptide
+        - --work-dir=/var/lib/ate/accelerator-image-cache/riptide
         - --idle-ttl=10m
         - --startup-timeout=2m
         - --drain-timeout=30m

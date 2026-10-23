@@ -49,15 +49,6 @@ spec:
       hostPID: true
       hostNetwork: true
       terminationGracePeriodSeconds: 3600
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: ate.dev/image-accelerator
-                operator: In
-                values:
-                - soci
       tolerations:
       - key: ate.dev/sandboxClass
         operator: Exists
@@ -84,7 +75,7 @@ spec:
         - /bin/bash
         - -ec
         - |
-          readonly soci_root="/var/lib/ate/accelerator/soci-snapshotter"
+          readonly soci_root="/var/lib/ate/accelerator-image-cache/soci-snapshotter"
           readonly soci_run="/run/soci-snapshotter-grpc"
           readonly soci_bin="${KUBE_HOME}/bin/soci-snapshotter-grpc"
 
@@ -160,7 +151,7 @@ spec:
         - --listen-socket=/run/ate/image-accelerator.sock
         - --snapshotter-socket=/run/soci-snapshotter-grpc/soci-snapshotter-grpc.sock
         - --docker-config=/run/soci-snapshotter-grpc/docker/config.json
-        - --work-dir=/var/lib/ate/accelerator/soci
+        - --work-dir=/var/lib/ate/accelerator-image-cache/soci
         - --idle-ttl=10m
         - --startup-timeout=2m
         - --drain-timeout=30m

@@ -72,6 +72,11 @@ message CanProvideRequest {
 message CanProvideResponse {
   bool can_provide = 1;
   string provider_name = 2;
+
+  // evicting is true when the accelerator is in lame-duck drain mode (e.g.
+  // after receiving SIGTERM during a RollingUpdate) and active streamed
+  // workloads on the node should cycle to release their image leases.
+  bool evicting = 3;
 }
 
 message PrepareImageRequest {

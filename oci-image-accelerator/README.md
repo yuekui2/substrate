@@ -31,7 +31,7 @@ By moving container image preparation out of the container runtime critical path
 │              └────────────┬─────────────┘              │
 │                           │                            │
 │                 FUSE Layer Views Mount                 │
-│               (/var/lib/ate/accelerator)               │
+│          (/var/lib/ate/accelerator-image-cache)        │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -88,10 +88,14 @@ Deployment manifests for all supported drivers are available under `manifests/`:
 Deploying a driver (always a separate step from Substrate installation):
 ```bash
 ko resolve -f oci-image-accelerator/manifests/riptide.yaml | kubectl apply -f -
-kubectl label nodes --all ate.dev/image-accelerator=riptide --overwrite
 ```
 
-To dynamically drain and disable acceleration on a node (triggers `SIGTERM` lame-duck drain until active leases reach `refCount == 0` or `--drain-timeout=30m` elapses):
+To dynamically disable acceleration on a node without terminating the DaemonSet pod (`atelet` falls back to local `image-cache` and evicts active streamed actors):
+```bash
+kubectl label node <node> ate.dev/image-accelerator=disabled --overwrite
+```
+
+To re-enable acceleration on the node:
 ```bash
 kubectl label node <node> ate.dev/image-accelerator-
 ```

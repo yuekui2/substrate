@@ -118,6 +118,7 @@ type ActiveImageLayers struct {
 type Client interface {
 	Name() string
 	CanProvide(ctx context.Context, req *PrepareRequest) (bool, error)
+	IsEvicting(ctx context.Context) (bool, error)
 	PrepareImage(ctx context.Context, req *PrepareRequest) (*PrepareResult, error)
 	ReleaseImage(ctx context.Context, req *ReleaseRequest) error
 	ReconcileImages(ctx context.Context, active []*ActiveImageLayers) error
@@ -211,9 +212,14 @@ func (c *GRPCClient) resolveAuth(ctx context.Context, req *PrepareRequest) *imag
 }
 
 // CanProvide checks whether the accelerator supports the requested image.
+// If the adapter socket is not present on the node, it returns (false, nil)
+// so atelet automatically detects when an adapter is installed or absent.
 func (c *GRPCClient) CanProvide(ctx context.Context, req *PrepareRequest) (bool, error) {
 	if req == nil {
 		return false, errors.New("prepare request cannot be nil")
+	}
+	if !IsSocketAvailable(c.socketPath) {
+		return false, nil
 	}
 	res, err := c.client.CanProvide(ctx, &imageaccelv1.CanProvideRequest{
 		ImageRef: req.ImageRef,
@@ -228,6 +234,23 @@ func (c *GRPCClient) CanProvide(ctx context.Context, req *PrepareRequest) (bool,
 		c.mu.Unlock()
 	}
 	return res.GetCanProvide(), nil
+}
+
+// IsEvicting reports whether the accelerator is in lame-duck drain mode.
+func (c *GRPCClient) IsEvicting(ctx context.Context) (bool, error) {
+	if !IsSocketAvailable(c.socketPath) {
+		return false, nil
+	}
+	res, err := c.client.CanProvide(ctx, &imageaccelv1.CanProvideRequest{})
+	if err != nil {
+		return false, fmt.Errorf("calling CanProvide on image-accelerator: %w", err)
+	}
+	if res.GetProviderName() != "" {
+		c.mu.Lock()
+		c.providerName = res.GetProviderName()
+		c.mu.Unlock()
+	}
+	return res.GetEvicting(), nil
 }
 
 // PrepareImage prepares the layers for the image and returns their paths.
