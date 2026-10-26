@@ -30,6 +30,11 @@
 #
 # Userspace FUSE (fusedev) fallback is strictly disabled: if Kernel EROFS or
 # /dev/cachefiles is unavailable, the containers fail fast with an explicit error.
+#
+# On kernels without on-demand fscache, such as GKE Ubuntu, the
+# build-erofs-modules init container builds erofs and cachefiles on first start
+# for each kernel. It needs egress to the Ubuntu archive and launchpad.net, and
+# Shielded VM secure boot off so insmod accepts the unsigned modules.
 apiVersion: v1
 kind: Service
 metadata:
@@ -374,6 +379,94 @@ spec:
       - key: ate.dev/sandboxClass
         operator: Exists
         effect: NoSchedule
+      initContainers:
+      # Stock Ubuntu GKE kernels build erofs and cachefiles without on-demand
+      # fscache. Build both modules once per node and kernel from the exact
+      # Ubuntu source of the running kernel, against the headers in the node
+      # image.
+      - name: build-erofs-modules
+        image: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+        env:
+        - name: KUBE_HOME
+          value: /home/kubernetes
+        command:
+        - /bin/bash
+        - -euo
+        - pipefail
+        - -c
+        - |
+          kver="$(uname -r)"
+          config="/boot/config-${kver}"
+          out="${KUBE_HOME}/bin/modules/${kver}"
+          if grep -qx CONFIG_EROFS_FS_ONDEMAND=y "${config}" && grep -qx CONFIG_CACHEFILES_ONDEMAND=y "${config}"; then
+            echo "${kver} has on-demand EROFS and cachefiles; nothing to build."
+            exit 0
+          fi
+          if [[ -f "${out}/erofs.ko" && -f "${out}/cachefiles.ko" ]]; then
+            echo "Using existing modules in ${out}."
+            exit 0
+          fi
+
+          # /proc/version_signature looks like "Ubuntu 6.8.0-1062.70-gke 6.8.12".
+          read -r _ sig _ < /proc/version_signature
+          version="${sig%-*}"
+          src="linux-${sig##*-}"
+          launchpad="https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/${src}/${version}"
+          pool="http://archive.ubuntu.com/ubuntu/pool/main/l/${src}"
+          echo "Building on-demand erofs and cachefiles for ${kver} from ${src} ${version}."
+
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            build-essential ca-certificates curl kmod libelf1t64 patchutils >/dev/null
+
+          # The archive pool is fast but drops old diffs. Launchpad keeps
+          # every version. The .dsc checksums cover both.
+          cd /build
+          curl -fsSLO "${launchpad}/${src}_${version}.dsc"
+          awk '/^Checksums-Sha256:/ {f=1; next} /^[^ ]/ {f=0} f {print $1 "  " $3}' "${src}_${version}.dsc" > SHA256SUMS
+          while read -r _ name; do
+            curl -fsSLO "${pool}/${name}" || curl -fsSLO "${launchpad}/${name}"
+          done < SHA256SUMS
+          sha256sum -c SHA256SUMS
+
+          # Extract only the two module directories, then apply the Ubuntu
+          # diff to them.
+          mkdir src
+          tar -xzf "${src}"_*.orig.tar.gz -C src --strip-components=1 --wildcards '*/fs/erofs/*' '*/fs/cachefiles/*'
+          zcat "${src}_${version}.diff.gz" | filterdiff -p1 -i 'fs/erofs/*' -i 'fs/cachefiles/*' | patch -d src -p1
+
+          # Kbuild reads the rest of the module config from the headers.
+          sed -i '1i CONFIG_EROFS_FS_ONDEMAND := y\nccflags-y += -DCONFIG_EROFS_FS_ONDEMAND=1' src/fs/erofs/Makefile
+          sed -i '1i CONFIG_CACHEFILES_ONDEMAND := y\nccflags-y += -DCONFIG_CACHEFILES_ONDEMAND=1' src/fs/cachefiles/Makefile
+          for m in erofs cachefiles; do
+            make -C "/lib/modules/${kver}/build" M="/build/src/fs/${m}" CC=x86_64-linux-gnu-gcc-13 -j"$(nproc)" modules
+            vermagic="$(modinfo -F vermagic "src/fs/${m}/${m}.ko")"
+            if [[ "${vermagic%% *}" != "${kver}" ]]; then
+              echo "FATAL: ${m}.ko vermagic ${vermagic} does not match ${kver}." >&2
+              exit 1
+            fi
+          done
+
+          rm -rf "${out}.tmp"
+          mkdir -p "${out}.tmp"
+          cp src/fs/erofs/erofs.ko src/fs/cachefiles/cachefiles.ko "${out}.tmp/"
+          rm -rf "${out}"
+          mv "${out}.tmp" "${out}"
+          echo "Installed erofs.ko and cachefiles.ko in ${out}."
+        volumeMounts:
+        - name: kube-home
+          mountPath: /home/kubernetes
+        - name: boot
+          mountPath: /boot
+          readOnly: true
+        - name: lib-modules
+          mountPath: /lib/modules
+          readOnly: true
+        - name: usr-src
+          mountPath: /usr/src
+          readOnly: true
+        - name: kmod-build
+          mountPath: /build
       containers:
       - name: dfdaemon
         image: dragonflyoss/dfdaemon:v2.1.49
@@ -516,19 +609,31 @@ spec:
 
           rm -f "${nydus_run}/containerd-nydus-grpc.sock" /run/ate/drain-complete
 
-          if [[ -f "${KUBE_HOME}/bin/modules/erofs.ko" && -f "${KUBE_HOME}/bin/modules/cachefiles.ko" ]]; then
-            modprobe netfs || true
-            modprobe zstd_decompress || true
-            modprobe zlib_inflate || true
-            if ! grep -q cachefiles_ondemand /proc/kallsyms 2>/dev/null; then
-              rmmod cachefiles 2>/dev/null || true
-              rmmod erofs 2>/dev/null || true
-              insmod "${KUBE_HOME}/bin/modules/erofs.ko" || true
-              insmod "${KUBE_HOME}/bin/modules/cachefiles.ko" || true
-            fi
+          # build-erofs-modules leaves on-demand builds here unless the kernel
+          # already has on-demand fscache. Stock cachefiles also exports
+          # cachefiles_ondemand_* tracepoints, so match whole function names
+          # that only on-demand builds contain.
+          has_ondemand() {
+            grep -qw cachefiles_ondemand_init_object /proc/kallsyms && grep -qw erofs_fscache_register_fs /proc/kallsyms
+          }
+          readonly mod_dir="${KUBE_HOME}/bin/modules/$(uname -r)"
+          if [[ -f "${mod_dir}/erofs.ko" ]] && ! has_ondemand; then
+            modprobe -a $(modinfo -F depends "${mod_dir}/erofs.ko" "${mod_dir}/cachefiles.ko" | tr ',' '\n' | sort -u)
+            for m in cachefiles erofs; do
+              if [[ -d "/sys/module/${m}" ]]; then
+                rmmod "${m}"
+              fi
+            done
+            insmod "${mod_dir}/erofs.ko"
+            insmod "${mod_dir}/cachefiles.ko"
           else
-            modprobe erofs || true
-            modprobe cachefiles || true
+            modprobe erofs
+            modprobe cachefiles
+          fi
+
+          if ! has_ondemand; then
+            echo "FATAL: erofs or cachefiles lacks on-demand fscache support." >&2
+            exit 1
           fi
 
           if ! grep -qw erofs /proc/filesystems; then
@@ -699,6 +804,20 @@ spec:
         hostPath:
           path: /var/lib/dragonfly
           type: DirectoryOrCreate
+      - name: boot
+        hostPath:
+          path: /boot
+          type: Directory
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules
+          type: Directory
+      - name: usr-src
+        hostPath:
+          path: /usr/src
+          type: Directory
+      - name: kmod-build
+        emptyDir: {}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

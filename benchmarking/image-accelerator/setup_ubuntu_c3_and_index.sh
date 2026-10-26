@@ -110,15 +110,3 @@ for NODE in "${PEER_NODE}" "${COS_NODE}" "${UBUNTU_NODE}"; do
     ls -lh /home/kubernetes/bin/soci /home/kubernetes/bin/soci-snapshotter-grpc
   '
 done
-
-echo "=== [4] Ensuring EROFS kernel modules and Nydus binaries on ${UBUNTU_NODE} ==="
-PEER_POD="bench-helper-${PEER_NODE##*-}"
-UBUNTU_POD="bench-helper-${UBUNTU_NODE##*-}"
-if ! kubectl -n ate-system exec "${UBUNTU_POD}" -- test -f /home/kubernetes/bin/modules/erofs.ko 2>/dev/null; then
-  kubectl -n ate-system cp "${PEER_POD}:/home/kubernetes/bin/modules/erofs.ko" "${TMP_BIN_DIR}/erofs.ko"
-  kubectl -n ate-system cp "${PEER_POD}:/home/kubernetes/bin/modules/cachefiles.ko" "${TMP_BIN_DIR}/cachefiles.ko"
-  kubectl -n ate-system exec "${UBUNTU_POD}" -- mkdir -p /home/kubernetes/bin/modules
-  kubectl -n ate-system cp "${TMP_BIN_DIR}/erofs.ko" "${UBUNTU_POD}:/home/kubernetes/bin/modules/erofs.ko"
-  kubectl -n ate-system cp "${TMP_BIN_DIR}/cachefiles.ko" "${UBUNTU_POD}:/home/kubernetes/bin/modules/cachefiles.ko"
-fi
-

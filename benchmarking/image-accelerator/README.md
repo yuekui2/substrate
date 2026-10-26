@@ -21,10 +21,12 @@ This directory contains the reusable scripts, Go benchmark/probe CLIs, image env
 | [`run_upgrade_tests.sh`](./run_upgrade_tests.sh) | Executes live E2E verification from fresh DaemonSets/WorkerPools: (A1) `ds/atelet` rolling upgrade with an active streamed actor (`ReconcileImages`), (A2) dynamic node opt-out (`ate.dev/image-accelerator=disabled`) with `EvictWorkload` (`SIGTERM`) without terminating the adapter DaemonSet, and (B.1–B.4) `RollingUpdate` lame-duck drain and `EvictWorkload` verification across all 4 adapters (`riptide`, `soci`, `nydus-dragonfly`, `spegel`). |
 | [`bench-runner/main.go`](./bench-runner/main.go) | Standalone Go CLI that drives `ateapi` (`CreateActorTemplate`, `CreateActor`, `ResumeActor`, `SuspendActor`, `RevertActor`, `DeleteActor`), `atenet` HTTP workload requests, and `ImageAccelerator.ReleaseImage` cache eviction. |
 | [`e2e-stream-probe/main.go`](./e2e-stream-probe/main.go) | Standalone Go CLI that probes `/run/ate/image-accelerator.sock` (`CanProvide`, `PrepareImage`, layer directory verification, and `ReleaseImage`). |
+| [`verify_nydus_kernel_modules.sh`](./verify_nydus_kernel_modules.sh) | Deploys `ds/ate-accelerator-nydus-dragonfly` onto a fresh GKE Ubuntu node and checks that `build-erofs-modules` builds and loads on-demand `erofs` and `cachefiles`, that a Nydus image mounts, and that a restart reuses the modules. |
 | [`results/benchmark_results.jsonl`](./results/benchmark_results.jsonl) | Structured JSONL output containing all 45 benchmark runs with nanosecond timestamps and latency breakdowns. |
 | [`results/benchmark_matrix_45runs.csv`](./results/benchmark_matrix_45runs.csv) | Unified 45-row CSV matrix across `small`, `medium`, and `large` workloads ready for Google Sheets import. |
 | [`results/benchmark_evidence.log`](./results/benchmark_evidence.log) | Detailed execution log including Riptide dual-mode probe output, `ateapi` `"Picked worker"` timestamps, and per-run adapter / `atelet` logs. |
 | [`results/upgrade_verification.log`](./results/upgrade_verification.log) | Step-by-step live cluster execution log (commands, outputs, and logs) for Scenarios A1, A2, and B.1–B.4. |
+| [`results/nydus_kernel_modules.log`](./results/nydus_kernel_modules.log) | Commands and output of `verify_nydus_kernel_modules.sh` on a fresh node. |
 
 ---
 
@@ -38,7 +40,7 @@ The benchmark and E2E verification run on GKE cluster `substrate-stream-test` (`
 2. **COS No-Streaming Node (`NO_STREAM_COS_NODE`)**: `gke-substrate-stream-t-no-stream-pool-7360e0e0-p1tz` (`c3-standard-4`, COS, GKE Image Streaming disabled)
    - Verifies that `ate-accelerator-riptide` works identically when host `gcfsd.service` is inactive by starting its own isolated `gcfsd-v2` + `containerd-gcfs-grpc` pair from `/home/kubernetes/bin`.
 3. **Ubuntu 24.04 Benchmark Node (`UBUNTU_NODE`)**: `gke-substrate-stream-c3-std22-ubuntu--5a335c0d-1261` (`c3-standard-22`, Ubuntu 24.04)
-   - Runs **`nydus-dragonfly`** (Linux kernel `CONFIG_EROFS_FS_ONDEMAND=y` and `fscache` with `erofs` and `cachefiles` modules).
+   - Runs **`nydus-dragonfly`**. The stock GKE Ubuntu kernel lacks `CONFIG_EROFS_FS_ONDEMAND` and `CONFIG_CACHEFILES_ONDEMAND`, so the DaemonSet's `build-erofs-modules` init container builds both modules on first start. See [`verify_nydus_kernel_modules.sh`](./verify_nydus_kernel_modules.sh).
    - Labeled with `bench-node=c3-ubuntu` and hosts `WorkerPool` `wp-c3-ubuntu` (`1 CPU`, `2 GiB`).
 4. **P2P Seed Peer Node (`PEER_NODE`)**: `gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc` (`c3-standard-4`, Ubuntu 24.04)
    - Seeds OCI/Nydus blobs over in-cluster P2P for **Spegel** (`:5000`/`:5001`) and **Dragonfly** (`dfdaemon` `:65000`–`:65002`).

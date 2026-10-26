@@ -1,0 +1,238 @@
+
+=== [1] Fresh node ===
+
+$ gcloud container node-pools describe nydus-kbuild-pool --cluster=substrate-stream-test --zone=us-central1-a --project=kuiyue-gke-dev --format=yaml(name,config.machineType,config.imageType,config.shieldedInstanceConfig,version)
+config:
+  imageType: UBUNTU_CONTAINERD
+  machineType: c3-standard-4
+  shieldedInstanceConfig:
+    enableIntegrityMonitoring: true
+name: nydus-kbuild-pool
+version: 1.36.4-gke.2046003
+
+$ kubectl get node gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk -o wide
+NAME                                                  STATUS   ROLES    AGE   VERSION               INTERNAL-IP   EXTERNAL-IP    OS-IMAGE             KERNEL-VERSION           CONTAINER-RUNTIME
+gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk   Ready    <none>   22s   v1.36.4-gke.2046003   10.1.0.43     34.10.170.30   Ubuntu 24.04.5 LTS   6.8.0-1062-gke (amd64)   containerd://2.2.7
+
+$ kubectl -n ate-system exec bench-helper-5nnk -- nsenter -t 1 -m -u -i -n -- sh -c 
+  uname -r; cat /proc/version_signature; mokutil --sb-state
+  grep -E "^(# )?CONFIG_(EROFS_FS|EROFS_FS_ONDEMAND|CACHEFILES|CACHEFILES_ONDEMAND|FSCACHE|NETFS_SUPPORT)[= ]" /boot/config-$(uname -r)
+  ls -la /lib/modules/$(uname -r)/build
+  ls /home/kubernetes/bin/modules 2>&1 || true
+  lsmod | grep -E "^(erofs|cachefiles|netfs) " || echo "erofs, cachefiles, netfs not loaded"
+  echo "cachefiles_ondemand symbols: $(grep -c cachefiles_ondemand /proc/kallsyms || true)"
+6.8.0-1062-gke
+Ubuntu 6.8.0-1062.70-gke 6.8.12
+SecureBoot disabled
+CONFIG_NETFS_SUPPORT=m
+CONFIG_FSCACHE=y
+CONFIG_CACHEFILES=m
+# CONFIG_CACHEFILES_ONDEMAND is not set
+CONFIG_EROFS_FS=m
+# CONFIG_EROFS_FS_ONDEMAND is not set
+lrwxrwxrwx 1 root root 37 Aug 21 21:34 /lib/modules/6.8.0-1062-gke/build -> /usr/src/linux-headers-6.8.0-1062-gke
+ls: cannot access '/home/kubernetes/bin/modules': No such file or directory
+erofs, cachefiles, netfs not loaded
+cachefiles_ondemand symbols: 0
+
+=== [2] Deploy ds/ate-accelerator-nydus-dragonfly onto gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk and gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc ===
+
+$ sed <image, nodeSelector> oci-image-accelerator/manifests/nydus-dragonfly.yaml | kubectl apply -f -
+service/dragonfly-redis unchanged
+deployment.apps/dragonfly-redis unchanged
+service/dragonfly-mysql unchanged
+deployment.apps/dragonfly-mysql unchanged
+configmap/dragonfly-controlplane-config unchanged
+service/dragonfly-manager unchanged
+deployment.apps/dragonfly-manager unchanged
+service/dragonfly-scheduler unchanged
+deployment.apps/dragonfly-scheduler unchanged
+daemonset.apps/ate-accelerator-nydus-dragonfly configured
+networkpolicy.networking.k8s.io/dragonfly-backing-stores unchanged
+networkpolicy.networking.k8s.io/dragonfly-controlplane-and-peers unchanged
+
+$ kubectl label node gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc bench-accel-target=nydus-dragonfly --overwrite
+node/gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk labeled
+node/gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc not labeled
+
+$ kubectl -n ate-system rollout status ds/ate-accelerator-nydus-dragonfly --timeout=15m
+Waiting for daemon set "ate-accelerator-nydus-dragonfly" rollout to finish: 0 of 2 updated pods are available...
+Waiting for daemon set "ate-accelerator-nydus-dragonfly" rollout to finish: 1 of 2 updated pods are available...
+daemon set "ate-accelerator-nydus-dragonfly" successfully rolled out
+
+$ kubectl -n ate-system get pods -l app=ate-image-accelerator,ate.dev/image-accelerator=nydus-dragonfly -o wide
+NAME                                    READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+ate-accelerator-nydus-dragonfly-8xnv5   3/3     Running   0          50s   10.1.15.220   gke-substrate-stream-erofs-ubuntu-poo-ea32e702-fkxc   <none>           <none>
+ate-accelerator-nydus-dragonfly-dr5xg   3/3     Running   0          50s   10.1.0.43     gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk   <none>           <none>
+
+=== [3] build-erofs-modules on gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk ===
+
+$ kubectl -n ate-system logs pod/ate-accelerator-nydus-dragonfly-dr5xg -c build-erofs-modules --timestamps
+2026-10-26T23:00:18.957150051Z Building on-demand erofs and cachefiles for 6.8.0-1062-gke from linux-gke 6.8.0-1062.70.
+2026-10-26T23:00:24.470337656Z debconf: delaying package configuration, since apt-utils is not installed
+2026-10-26T23:00:40.098306483Z curl: (22) The requested URL returned error: 404
+2026-10-26T23:00:42.620975511Z linux-gke_6.8.0.orig.tar.gz: OK
+2026-10-26T23:00:42.629699525Z linux-gke_6.8.0-1062.70.diff.gz: OK
+2026-10-26T23:00:50.648542759Z patching file fs/cachefiles/cache.c
+2026-10-26T23:00:50.648720706Z patching file fs/cachefiles/daemon.c
+2026-10-26T23:00:50.648907303Z patching file fs/cachefiles/interface.c
+2026-10-26T23:00:50.649047324Z patching file fs/cachefiles/internal.h
+2026-10-26T23:00:50.649197594Z patching file fs/cachefiles/io.c
+2026-10-26T23:00:50.649350389Z patching file fs/cachefiles/namei.c
+2026-10-26T23:00:50.649507885Z patching file fs/cachefiles/ondemand.c
+2026-10-26T23:00:50.649775275Z patching file fs/cachefiles/security.c
+2026-10-26T23:00:50.649838631Z patching file fs/cachefiles/volume.c
+2026-10-26T23:00:50.649927980Z patching file fs/cachefiles/xattr.c
+2026-10-26T23:00:50.650076568Z patching file fs/erofs/data.c
+2026-10-26T23:00:50.650285613Z patching file fs/erofs/decompressor.c
+2026-10-26T23:00:50.650312326Z patching file fs/erofs/decompressor_deflate.c
+2026-10-26T23:00:50.650481264Z patching file fs/erofs/dir.c
+2026-10-26T23:00:50.650584933Z patching file fs/erofs/fscache.c
+2026-10-26T23:00:50.650721641Z patching file fs/erofs/inode.c
+2026-10-26T23:00:50.650843349Z patching file fs/erofs/internal.h
+2026-10-26T23:00:50.651016068Z patching file fs/erofs/super.c
+2026-10-26T23:00:50.651260357Z patching file fs/erofs/utils.c
+2026-10-26T23:00:50.651484461Z patching file fs/erofs/zdata.c
+2026-10-26T23:00:50.651979741Z patching file fs/erofs/zmap.c
+2026-10-26T23:00:50.658142400Z make: Entering directory '/usr/src/linux-headers-6.8.0-1062-gke'
+2026-10-26T23:00:51.058851710Z   CC [M]  /build/src/fs/erofs/super.o
+2026-10-26T23:00:51.060027987Z   CC [M]  /build/src/fs/erofs/inode.o
+2026-10-26T23:00:51.061638811Z   CC [M]  /build/src/fs/erofs/data.o
+2026-10-26T23:00:51.063252953Z   CC [M]  /build/src/fs/erofs/namei.o
+2026-10-26T23:00:51.926001528Z   CC [M]  /build/src/fs/erofs/dir.o
+2026-10-26T23:00:51.972215639Z   CC [M]  /build/src/fs/erofs/utils.o
+2026-10-26T23:00:52.053249103Z   CC [M]  /build/src/fs/erofs/sysfs.o
+2026-10-26T23:00:52.542080108Z   CC [M]  /build/src/fs/erofs/xattr.o
+2026-10-26T23:00:52.583938512Z   CC [M]  /build/src/fs/erofs/decompressor.o
+2026-10-26T23:00:52.626656475Z   CC [M]  /build/src/fs/erofs/zmap.o
+2026-10-26T23:00:52.659556877Z   CC [M]  /build/src/fs/erofs/zdata.o
+2026-10-26T23:00:53.374095764Z   CC [M]  /build/src/fs/erofs/pcpubuf.o
+2026-10-26T23:00:53.382716791Z   CC [M]  /build/src/fs/erofs/decompressor_deflate.o
+2026-10-26T23:00:53.544860821Z   CC [M]  /build/src/fs/erofs/fscache.o
+2026-10-26T23:00:54.377272857Z   LD [M]  /build/src/fs/erofs/erofs.o
+2026-10-26T23:00:54.402248081Z   MODPOST /build/src/fs/erofs/Module.symvers
+2026-10-26T23:00:54.509510385Z   CC [M]  /build/src/fs/erofs/erofs.mod.o
+2026-10-26T23:00:54.774249644Z   LD [M]  /build/src/fs/erofs/erofs.ko
+2026-10-26T23:00:54.790637437Z   BTF [M] /build/src/fs/erofs/erofs.ko
+2026-10-26T23:00:54.790637439Z Skipping BTF generation for /build/src/fs/erofs/erofs.ko due to unavailability of vmlinux
+2026-10-26T23:00:54.791183539Z make: Leaving directory '/usr/src/linux-headers-6.8.0-1062-gke'
+2026-10-26T23:00:54.794871669Z make: Entering directory '/usr/src/linux-headers-6.8.0-1062-gke'
+2026-10-26T23:00:55.172397961Z   CC [M]  /build/src/fs/cachefiles/cache.o
+2026-10-26T23:00:55.173810824Z   CC [M]  /build/src/fs/cachefiles/daemon.o
+2026-10-26T23:00:55.175382050Z   CC [M]  /build/src/fs/cachefiles/interface.o
+2026-10-26T23:00:55.177309988Z   CC [M]  /build/src/fs/cachefiles/io.o
+2026-10-26T23:00:55.937304045Z   CC [M]  /build/src/fs/cachefiles/key.o
+2026-10-26T23:00:56.019087696Z   CC [M]  /build/src/fs/cachefiles/main.o
+2026-10-26T23:00:56.063213941Z   CC [M]  /build/src/fs/cachefiles/namei.o
+2026-10-26T23:00:56.163137674Z   CC [M]  /build/src/fs/cachefiles/security.o
+2026-10-26T23:00:56.630349199Z   CC [M]  /build/src/fs/cachefiles/volume.o
+2026-10-26T23:00:56.813113106Z   CC [M]  /build/src/fs/cachefiles/xattr.o
+2026-10-26T23:00:57.107457568Z   CC [M]  /build/src/fs/cachefiles/error_inject.o
+2026-10-26T23:00:57.355439413Z   CC [M]  /build/src/fs/cachefiles/ondemand.o
+2026-10-26T23:00:58.175298608Z   LD [M]  /build/src/fs/cachefiles/cachefiles.o
+2026-10-26T23:00:58.198533433Z   MODPOST /build/src/fs/cachefiles/Module.symvers
+2026-10-26T23:00:58.300224432Z   CC [M]  /build/src/fs/cachefiles/cachefiles.mod.o
+2026-10-26T23:00:58.558861048Z   LD [M]  /build/src/fs/cachefiles/cachefiles.ko
+2026-10-26T23:00:58.574532942Z Skipping BTF generation for /build/src/fs/cachefiles/cachefiles.ko due to unavailability of vmlinux
+2026-10-26T23:00:58.574533027Z   BTF [M] /build/src/fs/cachefiles/cachefiles.ko
+2026-10-26T23:00:58.575103398Z make: Leaving directory '/usr/src/linux-headers-6.8.0-1062-gke'
+2026-10-26T23:00:58.584541386Z Installed erofs.ko and cachefiles.ko in /home/kubernetes/bin/modules/6.8.0-1062-gke.
+
+$ kubectl -n ate-system get pod/ate-accelerator-nydus-dragonfly-dr5xg -o jsonpath={range .status.initContainerStatuses[*]}{.name}: started={.state.terminated.startedAt} finished={.state.terminated.finishedAt} exit={.state.terminated.exitCode}{"\n"}{end}
+build-erofs-modules: started=2026-10-26T23:00:18Z finished=2026-10-26T23:00:58Z exit=0
+
+$ kubectl -n ate-system logs pod/ate-accelerator-nydus-dragonfly-dr5xg -c nydus-snapshotter --timestamps --tail=15
+2026-10-26T23:01:04.450052183Z time="2026-10-26T23:01:04.449955571Z" level=info msg="Run daemons monitor..."
+2026-10-26T23:01:04.450064723Z time="2026-10-26T23:01:04.450018160Z" level=info msg="initializing shared nydus daemon for fscache"
+2026-10-26T23:01:04.451042308Z time="2026-10-26T23:01:04.450982468Z" level=info msg="nydusd command: /home/kubernetes/bin/nydusd singleton --fscache /var/lib/ate/accelerator-image-cache/nydus-snapshotter/cache --apisock /var/lib/ate/accelerator-image-cache/nydus-snapshotter/socket/dbftnc4tcimg7tr0d1ug/api.sock --log-level info --log-rotation-size 100"
+2026-10-26T23:01:04.452042444Z time="2026-10-26T23:01:04.451996025Z" level=info msg="enable syncRemove for fscache mode"
+2026-10-26T23:01:04.453306142Z [2026-10-26 23:01:04.452614 +00:00] INFO Program Version: v2.3.0, Git Commit: "a4683baa1ea8cafecc9013bc4d6a5259b5a82678", Build Time: "2024-10-11T02:51:53.888907475Z", Profile: "release", Rustc Version: "rustc 1.72.1 (d5c2e9c34 2023-09-13)"
+2026-10-26T23:01:04.453326085Z [2026-10-26 23:01:04.452672 +00:00] INFO Set rlimit-nofile to 1000000, maximum 1048576
+2026-10-26T23:01:04.453329851Z [2026-10-26 23:01:04.452682 +00:00] INFO Start Nydus daemon in singleton mode!
+2026-10-26T23:01:04.453332265Z [2026-10-26 23:01:04.452777 +00:00] INFO Create fscache instance at /var/lib/ate/accelerator-image-cache/nydus-snapshotter/cache with tag <none>, 4 working threads
+2026-10-26T23:01:04.453334892Z [2026-10-26 23:01:04.452790 +00:00] INFO fscache: create FsCacheHandler with dir /var/lib/ate/accelerator-image-cache/nydus-snapshotter/cache, tag <None>
+2026-10-26T23:01:04.464764123Z [2026-10-26 23:01:04.464644 +00:00] INFO State machine(pid=10945): from Init to Ready, input [Mount], output [None]
+2026-10-26T23:01:04.464847977Z [2026-10-26 23:01:04.464793 +00:00] INFO State machine(pid=10945): from Ready to Running, input [Start], output [Some(StartService)]
+2026-10-26T23:01:04.464856104Z [2026-10-26 23:01:04.464804 +00:00] INFO Starting all Nydus services...
+2026-10-26T23:01:04.465177319Z [2026-10-26 23:01:04.465108 +00:00] INFO HTTP API server running at /var/lib/ate/accelerator-image-cache/nydus-snapshotter/socket/dbftnc4tcimg7tr0d1ug/api.sock
+2026-10-26T23:01:04.465228370Z [2026-10-26 23:01:04.465142 +00:00] INFO http server started
+2026-10-26T23:01:04.566891207Z time="2026-10-26T23:01:04.566766993Z" level=info msg="Subscribe daemon dbftnc4tcimg7tr0d1ug liveness event, path=/var/lib/ate/accelerator-image-cache/nydus-snapshotter/socket/dbftnc4tcimg7tr0d1ug/api.sock."
+
+=== [4] Kernel state on gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk after start ===
+
+$ kubectl -n ate-system exec bench-helper-5nnk -- nsenter -t 1 -m -u -i -n -- sh -c 
+  ls -la /home/kubernetes/bin/modules/$(uname -r)
+  modinfo /home/kubernetes/bin/modules/$(uname -r)/*.ko | grep -E "^(filename|vermagic|depends)"
+  lsmod | grep -E "^(erofs|cachefiles|netfs) "
+  echo "cachefiles_ondemand symbols: $(grep -c cachefiles_ondemand /proc/kallsyms)"
+  grep -E " (erofs_fscache_register_fs|cachefiles_ondemand_init_object)" /proc/kallsyms
+  grep -w erofs /proc/filesystems; ls -la /dev/cachefiles
+  echo "kernel taint: $(cat /proc/sys/kernel/tainted)"
+total 8344
+drwxr-xr-x 2 root root    4096 Oct 26 23:00 .
+drwxr-xr-x 3 root root    4096 Oct 26 23:00 ..
+-rw-r--r-- 1 root root 4161056 Oct 26 23:00 cachefiles.ko
+-rw-r--r-- 1 root root 4371696 Oct 26 23:00 erofs.ko
+filename:       /home/kubernetes/bin/modules/6.8.0-1062-gke/cachefiles.ko
+depends:        netfs
+vermagic:       6.8.0-1062-gke SMP mod_unload modversions 
+filename:       /home/kubernetes/bin/modules/6.8.0-1062-gke/erofs.ko
+depends:        netfs
+vermagic:       6.8.0-1062-gke SMP mod_unload modversions 
+cachefiles            172032  1
+erofs                 147456  0
+netfs                 507904  2 erofs,cachefiles
+cachefiles_ondemand symbols: 196
+ffffffffc0b0e530 t cachefiles_ondemand_init_object	[cachefiles]
+ffffffffc0b280b0 t erofs_fscache_register_fs	[erofs]
+	erofs
+crw------- 1 root root 10, 263 Oct 26 23:01 /dev/cachefiles
+kernel taint: 12288
+
+=== [5] Prepare and release a Nydus image on gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk through Dragonfly ===
+
+$ kubectl -n ate-system exec bench-helper-fkxc -- nsenter -t 1 -m -u -i -n -- sh -c /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 -bypass-ttl=false
+{
+  "provider": "nydus-dragonfly",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "imageDigest": "sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "canProvide": true,
+  "evicting": false,
+  "layerDirs": [
+    "/var/lib/ate/accelerator-image-cache/nydus-dragonfly/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7/layer-0"
+  ],
+  "canProvideMs": 2.627,
+  "prepareMs": 1184.21,
+  "releaseMs": 0.446,
+  "verifiedLayers": 1
+}
+
+$ kubectl -n ate-system exec bench-helper-5nnk -- nsenter -t 1 -m -u -i -n -- sh -c /home/kubernetes/bin/e2e-stream-probe -socket /run/ate/image-accelerator.sock -image us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7 -bypass-ttl=true
+{
+  "provider": "nydus-dragonfly",
+  "imageRef": "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/sandbox-04176181c57f0bf23e61506b0ddcf1fd@sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "imageDigest": "sha256:d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7",
+  "canProvide": true,
+  "evicting": false,
+  "layerDirs": [
+    "/var/lib/ate/accelerator-image-cache/nydus-dragonfly/us-central1-docker.pkg.dev_kuiyue-gke-dev_kuiyue-gke-dev-repo_ate-images_sandbox-04176181c57f0bf23e61506b0ddcf1fd_sha256_d89906a9ec2c2edd335a39f38b415dfc86ae62d73a9cfa8a2b69a0feda53a7f7/layer-0"
+  ],
+  "canProvideMs": 2.233,
+  "prepareMs": 997.204,
+  "releaseMs": 2.618,
+  "verifiedLayers": 1
+}
+
+=== [6] Restart the pod on gke-substrate-stream-nydus-kbuild-poo-35d12714-5nnk: modules are reused ===
+
+$ kubectl -n ate-system delete pod/ate-accelerator-nydus-dragonfly-dr5xg --wait=true
+pod "ate-accelerator-nydus-dragonfly-dr5xg" deleted from ate-system namespace
+
+$ kubectl -n ate-system wait --for=condition=Ready pod/ate-accelerator-nydus-dragonfly-bct5r --timeout=5m
+pod/ate-accelerator-nydus-dragonfly-bct5r condition met
+
+$ kubectl -n ate-system logs pod/ate-accelerator-nydus-dragonfly-bct5r -c build-erofs-modules --timestamps
+2026-10-26T23:01:22.402239236Z Using existing modules in /home/kubernetes/bin/modules/6.8.0-1062-gke.
+
+$ kubectl -n ate-system get pod/ate-accelerator-nydus-dragonfly-bct5r -o jsonpath={range .status.initContainerStatuses[*]}{.name}: started={.state.terminated.startedAt} finished={.state.terminated.finishedAt} exit={.state.terminated.exitCode}{"\n"}{end}
+build-erofs-modules: started=2026-10-26T23:01:22Z finished=2026-10-26T23:01:22Z exit=0
