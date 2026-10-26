@@ -101,3 +101,24 @@ kubectl label node <node> ate.dev/image-accelerator-
 ```
 
 Once ready, the driver publishes the accelerator socket at `/run/ate/image-accelerator.sock`, and connected runtimes begin accelerating container startup immediately.
+
+### Custom Riptide binaries
+
+By default, `riptide.yaml` runs the `gcfsd-v2` and `containerd-gcfs-grpc` that GKE preloads under `/home/kubernetes/bin`. To run your own builds, set `RIPTIDE_BIN_DIR` on the `riptide-provider` container to a host directory that holds both binaries. The pod fails to start if either is missing or not executable. Use `gcfsd` instead of `gcfsd-v2` when `ENABLE_GCFS_V2_API=false`.
+
+To replace only one binary, copy the other from `/home/kubernetes/bin` on a node so the two always ship together.
+
+`cmd/riptide-bin-image` packages both binaries into an image, pushes it, and writes a DaemonSet patch. The patch adds an init container that copies the binaries to `/home/kubernetes/bin/ate-riptide` and sets `RIPTIDE_BIN_DIR` to it. GKE mounts `/home/kubernetes/bin` exec, while `/var` is noexec on COS. Docker is not needed.
+
+```bash
+go run ./oci-image-accelerator/cmd/riptide-bin-image \
+  --gcfsd=./out/gcfsd-v2 \
+  --snapshotter=./out/containerd-gcfs-grpc \
+  --repo=REGION-docker.pkg.dev/PROJECT/REPO/riptide-bins:TAG \
+  --patch-out=riptide-custom-bins.yaml
+kubectl -n ate-system patch ds ate-accelerator-riptide --patch-file riptide-custom-bins.yaml
+```
+
+The tool prints the pushed image pinned by digest, and the patch uses that reference. Pass `--v1` when `ENABLE_GCFS_V2_API=false`. Both binaries must be Linux ELF executables for the same architecture as the nodes. The nodes must be able to pull from the repository. For Artifact Registry, grant the node service account `roles/artifactregistry.reader`.
+
+To roll out new binaries, run the tool again and apply the new patch.

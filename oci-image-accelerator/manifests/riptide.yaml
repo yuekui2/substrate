@@ -35,6 +35,9 @@
 # 2. Node with GKE Image Streaming disabled (host gcfsd.service inactive):
 #    Runs the exact same isolated gcfsd-v2 + containerd-gcfs-grpc pair using the
 #    preloaded /home/kubernetes/bin binaries.
+#
+# Set RIPTIDE_BIN_DIR on riptide-provider to run custom gcfsd and
+# containerd-gcfs-grpc builds from that host directory. See README.md.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -99,10 +102,28 @@ spec:
             echo "No active host gcfsd.service detected (Mode 2: GKE Image Streaming disabled); starting isolated Substrate Riptide stack"
           fi
 
-          for pid in $(pgrep -x containerd-gcfs || true) $(pgrep -x gcfsd-v2 || true); do
-            if tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null | grep -q "${gcfs_root}"; then
-              kill -9 "${pid}" 2>/dev/null || true
+          gcfsd_name="gcfsd"
+          if [[ "${ENABLE_GCFS_V2_API:-false}" == "true" ]]; then
+            gcfsd_name="gcfsd-v2"
+          fi
+          bin_dir="${RIPTIDE_BIN_DIR:-${KUBE_HOME}/bin}"
+          export GCFSD_BIN="${bin_dir}/${gcfsd_name}"
+          export GCFS_SNAPSHOTTER_BIN="${bin_dir}/containerd-gcfs-grpc"
+          for bin in "${GCFSD_BIN}" "${GCFS_SNAPSHOTTER_BIN}"; do
+            if [[ ! -x "${bin}" ]]; then
+              echo "Riptide binary ${bin} is missing or not executable" >&2
+              exit 1
             fi
+          done
+          echo "Using gcfsd ${GCFSD_BIN} and snapshotter ${GCFS_SNAPSHOTTER_BIN}"
+
+          # The kernel truncates process names to 15 characters.
+          for name in "${gcfsd_name}" containerd-gcfs-grpc; do
+            for pid in $(pgrep -x "${name:0:15}" || true); do
+              if tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null | grep -q "${gcfs_root}"; then
+                kill -9 "${pid}" 2>/dev/null || true
+              fi
+            done
           done
 
           umount -l "${gcfsd_mnt_dir}" 2>/dev/null || true
@@ -143,13 +164,9 @@ spec:
               client_version_flag="--client_version=${KUBELET_VERSION}"
             fi
 
-            gcfsd_bin="gcfsd"
             enable_id_mapping_flag=""
-            if [[ "${ENABLE_GCFS_V2_API:-false}" == "true" ]]; then
-              gcfsd_bin="gcfsd-v2"
-              if [[ "${ENABLE_USERNAMESPACE_SUPPORT:-false}" == "true" ]]; then
-                enable_id_mapping_flag="--enable_id_mapping"
-              fi
+            if [[ "${ENABLE_GCFS_V2_API:-false}" == "true" && "${ENABLE_USERNAMESPACE_SUPPORT:-false}" == "true" ]]; then
+              enable_id_mapping_flag="--enable_id_mapping"
             fi
 
             gcfs_read_ahead_flag="--enable_single_flighting=true --read_ahead_max_blocks=10 --read_ahead_cache_size_ratio=0.1"
@@ -170,7 +187,7 @@ spec:
             }
             trap cleanup TERM INT EXIT
 
-            GOGC=10 "${KUBE_HOME}/bin/${gcfsd_bin}" \
+            GOGC=10 "${GCFSD_BIN}" \
               --mount_point="${gcfsd_mnt_dir}" \
               --control_server_socket_path="${gcfs_socket_path}" \
               --downloader_uds_path=/run/gcfsd/downloader.sock \
@@ -215,7 +232,7 @@ spec:
             fi
 
             rm -f /run/ate/gcfs-snapshotter.sock
-            "${KUBE_HOME}/bin/containerd-gcfs-grpc" \
+            "${GCFS_SNAPSHOTTER_BIN}" \
               --log-level=info \
               --config="${gcfs_root}/config.toml" \
               --address=/run/ate/gcfs-snapshotter.sock \
