@@ -420,12 +420,14 @@ spec:
             build-essential ca-certificates curl kmod libelf1t64 patchutils >/dev/null
 
           # The archive pool is fast but drops old diffs. Launchpad keeps
-          # every version. The .dsc checksums cover both.
+          # every version. The .dsc checksums cover both. Launchpad sometimes
+          # returns 502, so retry transient errors. curl doesn't retry 404.
+          fetch=(curl -fsSLO --retry 5 --retry-delay 10)
           cd /build
-          curl -fsSLO "${launchpad}/${src}_${version}.dsc"
+          "${fetch[@]}" "${launchpad}/${src}_${version}.dsc"
           awk '/^Checksums-Sha256:/ {f=1; next} /^[^ ]/ {f=0} f {print $1 "  " $3}' "${src}_${version}.dsc" > SHA256SUMS
           while read -r _ name; do
-            curl -fsSLO "${pool}/${name}" || curl -fsSLO "${launchpad}/${name}"
+            "${fetch[@]}" "${pool}/${name}" || "${fetch[@]}" "${launchpad}/${name}"
           done < SHA256SUMS
           sha256sum -c SHA256SUMS
 
