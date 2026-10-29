@@ -161,6 +161,8 @@ const (
 	SnapshotFidelityKey    = attribute.Key("ate.snapshot.fidelity")
 	SnapshotPhaseKey       = attribute.Key("ate.snapshot.phase")
 	ImageCacheOutcomeKey   = attribute.Key("ate.imagecache.outcome")
+	ImagePluginOutcomeKey  = attribute.Key("ate.imageplugin.outcome")
+	ImagePluginProviderKey = attribute.Key("ate.imageplugin.provider")
 	FileCacheNameKey       = attribute.Key("ate.filecache.name")
 	FileCacheGCOutcomeKey  = attribute.Key("ate.filecache.gc.outcome")
 	SchedulerOutcomeKey    = attribute.Key("ate.scheduler.outcome")
@@ -279,6 +281,15 @@ const (
 	RouterOutcomeRateLimited        = "rate_limited"
 	RouterOutcomeDenied             = "denied"
 	RouterOutcomeResumeError        = "resume_error"
+)
+
+// Values for ImagePluginOutcomeKey. Success means layers were prepared via
+// image streaming; fallback means streaming was unsupported or failed and fell
+// back to the local image cache; error means both streaming and fallback failed.
+const (
+	ImagePluginOutcomeSuccess  = "success"
+	ImagePluginOutcomeFallback = "fallback"
+	ImagePluginOutcomeError    = "error"
 )
 
 // ErrorTypeKey is the OTel registry attribute, reused verbatim (not aliased into
