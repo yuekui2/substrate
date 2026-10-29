@@ -744,6 +744,9 @@ type Atelet struct {
 	imageKeychain         authn.Keychain
 	evictedStreamedMu     sync.Mutex
 	evictedStreamedActors map[string]bool
+	// workers asks the control plane to suspend actors on a draining image
+	// plugin.
+	workers ateapi.WorkerServiceClient
 	// sandboxAssetCache holds every sandbox asset on the node once; actors get hard
 	// links into their own directories (see ensureSandboxAssets).
 	sandboxAssetCache *filecache.Store
@@ -851,6 +854,7 @@ func NewService(
 		csiDriverConfigGetter: csiDriverConfigGetter,
 		systemInfoVolumes:     systemInfoVolumes,
 		snapshots:             snapshots,
+		workers:               workers,
 		workerActorJWTs:       newWorkerActorJWTs(workers),
 		bootID:                bootID,
 		checkpointTimeout:     defaultCheckpointTimeout,

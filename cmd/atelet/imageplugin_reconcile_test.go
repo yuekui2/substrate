@@ -22,11 +22,15 @@ import (
 	"sync"
 	"testing"
 
+	"go.ate.dev/substrate/api/ateapi/v1"
 	"go.ate.dev/substrate/internal/imagecache"
 	"go.ate.dev/substrate/internal/imagepluginclient"
 	"go.ate.dev/substrate/internal/imagepluginclient/mock"
 	"go.ate.dev/substrate/internal/proto/ateworkerpb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestReconcileStreamingLeases(t *testing.T) {
@@ -100,9 +104,8 @@ func TestReconcileStreamingLeases(t *testing.T) {
 
 type fakeEvictWorkerServer struct {
 	ateworkerpb.UnimplementedWorkerServer
-	mu         sync.Mutex
-	samples    []*ateworkerpb.WorkloadStatsSample
-	evictedIDs []string
+	mu      sync.Mutex
+	samples []*ateworkerpb.WorkloadStatsSample
 }
 
 func (f *fakeEvictWorkerServer) GetActiveWorkloadStats(_ context.Context, _ *ateworkerpb.GetActiveWorkloadStatsRequest) (*ateworkerpb.GetActiveWorkloadStatsResponse, error) {
@@ -111,11 +114,23 @@ func (f *fakeEvictWorkerServer) GetActiveWorkloadStats(_ context.Context, _ *ate
 	return &ateworkerpb.GetActiveWorkloadStatsResponse{Samples: f.samples}, nil
 }
 
-func (f *fakeEvictWorkerServer) EvictWorkload(_ context.Context, req *ateworkerpb.EvictWorkloadRequest) (*ateworkerpb.EvictWorkloadResponse, error) {
+// fakeSuspendWorkers records RequestActorSuspend calls and fails the first
+// failFirst of them.
+type fakeSuspendWorkers struct {
+	ateapi.WorkerServiceClient
+	mu        sync.Mutex
+	failFirst int
+	requests  []*ateapi.RequestActorSuspendRequest
+}
+
+func (f *fakeSuspendWorkers) RequestActorSuspend(_ context.Context, req *ateapi.RequestActorSuspendRequest, _ ...grpc.CallOption) (*ateapi.RequestActorSuspendResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.evictedIDs = append(f.evictedIDs, req.GetActorUid())
-	return &ateworkerpb.EvictWorkloadResponse{}, nil
+	f.requests = append(f.requests, req)
+	if len(f.requests) <= f.failFirst {
+		return nil, status.Error(codes.Unavailable, "control plane unavailable")
+	}
+	return &ateapi.RequestActorSuspendResponse{}, nil
 }
 
 func TestEvictActiveStreamedActors(t *testing.T) {
@@ -164,8 +179,8 @@ func TestEvictActiveStreamedActors(t *testing.T) {
 	}
 	fakeWorker := &fakeEvictWorkerServer{
 		samples: []*ateworkerpb.WorkloadStatsSample{
-			{ActorUid: "actor-streamed"},
-			{ActorUid: "actor-local"},
+			{Atespace: "ns", ActorName: "streamed", ActorUid: "actor-streamed"},
+			{Atespace: "ns", ActorName: "local", ActorUid: "actor-local"},
 		},
 	}
 	srv := grpc.NewServer()
@@ -177,24 +192,39 @@ func TestEvictActiveStreamedActors(t *testing.T) {
 	workerSocketPath = func(string) string { return sock }
 	t.Cleanup(func() { workerSocketPath = origSocketPath })
 
+	workers := &fakeSuspendWorkers{failFirst: 1}
 	atelet := &Atelet{
 		workerDialer: newWorkerDialer(1),
+		workers:      workers,
 	}
 
-	// First sweep evicts only actor-streamed and leaves actor-local untouched.
-	evicted := atelet.evictActiveStreamedActors(ctx, actorsDir, workersDir)
-	if evicted != 1 {
-		t.Fatalf("evictActiveStreamedActors() = %d, want 1", evicted)
+	// A failed suspend is retried on the next sweep.
+	if evicted := atelet.evictActiveStreamedActors(ctx, actorsDir, workersDir); evicted != 0 {
+		t.Fatalf("first evictActiveStreamedActors() = %d, want 0", evicted)
 	}
-	fakeWorker.mu.Lock()
-	gotIDs := append([]string(nil), fakeWorker.evictedIDs...)
-	fakeWorker.mu.Unlock()
-	if len(gotIDs) != 1 || gotIDs[0] != "actor-streamed" {
-		t.Fatalf("evictedIDs = %v, want [actor-streamed]", gotIDs)
+	// The retry suspends only actor-streamed and leaves actor-local alone.
+	if evicted := atelet.evictActiveStreamedActors(ctx, actorsDir, workersDir); evicted != 1 {
+		t.Fatalf("second evictActiveStreamedActors() = %d, want 1", evicted)
+	}
+	want := &ateapi.RequestActorSuspendRequest{
+		Worker:   &ateapi.ObjectRef{Name: workerPodUID},
+		Actor:    &ateapi.ObjectRef{Atespace: "ns", Name: "streamed"},
+		ActorUid: "actor-streamed",
+	}
+	workers.mu.Lock()
+	got := append([]*ateapi.RequestActorSuspendRequest(nil), workers.requests...)
+	workers.mu.Unlock()
+	if len(got) != 2 {
+		t.Fatalf("RequestActorSuspend calls = %d, want 2", len(got))
+	}
+	for i, req := range got {
+		if !proto.Equal(req, want) {
+			t.Errorf("RequestActorSuspend call %d = %v, want %v", i, req, want)
+		}
 	}
 
-	// Second sweep while actor-streamed is still terminating does not re-send duplicate EvictWorkload.
+	// A suspended actor is not asked for again.
 	if again := atelet.evictActiveStreamedActors(ctx, actorsDir, workersDir); again != 0 {
-		t.Fatalf("second evictActiveStreamedActors() = %d, want 0", again)
+		t.Fatalf("third evictActiveStreamedActors() = %d, want 0", again)
 	}
 }

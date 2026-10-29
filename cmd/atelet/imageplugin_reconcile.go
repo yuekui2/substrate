@@ -21,8 +21,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"time"
 
+	"go.ate.dev/substrate/api/ateapi/v1"
 	"go.ate.dev/substrate/api/imageplugin/v1"
 	"go.ate.dev/substrate/internal/imagecache"
 	"go.ate.dev/substrate/internal/imagepluginclient"
@@ -31,6 +34,9 @@ import (
 
 const (
 	imagePluginMonitorPeriod = 2 * time.Second
+	// drainSuspendTimeout bounds one suspend of an actor off a draining
+	// image plugin, checkpoint included.
+	drainSuspendTimeout = 10 * time.Minute
 )
 
 // scanActiveStreamedLeases scans the actors directory for active bundle overlay specs
@@ -182,11 +188,12 @@ func reconcileStreamingLeases(ctx context.Context, client imagepluginclient.Clie
 	return nil
 }
 
-// evictActiveStreamedActors scans local workers and sends EvictWorkload to each
-// active actor whose rootfs-overlay.json uses streamed layers, triggering the
-// actor's SIGTERM handler to cycle through SuspendActor -> ResumeActor.
+// evictActiveStreamedActors asks the control plane to suspend each actor on
+// this node whose rootfs-overlay.json uses streamed layers. The suspend
+// releases the actor's image lease, so the draining plugin can exit; the
+// actor resumes later from a snapshot. It returns how many suspends ran.
 func (s *Atelet) evictActiveStreamedActors(ctx context.Context, actorsDir, workersDir string) int {
-	if s.workerDialer == nil || workersDir == "" {
+	if s.workerDialer == nil || s.workers == nil || workersDir == "" {
 		return 0
 	}
 	streamedActors, err := scanActiveStreamedActorUIDs(actorsDir)
@@ -213,7 +220,10 @@ func (s *Atelet) evictActiveStreamedActors(ctx context.Context, actorsDir, worke
 		return 0
 	}
 
-	evicted := 0
+	var (
+		wg      sync.WaitGroup
+		evicted atomic.Int32
+	)
 	for _, entry := range workerEntries {
 		if !entry.IsDir() {
 			continue
@@ -239,30 +249,43 @@ func (s *Atelet) evictActiveStreamedActors(ctx context.Context, actorsDir, worke
 			}
 			s.evictedStreamedMu.Lock()
 			alreadyEvicted := s.evictedStreamedActors[actorUID]
+			s.evictedStreamedActors[actorUID] = true
 			s.evictedStreamedMu.Unlock()
 			if alreadyEvicted {
 				continue
 			}
-			evictCtx, evictCancel := context.WithTimeout(ctx, statsRPCTimeout)
-			_, err := client.EvictWorkload(evictCtx, &ateworkerpb.EvictWorkloadRequest{ActorUid: actorUID})
-			evictCancel()
-			if err != nil {
-				slog.WarnContext(ctx, "Failed to evict active streamed actor",
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				suspendCtx, cancel := context.WithTimeout(ctx, drainSuspendTimeout)
+				defer cancel()
+				// The control plane runs the suspend back through atelet,
+				// so no lock may be held here.
+				_, err := s.workers.RequestActorSuspend(suspendCtx, &ateapi.RequestActorSuspendRequest{
+					Worker:   &ateapi.ObjectRef{Name: podUID},
+					Actor:    &ateapi.ObjectRef{Atespace: sample.GetAtespace(), Name: sample.GetActorName()},
+					ActorUid: actorUID,
+				})
+				if err != nil {
+					// Retry on the next sweep.
+					s.evictedStreamedMu.Lock()
+					delete(s.evictedStreamedActors, actorUID)
+					s.evictedStreamedMu.Unlock()
+					slog.WarnContext(ctx, "Failed to suspend actor on draining image plugin",
+						slog.String("actorUID", actorUID),
+						slog.String("workerPodUID", podUID),
+						slog.Any("err", err))
+					return
+				}
+				evicted.Add(1)
+				slog.InfoContext(ctx, "Suspended actor on draining image plugin",
 					slog.String("actorUID", actorUID),
-					slog.String("workerPodUID", podUID),
-					slog.Any("err", err))
-				continue
-			}
-			s.evictedStreamedMu.Lock()
-			s.evictedStreamedActors[actorUID] = true
-			s.evictedStreamedMu.Unlock()
-			evicted++
-			slog.InfoContext(ctx, "Triggered SIGTERM eviction for active streamed actor",
-				slog.String("actorUID", actorUID),
-				slog.String("workerPodUID", podUID))
+					slog.String("workerPodUID", podUID))
+			}()
 		}
 	}
-	return evicted
+	wg.Wait()
+	return int(evicted.Load())
 }
 
 // startImagePluginMonitor polls the plugin socket. When the socket appears it

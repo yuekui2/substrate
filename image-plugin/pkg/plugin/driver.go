@@ -72,8 +72,7 @@ const (
 	DefaultLeaseIdleTTL = 10 * time.Minute
 
 	// DefaultDrainTimeout bounds how long the plugin waits in lame-duck mode
-	// after SIGTERM for active streamed image leases (refCount > 0) to reach 0,
-	// matching ateworker's 30m workloadGracePeriod.
+	// after SIGTERM for active streamed image leases (refCount > 0) to reach 0.
 	DefaultDrainTimeout = 30 * time.Minute
 
 	// DefaultDrainCompleteFile is the marker file written after lame-duck lease
