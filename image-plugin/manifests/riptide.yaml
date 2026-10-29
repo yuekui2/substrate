@@ -132,20 +132,28 @@ spec:
           done
 
           umount -l "${gcfsd_mnt_dir}" 2>/dev/null || true
-          # FUSE views die with the old daemon, so clear the snapshotter
-          # metadata and the plugin's per-image directories that point at
-          # them. Keep gcfsd's layer cache and images_in_use.db so the node
-          # stays warm across restarts, unless the provider binaries changed
-          # or CLEAR_CACHE_ON_START asks for a cold start.
+          # Keep the layer cache (snapshotter/layers) across restarts so the
+          # node stays warm. Clear the view state: gcfsd restores its views
+          # from images_in_use.db, but without containerd nothing keeps them
+          # in step with the snapshotter's metadata, and a restored view
+          # makes the snapshotter fall back to a local snapshot ("view
+          # already exists"). Clear everything, with the plugin's per-image
+          # directories that point into it, when the provider binaries
+          # changed or CLEAR_CACHE_ON_START asks for a cold start.
           cache_version="$(cat "${GCFSD_BIN}" "${GCFS_SNAPSHOTTER_BIN}" | sha256sum | cut -c1-16)"
+          clear_reason=""
           if [[ "${CLEAR_CACHE_ON_START:-false}" == "true" ]]; then
-            echo "CLEAR_CACHE_ON_START=true; clearing the layer cache"
-            rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd"
+            clear_reason="CLEAR_CACHE_ON_START=true"
           elif [[ "$(cat "${gcfs_root}/version" 2>/dev/null)" != "${cache_version}" ]]; then
-            echo "Provider cache version changed to ${cache_version}; clearing the layer cache"
-            rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd"
+            clear_reason="provider cache version changed to ${cache_version}"
           fi
-          rm -rf "${gcfs_root}/snapshotter/metadata.db" "${gcfs_root}/snapshotter/snapshots" /var/lib/ate/image-plugin-cache/riptide/* 2>/dev/null || true
+          if [[ -n "${clear_reason}" ]]; then
+            echo "Clearing the layer cache: ${clear_reason}"
+            rm -rf "${gcfs_root}/snapshotter/layers"
+          fi
+          rm -rf "${gcfs_root}/gcfsd" "${gcfs_root}/gcfsd_sentinel.txt" \
+            "${gcfs_root}/snapshotter/metadata.db" "${gcfs_root}/snapshotter/snapshots" \
+            /var/lib/ate/image-plugin-cache/riptide/*
           mkdir -p /run/ate "${gcfs_run_dir}" "${gcfs_root}" "${gcfsd_mnt_dir}" /run/gcfsd /var/lib/ate/image-plugin-cache/riptide
           echo "${cache_version}" > "${gcfs_root}/version"
           rm -f "${gcfs_run_dir}/grpc.sock" "${gcfs_run_dir}/keychain.sock" "${gcfs_run_dir}/downloader.sock" /run/ate/gcfs-snapshotter.sock /run/ate/drain-complete
