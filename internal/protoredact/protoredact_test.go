@@ -25,6 +25,7 @@ import (
 
 	"go.ate.dev/substrate/api/ateapi/v1"
 	"go.ate.dev/substrate/api/credprovider/v1"
+	"go.ate.dev/substrate/api/imageplugin/v1"
 	"go.ate.dev/substrate/api/objectstore/v1"
 	ateenvv1alpha "go.ate.dev/substrate/internal/proto/ateenv/v1alpha"
 	"go.ate.dev/substrate/internal/proto/ateletpb"
@@ -365,6 +366,7 @@ var ourProtoFiles = []protoreflect.FileDescriptor{
 	ateworkerpb.File_internal_proto_ateworkerpb_ateworker_proto,
 	ateconfigpb.File_pkg_proto_ateconfigpb_apiconfig_proto,
 	credprovider.File_api_credprovider_v1_credprovider_proto,
+	imageplugin.File_api_imageplugin_v1_imageplugin_proto,
 	glutton.File_internal_proto_glutton_glutton_proto,
 	grpcechopb.File_internal_proto_grpcechopb_grpcecho_proto,
 	objectstoreexchangepb.File_internal_proto_objectstoreexchangepb_exchange_proto,
@@ -411,6 +413,10 @@ func TestDebugRedactFieldsArePinned(t *testing.T) {
 		"substrate.objectstore.v1.UploadSnapshotRequest.actor_jwt":   true,
 		"objectstoreexchange.ExchangeActorJwtRequest.actor_jwt":      true,
 		"objectstoreexchange.ExchangeActorJwtResponse.access_token":  true,
+		"substrate.imageplugin.v1.RegistryAuth.auth":                 true,
+		"substrate.imageplugin.v1.RegistryAuth.identity_token":       true,
+		"substrate.imageplugin.v1.RegistryAuth.password":             true,
+		"substrate.imageplugin.v1.RegistryAuth.registry_token":       true,
 	}
 	got := map[string]bool{}
 	forEachField(func(fd protoreflect.FieldDescriptor) {
