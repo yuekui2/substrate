@@ -81,6 +81,8 @@ spec:
 
           rm -f "${soci_run}/soci-snapshotter-grpc.sock" /run/ate/drain-complete
           grep "${soci_root}" /proc/mounts | awk '{print $2}' | sort -r | xargs -r umount -lf 2>/dev/null || true
+          # FUSE views die with the old daemon. The SOCI cache layout is not yet
+          # split from view state, so this clears the whole root on start.
           rm -rf "${soci_root:?}"/* /var/lib/ate/image-plugin-cache/soci/* "${soci_run}/docker/config.json" 2>/dev/null || true
           mkdir -p "${KUBE_HOME}/bin" "${soci_root}" "${soci_run}/bin" "${soci_run}/docker" /var/lib/ate/image-plugin-cache/soci /run/ate
 

@@ -693,6 +693,8 @@ spec:
           for mnt in $(awk '$3 == "erofs" {print $2}' /proc/mounts); do
             umount -l "${mnt}" 2>/dev/null || true
           done
+          # nydusd views die with the old daemon. The Nydus cache layout is not
+          # yet split from view state, so this clears the whole root on start.
           rm -rf "${nydus_root:?}"/* /var/lib/ate/image-plugin-cache/nydus-dragonfly/* 2>/dev/null || true
           mkdir -p "${nydus_root}/snapshots" "${nydus_root}/cache/metadata" "${nydus_root}/mnt"
 
