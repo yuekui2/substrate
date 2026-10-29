@@ -38,6 +38,7 @@ var excludedTrees = []string{
 	"cmd/ate-setup",         // canonical GCP installer
 	"cmd/benchmarking",      // canonical load-testing workers
 	"internal/benchmarking", // canonical load-testing harness
+	"image-plugin",          // self-contained plugins intended for standalone repositories
 }
 
 // allowedLiterals maps a repo-relative file to the canonical-layout string
