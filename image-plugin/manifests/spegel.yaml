@@ -1,0 +1,169 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Stateless Cross-Node Spegel P2P OCI Layer Distribution Stack.
+#
+# Deploys:
+# 1. Headless Service (spegel-bootstrap) in ate-system for zero-control-plane
+#    peer discovery across all worker nodes.
+# 2. Per-node DaemonSet (image-plugin-spegel) running:
+#    - image-plugin-spegel: ImagePlugin gRPC plugin + Spegel-compatible P2P
+#      OCI registry mirror (:5000) backed by /var/lib/ate/image-plugin-cache/spegel-store.
+#
+# Usage:
+#   ko resolve -f image-plugin/manifests/spegel.yaml | kubectl apply -f -
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spegel-bootstrap
+  namespace: ate-system
+  labels:
+    app: spegel-bootstrap
+    ate.dev/image-plugin: spegel
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: ate-image-plugin
+    ate.dev/image-plugin: spegel
+  ports:
+  - name: registry
+    port: 5000
+    targetPort: 5000
+    protocol: TCP
+  - name: router
+    port: 5001
+    targetPort: 5001
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-plugin-spegel
+  namespace: ate-system
+  labels:
+    app: ate-image-plugin
+    ate.dev/image-plugin: spegel
+spec:
+  selector:
+    matchLabels:
+      app: ate-image-plugin
+      ate.dev/image-plugin: spegel
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ate-image-plugin
+        ate.dev/image-plugin: spegel
+    spec:
+      hostPID: true
+      hostNetwork: true
+      terminationGracePeriodSeconds: 5
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: image-plugin-spegel
+        image: ko://go.ate.dev/substrate/image-plugin/cmd/spegel
+        env:
+        - name: SPEGEL_MIRROR_ADDR
+          value: "http://127.0.0.1:5000"
+        - name: SPEGEL_ROUTER_ADDR
+          value: ":5001"
+        - name: SPEGEL_BOOTSTRAP_DNS
+          value: "spegel-bootstrap.ate-system.svc.cluster.local"
+        args:
+        - --listen-socket=/run/ate/image-plugin.sock
+        - --store-dir=/var/lib/ate/image-plugin-cache/spegel-store
+        - --work-dir=/var/lib/ate/image-plugin-cache/spegel
+        - --docker-config=/run/ate/spegel/docker/config.json
+        - --enable-p2p-server=true
+        - --p2p-listen-addr=:5000
+        - --spegel-peer-port=5000
+        - --verify-spegel-ready=true
+        - --idle-ttl=10m
+        - --startup-timeout=2m
+        - --drain-timeout=0s
+        ports:
+        - name: registry
+          containerPort: 5000
+          protocol: TCP
+        - name: router
+          containerPort: 5001
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /ko-app/spegel
+            - --probe
+            - --listen-socket=/run/ate/image-plugin.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          runAsGroup: 0
+        volumeMounts:
+        - name: kube-home
+          mountPath: /home/kubernetes
+        - name: host-ca-certs
+          mountPath: /etc/ssl/certs
+          readOnly: true
+        - name: run-ate
+          mountPath: /run/ate
+        - name: ate-base
+          mountPath: /var/lib/ate
+          mountPropagation: Bidirectional
+      volumes:
+      - name: kube-home
+        hostPath:
+          path: /home/kubernetes
+          type: Directory
+      - name: host-ca-certs
+        hostPath:
+          path: /etc/ssl/certs
+          type: Directory
+      - name: run-ate
+        hostPath:
+          path: /run/ate
+          type: DirectoryOrCreate
+      - name: ate-base
+        hostPath:
+          path: /var/lib/ate
+          type: DirectoryOrCreate
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spegel-p2p
+  namespace: ate-system
+  labels:
+    ate.dev/image-plugin: spegel
+spec:
+  podSelector:
+    matchLabels:
+      app: ate-image-plugin
+      ate.dev/image-plugin: spegel
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 5000
+    - protocol: TCP
+      port: 5001
