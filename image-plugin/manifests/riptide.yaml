@@ -82,6 +82,9 @@ spec:
           value: "true"
         - name: ENABLE_USERNAMESPACE_SUPPORT
           value: "false"
+        # Set to "true" for a cold start, e.g. for benchmarks.
+        - name: CLEAR_CACHE_ON_START
+          value: "false"
         command:
         - nsenter
         - -t
@@ -132,9 +135,13 @@ spec:
           # FUSE views die with the old daemon, so clear the snapshotter
           # metadata and the plugin's per-image directories that point at
           # them. Keep gcfsd's layer cache and images_in_use.db so the node
-          # stays warm across restarts, unless the provider binaries changed.
+          # stays warm across restarts, unless the provider binaries changed
+          # or CLEAR_CACHE_ON_START asks for a cold start.
           cache_version="$(cat "${GCFSD_BIN}" "${GCFS_SNAPSHOTTER_BIN}" | sha256sum | cut -c1-16)"
-          if [[ "$(cat "${gcfs_root}/version" 2>/dev/null)" != "${cache_version}" ]]; then
+          if [[ "${CLEAR_CACHE_ON_START:-false}" == "true" ]]; then
+            echo "CLEAR_CACHE_ON_START=true; clearing the layer cache"
+            rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd"
+          elif [[ "$(cat "${gcfs_root}/version" 2>/dev/null)" != "${cache_version}" ]]; then
             echo "Provider cache version changed to ${cache_version}; clearing the layer cache"
             rm -rf "${gcfs_root}/snapshotter" "${gcfs_root}/gcfsd"
           fi

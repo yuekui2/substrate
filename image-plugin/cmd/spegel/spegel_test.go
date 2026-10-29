@@ -123,6 +123,46 @@ func TestSpegelHealthProbeAndCanProvide(t *testing.T) {
 	}
 }
 
+func TestNewSpegelClearStore(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		clearStore bool
+		wantBlob   bool
+	}{
+		{name: "keeps the store by default", clearStore: false, wantBlob: true},
+		{name: "clears the store when asked", clearStore: true, wantBlob: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tmp := t.TempDir()
+			store := filepath.Join(tmp, "store")
+			blob := filepath.Join(store, "blobs", "sha256", "abc")
+			if err := os.MkdirAll(filepath.Dir(blob), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(blob, []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			sd, err := NewSpegel(SpegelConfig{
+				StoreDir:         store,
+				ClearStore:       tc.clearStore,
+				DockerConfigPath: filepath.Join(tmp, "docker", "config.json"),
+				ServerOpts:       []plugin.Option{plugin.WithWorkDir(filepath.Join(tmp, "work"))},
+			})
+			if err != nil {
+				t.Fatalf("NewSpegel failed: %v", err)
+			}
+			defer func() { _ = sd.Close() }()
+			_, err = os.Stat(blob)
+			if got := err == nil; got != tc.wantBlob {
+				t.Fatalf("blob present = %v, want %v (stat err: %v)", got, tc.wantBlob, err)
+			}
+			if _, err := os.Stat(filepath.Join(store, "layers", "sha256")); err != nil {
+				t.Fatalf("layer store missing after NewSpegel: %v", err)
+			}
+		})
+	}
+}
+
 func TestSpegelCrossNodeP2PFlow(t *testing.T) {
 	ctx := context.Background()
 	tmp := t.TempDir()

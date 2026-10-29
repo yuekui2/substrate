@@ -33,6 +33,7 @@ func main() {
 		listenSocket       = flag.String("listen-socket", plugin.DefaultListenSocket, "UNIX domain socket path where ImagePlugin listens")
 		workDir            = flag.String("work-dir", "/var/lib/ate/image-plugin-cache/spegel", "Base directory for Spegel layer wrapper symlinks")
 		storeDir           = flag.String("store-dir", DefaultSpegelStoreDir, "Base directory for content-addressed Spegel OCI blobs and unpacked layers")
+		clearCacheOnStart  = flag.Bool("clear-cache-on-start", false, "Delete --store-dir on start so the node starts cold, e.g. for benchmarks. Use only when no actor runs on the node")
 		dockerConfig       = flag.String("docker-config", DefaultDockerConfigPath, "Path to Docker config.json used for upstream registry credentials")
 		spegelMirrorAddr   = flag.String("spegel-mirror-addr", "", "Local Spegel OCI registry mirror endpoint (default http://127.0.0.1:5000 or $SPEGEL_MIRROR_ADDR)")
 		spegelRouterAddr   = flag.String("spegel-router-addr", "", "Spegel P2P router/DHT listen address (default :5001 or $SPEGEL_ROUTER_ADDR)")
@@ -75,6 +76,7 @@ func main() {
 
 	driver, err := NewSpegel(SpegelConfig{
 		StoreDir:                 *storeDir,
+		ClearStore:               *clearCacheOnStart,
 		DockerConfigPath:         *dockerConfig,
 		SpegelMirrorAddr:         *spegelMirrorAddr,
 		SpegelRouterAddr:         *spegelRouterAddr,

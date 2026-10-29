@@ -102,7 +102,10 @@ type BlobFetcherFunc func(ctx context.Context, imageRef string, auth *imageplugi
 
 // SpegelConfig configures a SpegelDriver.
 type SpegelConfig struct {
-	StoreDir                 string
+	StoreDir string
+	// ClearStore deletes StoreDir before use, so the node starts cold.
+	// Actors still running on layers from the store lose their rootfs.
+	ClearStore               bool
 	DockerConfigPath         string
 	SpegelMirrorAddr         string
 	SpegelRouterAddr         string
@@ -553,6 +556,12 @@ func NewSpegel(cfg SpegelConfig) (*SpegelDriver, error) {
 	storeDir := strings.TrimSpace(cfg.StoreDir)
 	if storeDir == "" {
 		storeDir = DefaultSpegelStoreDir
+	}
+	if cfg.ClearStore {
+		if err := os.RemoveAll(storeDir); err != nil {
+			return nil, fmt.Errorf("clearing Spegel store %s: %w", storeDir, err)
+		}
+		slog.Info("Cleared Spegel store on start", slog.String("storeDir", storeDir))
 	}
 	if err := os.MkdirAll(filepath.Join(storeDir, "blobs", "sha256"), 0o755); err != nil {
 		return nil, fmt.Errorf("creating Spegel blob store directory: %w", err)

@@ -90,6 +90,8 @@ spec:
         args:
         - --listen-socket=/run/ate/image-plugin.sock
         - --store-dir=/var/lib/ate/image-plugin-cache/spegel-store
+        # Set to true for a cold start, e.g. for benchmarks.
+        - --clear-cache-on-start=false
         - --work-dir=/var/lib/ate/image-plugin-cache/spegel
         - --docker-config=/run/ate/spegel/docker/config.json
         - --enable-p2p-server=true
