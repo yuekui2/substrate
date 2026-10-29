@@ -838,3 +838,39 @@ func TestValidateGetWorkloadStatsRequestEdge(t *testing.T) {
 		t.Fatalf("empty request error = %v, want InvalidArgument", err)
 	}
 }
+
+func TestValidateEvictWorkloadRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		obj  *ateworkerpb.EvictWorkloadRequest
+		want field.ErrorList
+	}{{
+		name: "valid",
+		obj:  &ateworkerpb.EvictWorkloadRequest{ActorUid: "01234567-89ab-cdef-0123-456789abcdef"},
+	}, {
+		name: "missing actor_uid",
+		obj:  &ateworkerpb.EvictWorkloadRequest{},
+		want: field.ErrorList{field.Required(field.NewPath("actor_uid"), "")},
+	}, {
+		name: "invalid actor_uid: not a uuid",
+		obj:  &ateworkerpb.EvictWorkloadRequest{ActorUid: "uid-a"},
+		want: field.ErrorList{field.Invalid(field.NewPath("actor_uid"), nil, "").WithOrigin("format=k8s-uuid")},
+	}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matcher := field.ErrorMatcher{}.ByType().ByField().ByOrigin()
+			matcher.Test(t, tt.want, Validate_EvictWorkloadRequest(context.Background(), createOp(), nil, tt.obj, nil))
+		})
+	}
+}
+
+func TestValidateEvictWorkloadRequestEdge(t *testing.T) {
+	valid := &ateworkerpb.EvictWorkloadRequest{ActorUid: "01234567-89ab-cdef-0123-456789abcdef"}
+	if err := ValidateEvictWorkloadRequest(context.Background(), valid); err != nil {
+		t.Fatalf("valid request rejected: %v", err)
+	}
+	err := ValidateEvictWorkloadRequest(context.Background(), &ateworkerpb.EvictWorkloadRequest{})
+	if apierror.Code(err) != codes.InvalidArgument {
+		t.Fatalf("empty request error = %v, want InvalidArgument", err)
+	}
+}

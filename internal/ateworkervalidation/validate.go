@@ -68,6 +68,14 @@ func ValidateGetWorkloadStatsRequest(ctx context.Context, req *ateworkerpb.GetWo
 	return nil
 }
 
+// ValidateEvictWorkloadRequest validates req at the RPC edge.
+func ValidateEvictWorkloadRequest(ctx context.Context, req *ateworkerpb.EvictWorkloadRequest) error {
+	if errs := Validate_EvictWorkloadRequest(ctx, createOp(), nil, req, nil); len(errs) > 0 {
+		return resources.ToAPIError(errs)
+	}
+	return nil
+}
+
 // GetActiveWorkloadStatsRequest has no fields, so validation-gen emits
 // nothing for it and there is no wrapper.
 

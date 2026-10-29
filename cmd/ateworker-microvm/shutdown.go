@@ -32,6 +32,9 @@ import (
 	"time"
 
 	"go.ate.dev/substrate/cmd/ateworker-microvm/internal/kata"
+	"go.ate.dev/substrate/internal/apierror"
+	"go.ate.dev/substrate/internal/ateworkervalidation"
+	"go.ate.dev/substrate/internal/proto/ateworkerpb"
 )
 
 // workloadGracePeriod is the whole budget for draining the worker on shutdown:
@@ -61,6 +64,31 @@ const (
 	// grace period is raised.
 	signalDeliveryTimeout = 10 * time.Second
 )
+
+// EvictWorkload signals a single running actor's guest workloads with SIGTERM
+// (escalating to SIGKILL after workloadGracePeriod) without shutting down the
+// worker pod.
+func (s *AteWorkerService) EvictWorkload(ctx context.Context, req *ateworkerpb.EvictWorkloadRequest) (*ateworkerpb.EvictWorkloadResponse, error) {
+	if err := ateworkervalidation.ValidateEvictWorkloadRequest(ctx, req); err != nil {
+		return nil, err
+	}
+	s.actorsMu.RLock()
+	h := s.actors[req.GetActorUid()]
+	var target drainTarget
+	var ok bool
+	if h != nil && h.vm != nil {
+		target = drainTarget{id: req.GetActorUid(), agent: h.vm.guestAgent, workloadIDs: h.vm.workloadIDs, hosted: h}
+		ok = true
+	}
+	s.actorsMu.RUnlock()
+	if !ok {
+		return nil, apierror.NotFound("actor %s is not hosted here", req.GetActorUid())
+	}
+
+	deadline := time.Now().Add(workloadGracePeriod)
+	go gracefullyStopActor(context.Background(), target, deadline)
+	return &ateworkerpb.EvictWorkloadResponse{}, nil
+}
 
 // gracefulShutdown propagates SIGTERM into every running actor's guest and waits
 // for the workloads to exit, so the caller can exit cleanly. It takes no actor's
