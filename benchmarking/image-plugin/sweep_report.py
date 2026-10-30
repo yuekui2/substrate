@@ -105,6 +105,9 @@ def main():
         queue = [t["queue_s"] for t in ok]
         work = [t["work_call_s"] for t in ok]
         susp = [t["suspend_s"] for t in ok]
+        # End to end: from the resume request to the end of the work call.
+        e2e0 = [t["ttfi_s"] + t["work_call_s"] for t in ok if t["turn"] == 0]
+        e2en = [t["ttfi_s"] + t["work_call_s"] for t in ok if t["turn"] > 0]
         resumes = [t for t in ok if t["turn"] > 0]
         moved = [t for t in resumes if t.get("moved")]
         # Session: create (turn 0 start) to the end of the last turn.
@@ -126,6 +129,8 @@ def main():
             "t0": (pct(first, 50), pct(first, 95), pct(first, 99), max(first, default=float("nan"))),
             "tn": (pct(later, 50), pct(later, 95), pct(later, 99), max(later, default=float("nan"))),
             "all_p100": max(allt, default=float("nan")),
+            "e2e0": (pct(e2e0, 50), pct(e2e0, 95), pct(e2e0, 99), max(e2e0, default=float("nan"))),
+            "e2en": (pct(e2en, 50), pct(e2en, 95), pct(e2en, 99), max(e2en, default=float("nan"))),
             "queue": (pct(queue, 50), pct(queue, 95), max(queue, default=float("nan"))),
             "work": (pct(work, 50), pct(work, 95)),
             "suspend": (pct(susp, 50), pct(susp, 95)),
@@ -146,6 +151,13 @@ def main():
               + " / ".join(fmt(x, 1) for x in r["t0"]) + " | "
               + " / ".join(fmt(x) for x in r["tn"]) + " | "
               + " / ".join(fmt(x, 1) for x in r["queue"]) + " |")
+
+    print("\n### End to end per turn: resume request to work done (s)\n")
+    print("| arm | actors/worker | first turn p50 / p95 / p99 / p100 | later turns p50 / p95 / p99 / p100 |")
+    print("|---|---|---|---|")
+    for r in rows:
+        print(f"| {r['arm']} | {r['w']} | " + " / ".join(fmt(x, 1) for x in r["e2e0"]) + " | "
+              + " / ".join(fmt(x) for x in r["e2en"]) + " |")
 
     print("\n### Completion (s)\n")
     print("| arm | actors/worker | work p50 / p95 | suspend p50 / p95 | session p50 / p95 / max | wall | turns/s | moved resumes | moved TTFI p50 |")
