@@ -31,7 +31,11 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/registry"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"go.ate.dev/substrate/api/imageplugin/v1"
 	"go.ate.dev/substrate/image-plugin/internal/proto/snapshots"
 	"go.ate.dev/substrate/image-plugin/pkg/plugin"
@@ -430,6 +434,94 @@ func newFakeNodeDfdaemon(t *testing.T, nodeName string, scheduler *fakeDragonfly
 	d.server = httptest.NewServer(mux)
 	t.Cleanup(func() { d.server.Close() })
 	return d
+}
+
+func TestDefaultLayerReaderFetchesBlobThroughDragonflyProxy(t *testing.T) {
+	ctx := context.Background()
+	reg := httptest.NewServer(registry.New())
+	defer reg.Close()
+
+	repo, err := name.NewRepository(strings.TrimPrefix(reg.URL, "http://") + "/sandbox")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bootstrapTar := makeTestTar(t, map[string]string{"image/image.boot": "rafs-v6-erofs-superblock"})
+	layer, err := tarball.LayerFromOpener(func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(bootstrapTar)), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := remote.WriteLayer(repo, layer); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := layer.Digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc, err := layer.Uncompressed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The fake proxy forwards to the registry named in X-Dragonfly-Registry,
+	// like the dfdaemon registry mirror.
+	var proxied []string
+	var mu sync.Mutex
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		proxied = append(proxied, r.URL.Path)
+		mu.Unlock()
+		upstream := r.Header.Get("X-Dragonfly-Registry")
+		if upstream != reg.URL {
+			http.Error(w, "unexpected X-Dragonfly-Registry "+upstream, http.StatusBadRequest)
+			return
+		}
+		resp, err := http.Get(upstream + r.URL.Path)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+		w.WriteHeader(resp.StatusCode)
+		_, _ = io.Copy(w, resp.Body)
+	}))
+	defer proxy.Close()
+
+	driver, err := NewNydusDragonfly(NydusDragonflyConfig{
+		SkipKernelCheck:    true,
+		DragonflyProxyAddr: proxy.URL,
+		ServerOpts: []plugin.Option{
+			plugin.WithWorkDir(filepath.Join(t.TempDir(), "work")),
+			plugin.WithSnapshotsClient(&fakeNydusSnapshotsClient{committed: make(map[string]bool)}),
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewNydusDragonfly: %v", err)
+	}
+	defer func() { _ = driver.Close() }()
+
+	rc, err = driver.defaultLayerReader(ctx, repo.Tag("v1").String(), nil, 0, digest.String())
+	if err != nil {
+		t.Fatalf("defaultLayerReader: %v", err)
+	}
+	got, err := io.ReadAll(rc)
+	_ = rc.Close()
+	if err != nil {
+		t.Fatalf("reading layer: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("layer content differs: got %d bytes, want %d", len(got), len(want))
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if wantPath := "/v2/sandbox/blobs/" + digest.String(); len(proxied) != 1 || proxied[0] != wantPath {
+		t.Fatalf("proxied requests = %v, want [%s]", proxied, wantPath)
+	}
 }
 
 func TestNydusDragonflyCrossNodeP2PFlow(t *testing.T) {

@@ -158,6 +158,7 @@ type NydusDragonflyDriver struct {
 	dragonflyManagerAddr   string
 	verifyDragonflyPing    bool
 	httpClient             *http.Client
+	blobTransport          http.RoundTripper
 	procFilesystemsPath    string
 	cachefilesDevPath      string
 	skipKernelCheck        bool
@@ -263,6 +264,10 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 	if err != nil {
 		return nil, err
 	}
+	proxyURL, err := url.Parse(dfAddr)
+	if err != nil {
+		return nil, err
+	}
 	schedAddr, err := ResolveDragonflyHostPort(cfg.DragonflySchedulerAddr, EnvDragonflySchedulerAddr, DefaultDragonflySchedulerAddr, "scheduler")
 	if err != nil {
 		return nil, err
@@ -300,6 +305,7 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 		dragonflyManagerAddr:   mgrAddr,
 		verifyDragonflyPing:    cfg.VerifyDragonflyPing,
 		httpClient:             httpClient,
+		blobTransport:          &dragonflyBlobTransport{proxy: proxyURL, base: remote.DefaultTransport},
 		procFilesystemsPath:    procPath,
 		cachefilesDevPath:      cachefilesPath,
 		skipKernelCheck:        cfg.SkipKernelCheck,
@@ -721,21 +727,40 @@ func (nd *NydusDragonflyDriver) defaultLayerAnnotations(ctx context.Context, ima
 	return res, nil
 }
 
-func (nd *NydusDragonflyDriver) defaultLayerReader(ctx context.Context, imageRef string, authConfig *imagepluginclient.AuthConfig, layerIndex int, _ string) (io.ReadCloser, error) {
+// defaultLayerReader fetches the layer blob by digest through the Dragonfly
+// proxy, so peers share it and the manifest is not fetched again.
+func (nd *NydusDragonflyDriver) defaultLayerReader(ctx context.Context, imageRef string, authConfig *imagepluginclient.AuthConfig, layerIndex int, layerDigest string) (io.ReadCloser, error) {
 	ref, err := name.ParseReference(imageRef)
 	if err != nil {
 		return nil, fmt.Errorf("parsing image reference %q: %w", imageRef, err)
 	}
-	img, err := remote.Image(ref, plugin.RemoteOptions(ctx, nd.Driver.Keychain(), authConfig)...)
+	if layerDigest == "" {
+		return nil, fmt.Errorf("layer %d of %q has no digest", layerIndex, imageRef)
+	}
+	opts := append(plugin.RemoteOptions(ctx, nd.Driver.Keychain(), authConfig), remote.WithTransport(nd.blobTransport))
+	layer, err := remote.Layer(ref.Context().Digest(layerDigest), opts...)
 	if err != nil {
-		return nil, fmt.Errorf("remote.Image(%q): %w", imageRef, err)
+		return nil, fmt.Errorf("remote.Layer(%q, %s): %w", imageRef, layerDigest, err)
 	}
-	layers, err := img.Layers()
-	if err != nil {
-		return nil, fmt.Errorf("listing layers for %q: %w", imageRef, err)
+	return layer.Uncompressed()
+}
+
+// dragonflyBlobTransport sends registry blob GETs to the Dragonfly proxy,
+// which serves them as a registry mirror of the host in X-Dragonfly-Registry.
+// Other requests, such as token and manifest requests, go to the registry.
+type dragonflyBlobTransport struct {
+	proxy *url.URL
+	base  http.RoundTripper
+}
+
+func (t *dragonflyBlobTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Method != http.MethodGet || !strings.Contains(req.URL.Path, "/blobs/sha256:") {
+		return t.base.RoundTrip(req)
 	}
-	if layerIndex < 0 || layerIndex >= len(layers) {
-		return nil, fmt.Errorf("layer index %d out of range (len=%d)", layerIndex, len(layers))
-	}
-	return layers[layerIndex].Uncompressed()
+	out := req.Clone(req.Context())
+	out.Header.Set("X-Dragonfly-Registry", req.URL.Scheme+"://"+req.URL.Host)
+	out.URL.Scheme = t.proxy.Scheme
+	out.URL.Host = t.proxy.Host
+	out.Host = ""
+	return t.base.RoundTrip(out)
 }
