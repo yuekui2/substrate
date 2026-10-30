@@ -22,7 +22,8 @@
 # 2. Per-Node Data Plane DaemonSet (image-plugin-nydus-dragonfly) on every worker
 #    node:
 #    - dfdaemon (proxy :65001 for local nydusd, upload :65000 & peer gRPC :65002
-#      for cross-node P2P piece transfer over LAN, registered with dragonfly-scheduler)
+#      for cross-node P2P piece transfer over LAN, registered with dragonfly-scheduler,
+#      metrics :40902)
 #    - nydus-snapshotter (containerd-nydus-grpc + nydusd singleton in Kernel EROFS
 #      + fscache mode routing all chunk requests through http://127.0.0.1:65001)
 #    - image-plugin-dragonfly (ImagePlugin gRPC plugin on
@@ -217,7 +218,8 @@ data:
     job:
       enable: false
     metrics:
-      enable: false
+      enable: true
+      addr: :8000
     console: true
 ---
 apiVersion: v1
@@ -342,6 +344,8 @@ spec:
         image: dragonflyoss/scheduler:v2.1.49
         ports:
         - containerPort: 8002
+        - name: metrics
+          containerPort: 8000
         volumeMounts:
         - name: config
           mountPath: /etc/dragonfly
@@ -506,6 +510,7 @@ spec:
           cacheDir: /var/cache/dragonfly
           keepStorage: true
           console: true
+          metrics: :40902
           scheduler:
             manager:
               enable: true
@@ -582,6 +587,9 @@ spec:
               useHTTPS: true
           EOF
           exec /opt/dragonfly/bin/dfget daemon --config /etc/dragonfly/dfget.yaml
+        ports:
+        - name: metrics
+          containerPort: 40902
         lifecycle:
           preStop:
             exec:
@@ -903,3 +911,7 @@ spec:
       port: 65001
     - protocol: TCP
       port: 65002
+    - protocol: TCP
+      port: 8000
+    - protocol: TCP
+      port: 40902
