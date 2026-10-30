@@ -23,6 +23,7 @@ actor's own snapshot after a suspend.
 """
 
 import glob
+import gzip
 import json
 import os
 import re
@@ -46,14 +47,21 @@ def fmt(x):
     return "—" if x != x else ("%.2f" % x if x < 10 else "%.1f" % x)
 
 
+def open_text(path):
+    """Opens a results file, gzipped (as committed) or plain."""
+    if path.endswith(".gz"):
+        return gzip.open(path, "rt")
+    return open(path)
+
+
 def load(run_dir):
     turns = defaultdict(list)
-    for path in glob.glob(os.path.join(run_dir, "rep-*", "*", "turns.jsonl")):
+    for path in glob.glob(os.path.join(run_dir, "rep-*", "*", "turns.jsonl*")):
         arm = os.path.basename(os.path.dirname(path))
         rep = os.path.basename(os.path.dirname(os.path.dirname(path)))
         if rep == "rep-0":
             continue
-        with open(path) as f:
+        with open_text(path) as f:
             for line in f:
                 line = line.strip()
                 if line:
@@ -64,8 +72,8 @@ def load(run_dir):
 def phases(run_dir, arm):
     out = defaultdict(list)
     pat = re.compile(r'"ate\.actor\.restore\.duration\.([a-z_]+)":([0-9.eE+-]+)')
-    for path in glob.glob(os.path.join(run_dir, "rep-[1-9]*", arm, "atelet-*.log")):
-        with open(path) as f:
+    for path in glob.glob(os.path.join(run_dir, "rep-[1-9]*", arm, "atelet-*.log*")):
+        with open_text(path) as f:
             for line in f:
                 if "Restore timing breakdown" not in line:
                     continue

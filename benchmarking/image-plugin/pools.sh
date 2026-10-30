@@ -17,18 +17,22 @@
 #
 #   pools.sh create|delete|recreate [arm...]
 #
-# Each arm gets a pool bench-<arm> of 2 x c3-standard-22 on Ubuntu with
-# 300 GB pd-ssd boot disks, labeled bench-arm=<arm> and tainted for gVisor
-# workers. recreate gives every rep fresh nodes, so node caches start empty.
+# Each arm gets a pool bench-<arm> of 3 x c3-standard-22 on Ubuntu with
+# 600 GB Hyperdisk Balanced boot disks at the per-disk maximum IOPS and
+# throughput, labeled bench-arm=<arm> and tainted for gVisor workers.
+# recreate gives every rep fresh nodes, so node caches start empty.
 
 set -euo pipefail
 
 PROJECT="${PROJECT:-kuiyue-gke-dev}"
 ZONE="${ZONE:-us-central1-a}"
 CLUSTER="${CLUSTER:-substrate-stream-test}"
-NODES="${NODES:-2}"
+NODES="${NODES:-3}"
 MACHINE="${MACHINE:-c3-standard-22}"
-DISK_SIZE="${DISK_SIZE:-300}"
+DISK_TYPE="${DISK_TYPE:-hyperdisk-balanced}"
+DISK_SIZE="${DISK_SIZE:-600}"
+DISK_IOPS="${DISK_IOPS:-160000}"
+DISK_THROUGHPUT="${DISK_THROUGHPUT:-2400}"
 ALL_ARMS=(pull riptide nydus spegel)
 
 action="${1:?usage: pools.sh create|delete|recreate [arm...]}"
@@ -78,7 +82,8 @@ create_one() {
   gke node-pools create "bench-${arm}" \
     --project "${PROJECT}" --zone "${ZONE}" --cluster "${CLUSTER}" \
     --machine-type "${MACHINE}" --num-nodes "${NODES}" \
-    --image-type UBUNTU_CONTAINERD --disk-type pd-ssd --disk-size "${DISK_SIZE}" \
+    --image-type UBUNTU_CONTAINERD --disk-type "${DISK_TYPE}" --disk-size "${DISK_SIZE}" \
+    --boot-disk-provisioned-iops "${DISK_IOPS}" --boot-disk-provisioned-throughput "${DISK_THROUGHPUT}" \
     --no-shielded-secure-boot --shielded-integrity-monitoring --no-enable-image-streaming \
     --workload-metadata GKE_METADATA \
     --no-enable-autoupgrade --no-enable-autorepair \

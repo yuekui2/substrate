@@ -1,0 +1,80 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Samples disk counters on every bench node into the pod log, and serves
+# node-sampler.sh snapshot through kubectl exec. deploy.sh creates the
+# node-sampler ConfigMap from node-sampler.sh.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-sampler
+  namespace: imgbench
+  labels:
+    app: node-sampler
+spec:
+  selector:
+    matchLabels:
+      app: node-sampler
+  template:
+    metadata:
+      labels:
+        app: node-sampler
+    spec:
+      # Host network so snapshot can reach the Spegel plugin on 127.0.0.1:5000.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 1
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: bench-arm
+                operator: Exists
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: sampler
+        image: debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
+        command: [/bin/bash, /scripts/node-sampler.sh, sample]
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: SAMPLE_INTERVAL
+          value: "5"
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        - name: ate
+          mountPath: /host/var/lib/ate
+          readOnly: true
+          mountPropagation: HostToContainer
+      volumes:
+      - name: scripts
+        configMap:
+          name: node-sampler
+      - name: ate
+        hostPath:
+          path: /var/lib/ate
+          type: DirectoryOrCreate

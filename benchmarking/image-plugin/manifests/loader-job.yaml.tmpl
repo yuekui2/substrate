@@ -40,7 +40,7 @@ spec:
       containers:
       - name: loader
         image: ko://go.ate.dev/substrate/benchmarking/image-plugin/loader
-        args: [${MODE}, -arm, ${ARM}, -atespace, imgbench-${ARM}, -workload, bench-${ARM},
+        args: [${MODE}, -arm, ${ARM}, -atespace, ${ATESPACE}, -workload, bench-${ARM},
           -snapshot-location, "gs://snapshot-substrate-test-kuiyue-gke-dev/image-plugin-bench/",
           -out, /results/out.jsonl, -linger, 2h ${EXTRA_ARGS}]
         resources:

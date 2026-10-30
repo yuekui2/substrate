@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# One arm's WorkerPool: 2 nodes x 16 workers of 1 vCPU / 2 GiB, Guaranteed.
-# Actors are 100m / 204Mi, so each worker hosts 10 and the pool 320.
+# One arm's WorkerPool: 3 nodes x 16 workers of 1 vCPU / 2 GiB, Guaranteed.
+# Actors are 100m / 204Mi, so each worker hosts 10 and the pool 480.
 # deploy.sh fills in ${ARM}.
 apiVersion: ate.dev/v1
 kind: WorkerPool
@@ -23,7 +23,7 @@ metadata:
   labels:
     workload: bench-${ARM}
 spec:
-  replicas: 32
+  replicas: 48
   workerImage: ko://go.ate.dev/substrate/cmd/ateworker-gvisor
   sandboxClasses:
   - name: gvisor

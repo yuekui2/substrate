@@ -14,23 +14,33 @@
 # limitations under the License.
 
 # Runs the whole benchmark: bake goldens once (untimed), then for each rep
-# recreate the bench pools so node caches start cold, wait for workers and
-# plugins, and run all arms in parallel. Every step is logged with ev.sh.
+# run the arms one at a time, rotating their order. Before each arm runs,
+# its pool is recreated so node caches start cold. Every step is logged with
+# ev.sh. LOADER_ARGS passes through to the loader (see run.sh).
 #
-#   RUN_DIR=... bench.sh [reps]
+#   RUN_DIR=... bench.sh [reps] [arm...]
 
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${RUN_DIR:?set RUN_DIR}"
-REPS="${1:-3}"
+REPS="${1:-5}"
+shift || true
+arms=("$@")
+if [[ ${#arms[@]} -eq 0 ]]; then
+  arms=(pull riptide nydus spegel)
+fi
 EV="${HERE}/ev.sh"
 export RUN_DIR
 
-"${EV}" bake-goldens "${HERE}/run.sh bake"
+"${EV}" bake-goldens "${HERE}/run.sh bake ${arms[*]}"
 for rep in $(seq 1 "${REPS}"); do
-  "${EV}" "rep${rep}-recreate-pools" "${HERE}/pools.sh recreate"
-  "${EV}" "rep${rep}-wait-ready" "${HERE}/wait-ready.sh"
-  "${EV}" "rep${rep}-run" "${HERE}/run.sh rep ${rep}"
+  n=${#arms[@]}
+  for k in $(seq 0 $((n - 1))); do
+    arm="${arms[$(((k + rep - 1) % n))]}"
+    "${EV}" "rep${rep}-${arm}-recreate-pool" "${HERE}/pools.sh recreate ${arm}"
+    "${EV}" "rep${rep}-${arm}-wait-ready" "${HERE}/wait-ready.sh ${arm}"
+    "${EV}" "rep${rep}-${arm}-run" "${HERE}/run.sh rep ${rep} ${arm}"
+  done
 done
 echo BENCH-DONE

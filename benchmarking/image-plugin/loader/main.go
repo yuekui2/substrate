@@ -15,9 +15,11 @@
 // Command loader drives the image plugin benchmark from inside the cluster.
 //
 //	loader bake -arm riptide ...   create one template per image, wait for goldens
-//	loader run  -arm riptide ...   N actors x T turns of resume, probe, work, suspend
+//	loader run  -arm riptide ...   N actors x T turns of resume, probe, work,
+//	                               suspend and think
 //
-// run writes one JSON line per actor turn to -out.
+// run writes one JSON line per actor turn to -out. With more actors than
+// images, actor i uses image i mod len(images).
 package main
 
 import (
@@ -87,7 +89,7 @@ type opts struct {
 	actors, turns, rep, reads, writes, concurrency    int
 	cpuMilli, memBytes                                int64
 	probeTimeout                                      int
-	wakeBudget, workTimeout                           time.Duration
+	wakeBudget, workTimeout, thinkMin, thinkMax       time.Duration
 }
 
 func main() {
@@ -104,8 +106,8 @@ func main() {
 	fs.StringVar(&o.imagesPath, "images", "/config/images-320.jsonl", "image list")
 	fs.StringVar(&o.out, "out", "/results/turns.jsonl", "output JSONL")
 	fs.StringVar(&o.snapshotLoc, "snapshot-location", "", "template snapshot storage location")
-	fs.IntVar(&o.actors, "actors", 320, "actors, one per image")
-	fs.IntVar(&o.turns, "turns", 50, "turns per actor (first restore included)")
+	fs.IntVar(&o.actors, "actors", 320, "actors; actor i uses image i mod len(images)")
+	fs.IntVar(&o.turns, "turns", 10, "turns per actor (first restore included)")
 	fs.IntVar(&o.rep, "rep", 1, "rep number, used in actor names")
 	fs.IntVar(&o.reads, "reads", 200, ".py files read per turn")
 	fs.IntVar(&o.writes, "writes", 2, ".py files written per turn")
@@ -114,7 +116,9 @@ func main() {
 	fs.Int64Var(&o.memBytes, "memory-bytes", 204*1024*1024, "actor memory limit")
 	fs.IntVar(&o.probeTimeout, "wakeup-timeout-seconds", 180, "template wakeup probe timeout")
 	fs.DurationVar(&o.wakeBudget, "wake-budget", 15*time.Minute, "time a turn may wait for a worker and the first probe")
-	fs.DurationVar(&o.workTimeout, "work-timeout", 10*time.Minute, "timeout of the work call")
+	fs.DurationVar(&o.workTimeout, "work-timeout", 2*time.Minute, "timeout of the work call")
+	fs.DurationVar(&o.thinkMin, "think-min", 12*time.Second, "minimum think time between a suspend and the next resume")
+	fs.DurationVar(&o.thinkMax, "think-max", 18*time.Second, "maximum think time between a suspend and the next resume")
 	linger := fs.Duration("linger", 0, "after finishing, write <out dir>/done and wait this long so the results can be copied out")
 	serve := fs.String("serve", ":8080", "address to serve the results directory on, empty to disable")
 	_ = fs.Parse(os.Args[2:])
@@ -188,6 +192,8 @@ func fatal(what string, err error) {
 	finish(1)
 }
 
+// readImages reads up to n images from path. It returns fewer when the file
+// has fewer: bake makes one template each, and run reuses them in order.
 func readImages(path string, n int) ([]image, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -204,8 +210,8 @@ func readImages(path string, n int) ([]image, error) {
 		}
 		out = append(out, img)
 	}
-	if len(out) < n {
-		return nil, fmt.Errorf("want %d images, found %d", n, len(out))
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no images in %s", path)
 	}
 	return out, sc.Err()
 }
@@ -445,6 +451,7 @@ type turnResult struct {
 	Image      string  `json:"image"`
 	Turn       int     `json:"turn"`
 	Start      string  `json:"start"`
+	CreateS    float64 `json:"create_s,omitempty"`
 	QueueS     float64 `json:"queue_s"`
 	ResumeS    float64 `json:"resume_s"`
 	NoRoom     int     `json:"no_room_retries"`
@@ -457,8 +464,11 @@ type turnResult struct {
 	TaskS      float64 `json:"task_s"`
 	SuspendS   float64 `json:"suspend_s"`
 	TurnS      float64 `json:"turn_s"`
+	ThinkS     float64 `json:"think_s"`
 	FilesRead  int     `json:"files_read"`
 	Node       string  `json:"node,omitempty"`
+	PrevNode   string  `json:"prev_node,omitempty"`
+	Moved      bool    `json:"moved"`
 	Error      string  `json:"error,omitempty"`
 	ErrorStep  string  `json:"error_step,omitempty"`
 }
@@ -480,13 +490,34 @@ func run(ctx context.Context, api *ateclient.Client, d *dialer, o opts, imgs []i
 		_, _ = f.Write(append(b, '\n'))
 	}
 
+	// Use only templates whose golden exists. An image whose guest never
+	// starts fails its bake on every arm.
+	var ready []int
+	for i := range imgs {
+		tpl, err := api.GetActorTemplate(ctx, &ateapi.GetActorTemplateRequest{
+			ActorTemplate: &ateapi.ObjectRef{Atespace: o.atespace, Name: templateName(i)}})
+		if err != nil {
+			return fmt.Errorf("getting template %s: %w", templateName(i), err)
+		}
+		if tpl.GetStatus().GetGoldenSnapshotStatus().GetGoldenTag().GetName() == "" {
+			slog.Warn("skipping template without a golden", "template", templateName(i), "image", imgs[i].InstanceID)
+			continue
+		}
+		ready = append(ready, i)
+	}
+	if len(ready) == 0 {
+		return errors.New("no template has a golden")
+	}
+	slog.Info("templates ready", "ready", len(ready), "images", len(imgs), "actors", o.actors)
+
 	runStart := time.Now()
 	var wg sync.WaitGroup
-	for i, img := range imgs {
+	for i := range o.actors {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			actorLoop(ctx, api, d, o, i, img, emit)
+			tpl := ready[i%len(ready)]
+			actorLoop(ctx, api, d, o, i, tpl, imgs[tpl], emit)
 		}()
 	}
 	wg.Wait()
@@ -501,27 +532,56 @@ func dirOf(p string) string {
 	return "."
 }
 
-func actorLoop(ctx context.Context, api *ateclient.Client, d *dialer, o opts, i int, img image, emit func(turnResult)) {
+// actorLoop creates actor i from template tpl and runs its turns, with a
+// think time between a suspend and the next resume.
+func actorLoop(ctx context.Context, api *ateclient.Client, d *dialer, o opts, i, tpl int, img image, emit func(turnResult)) {
 	name := fmt.Sprintf("r%d-%03d", o.rep, i)
 	objRef := &ateapi.ObjectRef{Atespace: o.atespace, Name: name}
 	ref := resources.ActorRef{Atespace: o.atespace, Name: name}
+	createStart := time.Now()
 	_, err := api.CreateActor(ctx, &ateapi.CreateActorRequest{Actor: &ateapi.Actor{
 		Metadata:      &ateapi.ResourceMetadata{Atespace: o.atespace, Name: name},
-		ActorTemplate: &ateapi.ObjectRef{Atespace: o.atespace, Name: templateName(i)},
+		ActorTemplate: &ateapi.ObjectRef{Atespace: o.atespace, Name: templateName(tpl)},
 	}})
+	createS := time.Since(createStart).Seconds()
 	if err != nil && status.Code(err) != codes.AlreadyExists {
 		emit(turnResult{Arm: o.arm, Rep: o.rep, Actor: name, Image: img.InstanceID, Error: err.Error(), ErrorStep: "create"})
 		return
 	}
+	var prevNode string
+	var think time.Duration
 	for turn := 0; turn < o.turns && ctx.Err() == nil; turn++ {
-		emit(oneTurn(ctx, api, d, o, objRef, ref, img, turn))
+		// The first turn's TTFI starts at the create call.
+		t0 := time.Now()
+		if turn == 0 {
+			t0 = createStart
+		}
+		r := oneTurn(ctx, api, d, o, objRef, ref, img, turn, t0)
+		if turn == 0 {
+			r.CreateS = createS
+		}
+		r.ThinkS = think.Seconds()
+		r.PrevNode = prevNode
+		r.Moved = prevNode != "" && r.Node != "" && r.Node != prevNode
+		if r.Node != "" {
+			prevNode = r.Node
+		}
+		emit(r)
+		if turn+1 < o.turns {
+			think = o.thinkMin
+			if o.thinkMax > o.thinkMin {
+				think += time.Duration(rand.Int64N(int64(o.thinkMax - o.thinkMin)))
+			}
+			sleep(ctx, think)
+		}
 	}
 	_, _ = api.DeleteActor(context.Background(), &ateapi.DeleteActorRequest{Actor: objRef})
 }
 
-func oneTurn(ctx context.Context, api *ateclient.Client, d *dialer, o opts, objRef *ateapi.ObjectRef, ref resources.ActorRef, img image, turn int) turnResult {
+// oneTurn resumes the actor, probes it, runs the work and suspends it. TTFI
+// is measured from t0.
+func oneTurn(ctx context.Context, api *ateclient.Client, d *dialer, o opts, objRef *ateapi.ObjectRef, ref resources.ActorRef, img image, turn int, t0 time.Time) turnResult {
 	r := turnResult{Arm: o.arm, Rep: o.rep, Actor: objRef.GetName(), Image: img.InstanceID, Turn: turn}
-	t0 := time.Now()
 	r.Start = t0.UTC().Format(time.RFC3339Nano)
 	deadline := t0.Add(o.wakeBudget)
 	fail := func(step string, err error) turnResult {
@@ -533,8 +593,9 @@ func oneTurn(ctx context.Context, api *ateclient.Client, d *dialer, o opts, objR
 	}
 
 	// Substrate refuses a resume with ResourceExhausted when no worker has
-	// room, so the loader holds the actor in its own queue and retries.
-	backoff := 250 * time.Millisecond
+	// room, so the loader holds the actor in its own queue and retries. The
+	// short cap keeps a freed slot from sitting idle; the wait counts in TTFI.
+	backoff := 50 * time.Millisecond
 	for {
 		callStart := time.Now()
 		resp, err := api.ResumeActor(ctx, &ateapi.ResumeActorRequest{Actor: objRef})
@@ -552,7 +613,7 @@ func oneTurn(ctx context.Context, api *ateclient.Client, d *dialer, o opts, objR
 			r.NoRoom++
 		}
 		sleep(ctx, backoff+time.Duration(rand.Int64N(int64(backoff))))
-		backoff = min(backoff*2, 2*time.Second)
+		backoff = min(backoff*2, 250*time.Millisecond)
 	}
 
 	probeStart := time.Now()

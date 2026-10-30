@@ -39,6 +39,9 @@ trap 'rm -rf "${OUT}"' EXIT
 kubectl apply -f "${HERE}/manifests/base.yaml"
 kubectl -n imgbench create configmap imgbench-images --from-file="${HERE}/images-320.jsonl" \
   --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n imgbench create configmap node-sampler --from-file="${HERE}/node-sampler.sh" \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "${HERE}/manifests/node-sampler.yaml"
 
 manifest_of() {
   case "$1" in
@@ -49,6 +52,7 @@ manifest_of() {
 
 for arm in "${arms[@]}"; do
   "${ATE}" get atespace "imgbench-${arm}" >/dev/null 2>&1 || "${ATE}" create atespace "imgbench-${arm}"
+  # shellcheck disable=SC2016 # envsubst takes the variable names literally
   ARM="${arm}" envsubst '${ARM}' <"${HERE}/manifests/workerpool.yaml.tmpl" >"${OUT}/wp-${arm}.yaml"
   "${KO}" resolve --base-import-paths -f "${OUT}/wp-${arm}.yaml" | kubectl apply -f -
   if [[ "${arm}" != pull ]]; then

@@ -13,12 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Waits until every arm's workers, image plugin and atelet are ready, for
-# example after pools.sh recreate.
+# Waits until the arms' workers, image plugin, node sampler and atelet are
+# ready, for example after pools.sh recreate.
+#
+#   wait-ready.sh [arm...]
 
 set -euo pipefail
 
-for arm in pull riptide nydus spegel; do
+arms=("$@")
+if [[ ${#arms[@]} -eq 0 ]]; then
+  arms=(pull riptide nydus spegel)
+fi
+
+for arm in "${arms[@]}"; do
   kubectl -n imgbench rollout status "deploy/bench-${arm}" --timeout=40m
   if [[ "${arm}" != pull ]]; then
     ds="image-plugin-${arm}"
@@ -27,5 +34,6 @@ for arm in pull riptide nydus spegel; do
   fi
 done
 kubectl -n ate-system rollout status ds/atelet --timeout=20m
+kubectl -n imgbench rollout status ds/node-sampler --timeout=10m
 kubectl -n imgbench get workerpools
 kubectl -n ate-system get pods -o wide -l app=ate-image-plugin
