@@ -1,0 +1,188 @@
+# deploy-fixed-plugins
+# start: 2026-10-30T11:47:52Z
+$ seed=$(kubectl get nodes -l bench-arm=nydus -o jsonpath="{.items[0].metadata.name}"); kubectl label node $seed ate.dev/dragonfly-seed=true --overwrite; kubectl -n ate-system delete ds image-plugin-nydus-dragonfly --wait=true; benchmarking/image-plugin/deploy.sh nydus spegel && benchmarking/image-plugin/wait-ready.sh nydus spegel; kubectl -n ate-system get pods -o wide -l "ate.dev/image-plugin in (nydus-dragonfly,spegel)"
+
+node/gke-substrate-stream-test-bench-nydus-2c75327b-6j9c labeled
+daemonset.apps "image-plugin-nydus-dragonfly" deleted from ate-system namespace
+namespace/imgbench unchanged
+serviceaccount/loader unchanged
+role.rbac.authorization.k8s.io/imgbench-loader unchanged
+rolebinding.rbac.authorization.k8s.io/imgbench-loader unchanged
+clusterrole.rbac.authorization.k8s.io/imgbench-loader unchanged
+clusterrolebinding.rbac.authorization.k8s.io/imgbench-loader unchanged
+configmap/imgbench-images unchanged
+configmap/node-sampler unchanged
+daemonset.apps/node-sampler unchanged
+2026/10/30 11:48:06 Using base gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99 for go.ate.dev/substrate/cmd/ateworker-gvisor
+2026/10/30 11:48:06 git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-plugin/pools.sh
+ M benchmarking/image-plugin/scope_plugin.py
+ M benchmarking/image-plugin/wait-ready.sh
+?? benchmarking/image-plugin/results/20261030-fixes/
+
+2026/10/30 11:48:06 Building go.ate.dev/substrate/cmd/ateworker-gvisor for linux/amd64
+2026/10/30 11:48:14 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateworker-gvisor:latest
+2026/10/30 11:48:15 existing blob: sha256:2780920e5dbfbe103d03a583ed75345306e572ec5a48cb10361f046767d9f29a
+2026/10/30 11:48:16 existing blob: sha256:2cc7ee286bf3a9e6af5f71756d7fc8e22e23ce65fec9047d774511ffcef79fa8
+2026/10/30 11:48:16 existing blob: sha256:7c12895b777bcaa8ccae0605b4de635b68fc32d60fa08f421dc3818bf55ee212
+2026/10/30 11:48:16 existing blob: sha256:3214acf345c0cc6bbdb56b698a41ccdefc624a09d6beb0d38b5de0b2303ecaf4
+2026/10/30 11:48:16 existing blob: sha256:9bb4b566b9ef0df0f11dbd96ec825f1f6affab4aeaa3a94f69ca3bb6d36f9d1e
+2026/10/30 11:48:16 existing blob: sha256:ec1b04bf2eb2122e86781f791b03ea0cf6588694e0f4a88245250224c186cdf0
+2026/10/30 11:48:16 existing blob: sha256:d6b1b89eccacc15c2420b2776d72c1dae334a00805ed9af54bf2f71e4d536f28
+2026/10/30 11:48:16 existing blob: sha256:dd64bf2dd177757451a98fcdc999a339c35dee5d9872d8f4dc69c8f3c4dd0112
+2026/10/30 11:48:16 existing blob: sha256:a99dd1dd5eaf3e2099256f1a75c8e4c02a1d3a81b8e2bfd1735b1dd166b68a12
+2026/10/30 11:48:16 existing blob: sha256:617b009a71d625ef77982b400cb9939dd5ed9809ebf50681a0520b7c08c0ca89
+2026/10/30 11:48:16 existing blob: sha256:ebddc55facdc6b1f7e0f30816a5fc7cc62f38abdf76c0a8b0a0ce52085754795
+2026/10/30 11:48:16 existing blob: sha256:b839dfae01f66e15c6a8b63520557ed315bdfe036342fa7a0c537259f10d7a9a
+2026/10/30 11:48:16 existing blob: sha256:c172f21841dff4c8cf45cde46589c1c2616cefe7e819965e92e6d3475c428aa0
+2026/10/30 11:48:16 existing blob: sha256:52630fc75a18675c530ed9eba5f55eca09b03e91bd5bc15307918bbc1a7e7296
+2026/10/30 11:48:16 pushed blob: sha256:70d041ebd325df3e09cc64d0e4f9e4915f2d15fe53d5229a964f4e62bd477d39
+2026/10/30 11:48:16 pushed blob: sha256:5dfa7f8ac983e7a491c6f89e3925cbeeea947fa7bf64dfc27cc0bd1cbce1510f
+2026/10/30 11:48:16 pushed blob: sha256:10fdd13901f3bc3a239ae262142c679e3e78cb007ec3b2f948cca9ad937a6c23
+2026/10/30 11:48:16 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateworker-gvisor:sha256-59f05ff2d84f0e7ac82a55ff0c8e714223ab3d1ad4cd34944a07a26e1acbe3ab.sbom: digest: sha256:e3332d8cbaa89f51df3b09faea518e5000073c2aa46bdbfdd93cd538b6fbac78 size: 374
+2026/10/30 11:48:16 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateworker-gvisor:sha256-59f05ff2d84f0e7ac82a55ff0c8e714223ab3d1ad4cd34944a07a26e1acbe3ab.sbom
+2026/10/30 11:48:16 pushed blob: sha256:085110fd14e4c0e6da94b454b497011f5a1699928563d94cd1c23cb153baec87
+2026/10/30 11:48:17 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateworker-gvisor:latest: digest: sha256:59f05ff2d84f0e7ac82a55ff0c8e714223ab3d1ad4cd34944a07a26e1acbe3ab size: 2938
+2026/10/30 11:48:17 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateworker-gvisor@sha256:59f05ff2d84f0e7ac82a55ff0c8e714223ab3d1ad4cd34944a07a26e1acbe3ab
+workerpool.ate.dev/bench-nydus configured
+2026/10/30 11:48:21 Using base gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99 for go.ate.dev/substrate/image-plugin/cmd/nydus-dragonfly
+2026/10/30 11:48:21 git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-plugin/pools.sh
+ M benchmarking/image-plugin/scope_plugin.py
+ M benchmarking/image-plugin/wait-ready.sh
+?? benchmarking/image-plugin/results/20261030-fixes/
+
+2026/10/30 11:48:21 Building go.ate.dev/substrate/image-plugin/cmd/nydus-dragonfly for linux/amd64
+2026/10/30 11:48:24 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly:latest
+2026/10/30 11:48:26 existing blob: sha256:7c12895b777bcaa8ccae0605b4de635b68fc32d60fa08f421dc3818bf55ee212
+2026/10/30 11:48:26 existing blob: sha256:52630fc75a18675c530ed9eba5f55eca09b03e91bd5bc15307918bbc1a7e7296
+2026/10/30 11:48:26 existing blob: sha256:dd64bf2dd177757451a98fcdc999a339c35dee5d9872d8f4dc69c8f3c4dd0112
+2026/10/30 11:48:26 existing blob: sha256:b839dfae01f66e15c6a8b63520557ed315bdfe036342fa7a0c537259f10d7a9a
+2026/10/30 11:48:26 existing blob: sha256:617b009a71d625ef77982b400cb9939dd5ed9809ebf50681a0520b7c08c0ca89
+2026/10/30 11:48:26 existing blob: sha256:ebddc55facdc6b1f7e0f30816a5fc7cc62f38abdf76c0a8b0a0ce52085754795
+2026/10/30 11:48:26 existing blob: sha256:ec1b04bf2eb2122e86781f791b03ea0cf6588694e0f4a88245250224c186cdf0
+2026/10/30 11:48:26 existing blob: sha256:2780920e5dbfbe103d03a583ed75345306e572ec5a48cb10361f046767d9f29a
+2026/10/30 11:48:26 existing blob: sha256:2cc7ee286bf3a9e6af5f71756d7fc8e22e23ce65fec9047d774511ffcef79fa8
+2026/10/30 11:48:26 existing blob: sha256:c172f21841dff4c8cf45cde46589c1c2616cefe7e819965e92e6d3475c428aa0
+2026/10/30 11:48:26 existing blob: sha256:4a2796d8ea5ef7ae1a64ba20ba56759987f49f2ea2091ddce6bade81c0ad1fa6
+2026/10/30 11:48:26 existing blob: sha256:3214acf345c0cc6bbdb56b698a41ccdefc624a09d6beb0d38b5de0b2303ecaf4
+2026/10/30 11:48:26 existing blob: sha256:d6b1b89eccacc15c2420b2776d72c1dae334a00805ed9af54bf2f71e4d536f28
+2026/10/30 11:48:26 existing blob: sha256:a99dd1dd5eaf3e2099256f1a75c8e4c02a1d3a81b8e2bfd1735b1dd166b68a12
+2026/10/30 11:48:27 pushed blob: sha256:2cd1f7852f96516d290fc63707cc9a92302a73d33688b16c96b62f8aebf7b732
+2026/10/30 11:48:27 pushed blob: sha256:1d7d359346342c0c5d050d751c38ec77cc6ccaa0f433bb3cda181637e8683cb2
+2026/10/30 11:48:27 pushed blob: sha256:1c1d1db4a07a6a2114503b9989053e2acb3a502986ce272f4cdef7f27c95efd4
+2026/10/30 11:48:27 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly:sha256-df3dde02d4435009cc0576e4e9968a296f77c6bff5229dd0f94b9c4755671123.sbom: digest: sha256:eb052422f90c0703f9b3a1c5ee8aa1bf94893146a43b3369f2101c56f8172a1f size: 374
+2026/10/30 11:48:27 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly:sha256-df3dde02d4435009cc0576e4e9968a296f77c6bff5229dd0f94b9c4755671123.sbom
+2026/10/30 11:48:27 pushed blob: sha256:4c8e98476cfad979f10fbf191d7f743242fe34b41ca500762785e3b1b2cbc0fe
+2026/10/30 11:48:27 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly:latest: digest: sha256:df3dde02d4435009cc0576e4e9968a296f77c6bff5229dd0f94b9c4755671123 size: 2938
+2026/10/30 11:48:27 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly@sha256:df3dde02d4435009cc0576e4e9968a296f77c6bff5229dd0f94b9c4755671123
+service/dragonfly-redis unchanged
+deployment.apps/dragonfly-redis unchanged
+service/dragonfly-mysql unchanged
+deployment.apps/dragonfly-mysql unchanged
+configmap/dragonfly-controlplane-config configured
+service/dragonfly-manager unchanged
+deployment.apps/dragonfly-manager unchanged
+service/dragonfly-scheduler unchanged
+deployment.apps/dragonfly-scheduler configured
+daemonset.apps/image-plugin-nydus-dragonfly created
+daemonset.apps/image-plugin-nydus-dragonfly-seed created
+networkpolicy.networking.k8s.io/dragonfly-backing-stores unchanged
+networkpolicy.networking.k8s.io/dragonfly-controlplane-and-peers configured
+2026/10/30 11:48:35 Using base gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99 for go.ate.dev/substrate/cmd/ateworker-gvisor
+2026/10/30 11:48:36 git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-plugin/pools.sh
+ M benchmarking/image-plugin/scope_plugin.py
+ M benchmarking/image-plugin/wait-ready.sh
+?? benchmarking/image-plugin/results/20261030-fixes/
+
+2026/10/30 11:48:36 Building go.ate.dev/substrate/cmd/ateworker-gvisor for linux/amd64
+2026/10/30 11:48:39 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateworker-gvisor:latest
+2026/10/30 11:48:41 existing manifest: latest@sha256:59f05ff2d84f0e7ac82a55ff0c8e714223ab3d1ad4cd34944a07a26e1acbe3ab
+2026/10/30 11:48:41 existing manifest: sha256-59f05ff2d84f0e7ac82a55ff0c8e714223ab3d1ad4cd34944a07a26e1acbe3ab.sbom@sha256:e3332d8cbaa89f51df3b09faea518e5000073c2aa46bdbfdd93cd538b6fbac78
+2026/10/30 11:48:41 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateworker-gvisor:sha256-59f05ff2d84f0e7ac82a55ff0c8e714223ab3d1ad4cd34944a07a26e1acbe3ab.sbom
+2026/10/30 11:48:41 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateworker-gvisor@sha256:59f05ff2d84f0e7ac82a55ff0c8e714223ab3d1ad4cd34944a07a26e1acbe3ab
+workerpool.ate.dev/bench-spegel configured
+2026/10/30 11:48:43 Using base debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 for go.ate.dev/substrate/image-plugin/cmd/spegel
+2026/10/30 11:48:44 git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M benchmarking/image-plugin/pools.sh
+ M benchmarking/image-plugin/scope_plugin.py
+ M benchmarking/image-plugin/wait-ready.sh
+?? benchmarking/image-plugin/results/20261030-fixes/
+
+2026/10/30 11:48:44 Building go.ate.dev/substrate/image-plugin/cmd/spegel for linux/amd64
+2026/10/30 11:48:46 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel:latest
+2026/10/30 11:48:48 existing blob: sha256:6310eb16bf4251731feab01e8f633bf5e2d75a657ccad97f420b1f83cce457be
+2026/10/30 11:48:48 existing blob: sha256:4a2796d8ea5ef7ae1a64ba20ba56759987f49f2ea2091ddce6bade81c0ad1fa6
+2026/10/30 11:48:49 pushed blob: sha256:65e0bd920caf37c7426ac7b00b0d2821ccd3715cf49fb4bb30c8111de7d59fb6
+2026/10/30 11:48:49 pushed blob: sha256:987d9a73c441f1916adfbe82533614864302464be02cab4aa8b3f658077cbf81
+2026/10/30 11:48:49 pushed blob: sha256:5d5a68c9617bc541dfa781fcb7468a510f3747da62e696f5b0f717185adc8a6a
+2026/10/30 11:48:49 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel:sha256-673525dc29c63d6956c681f33a8fac547944e9d60efc693f144cae6616f350ea.sbom: digest: sha256:75814ae79935b5c84d68d1c05c7d1df7af3fbce82a24f00860865ae328f2aaa2 size: 374
+2026/10/30 11:48:49 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel:sha256-673525dc29c63d6956c681f33a8fac547944e9d60efc693f144cae6616f350ea.sbom
+2026/10/30 11:48:49 pushed blob: sha256:a01a9ca08c3dcbd2a2314157d7f98845a18c4454332d3fadee4a4660692d9e88
+2026/10/30 11:48:49 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel:latest: digest: sha256:673525dc29c63d6956c681f33a8fac547944e9d60efc693f144cae6616f350ea size: 2345
+2026/10/30 11:48:49 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel@sha256:673525dc29c63d6956c681f33a8fac547944e9d60efc693f144cae6616f350ea
+service/spegel-bootstrap unchanged
+daemonset.apps/image-plugin-spegel configured
+networkpolicy.networking.k8s.io/spegel-p2p unchanged
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 0 of 2 updated pods are available...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 1 of 2 updated pods are available...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 1 out of 2 new pods have been updated...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 1 of 2 updated pods are available...
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+deployment.apps/bench-nydus condition met
+daemon set "image-plugin-spegel" successfully rolled out
+deployment.apps/bench-spegel condition met
+NAME                                      READY   STATUS    RESTARTS   AGE    IP          NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-94z2k        3/3     Running   0          22m    10.1.0.9    gke-substrate-stream-test-bench-nydus-2c75327b-f0gg   <none>           <none>
+image-plugin-nydus-dragonfly-seed-7625r   3/3     Running   0          22m    10.1.0.10   gke-substrate-stream-test-bench-nydus-2c75327b-6j9c   <none>           <none>
+image-plugin-nydus-dragonfly-slt8j        3/3     Running   0          6s     10.1.0.8    gke-substrate-stream-test-bench-nydus-2c75327b-rbw3   <none>           <none>
+image-plugin-riptide-lwjxs                2/2     Running   0          3h7m   10.1.0.29   gke-substrate-stream-te-bench-riptide-9c416121-m3w0   <none>           <none>
+image-plugin-riptide-m4w6f                2/2     Running   0          3h7m   10.1.0.19   gke-substrate-stream-te-bench-riptide-9c416121-hnlv   <none>           <none>
+image-plugin-riptide-v4sjm                2/2     Running   0          3h7m   10.1.0.25   gke-substrate-stream-te-bench-riptide-9c416121-730f   <none>           <none>
+image-plugin-spegel-kjfzp                 1/1     Running   0          22m    10.1.0.13   gke-substrate-stream-tes-bench-spegel-9acfb549-875w   <none>           <none>
+image-plugin-spegel-m66bc                 1/1     Running   0          19m    10.1.0.15   gke-substrate-stream-tes-bench-spegel-9acfb549-1jsw   <none>           <none>
+image-plugin-spegel-xqvnq                 1/1     Running   0          21m    10.1.0.12   gke-substrate-stream-tes-bench-spegel-9acfb549-8j39   <none>           <none>
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       15h
+bench-pull      48        48         48      gvisor-default   True       15h
+bench-riptide   48        48         48      gvisor-default   True       15h
+bench-spegel    48        48         48      gvisor-default   True       15h
+deployment "bench-nydus" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+deployment "bench-spegel" successfully rolled out
+daemon set "image-plugin-spegel" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       15h
+bench-pull      48        48         48      gvisor-default   True       15h
+bench-riptide   48        48         48      gvisor-default   True       15h
+bench-spegel    48        48         48      gvisor-default   True       15h
+NAME                                      READY   STATUS    RESTARTS   AGE    IP          NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-94z2k        3/3     Running   0          23m    10.1.0.9    gke-substrate-stream-test-bench-nydus-2c75327b-f0gg   <none>           <none>
+image-plugin-nydus-dragonfly-seed-7625r   3/3     Running   0          23m    10.1.0.10   gke-substrate-stream-test-bench-nydus-2c75327b-6j9c   <none>           <none>
+image-plugin-nydus-dragonfly-slt8j        3/3     Running   0          14s    10.1.0.8    gke-substrate-stream-test-bench-nydus-2c75327b-rbw3   <none>           <none>
+image-plugin-riptide-lwjxs                2/2     Running   0          3h8m   10.1.0.29   gke-substrate-stream-te-bench-riptide-9c416121-m3w0   <none>           <none>
+image-plugin-riptide-m4w6f                2/2     Running   0          3h8m   10.1.0.19   gke-substrate-stream-te-bench-riptide-9c416121-hnlv   <none>           <none>
+image-plugin-riptide-v4sjm                2/2     Running   0          3h8m   10.1.0.25   gke-substrate-stream-te-bench-riptide-9c416121-730f   <none>           <none>
+image-plugin-spegel-kjfzp                 1/1     Running   0          22m    10.1.0.13   gke-substrate-stream-tes-bench-spegel-9acfb549-875w   <none>           <none>
+image-plugin-spegel-m66bc                 1/1     Running   0          19m    10.1.0.15   gke-substrate-stream-tes-bench-spegel-9acfb549-1jsw   <none>           <none>
+image-plugin-spegel-xqvnq                 1/1     Running   0          21m    10.1.0.12   gke-substrate-stream-tes-bench-spegel-9acfb549-8j39   <none>           <none>
+NAME                                      READY   STATUS    RESTARTS   AGE   IP             NODE                                                  NOMINATED NODE   READINESS GATES
+dragonfly-manager-6df655b57d-rtk8w        1/1     Running   0          20h   10.96.11.224   gke-substrate-stream-tes-bench-system-33d2e060-vzd8   <none>           <none>
+dragonfly-mysql-76958bf8cb-d2jg7          1/1     Running   0          20h   10.96.12.37    gke-substrate-stream-tes-bench-system-33d2e060-6n63   <none>           <none>
+dragonfly-redis-775ffcff86-c9n7v          1/1     Running   0          20h   10.96.12.36    gke-substrate-stream-tes-bench-system-33d2e060-6n63   <none>           <none>
+dragonfly-scheduler-76f765f569-m6m92      1/1     Running   0          23m   10.96.11.26    gke-substrate-stream-tes-bench-system-33d2e060-vzd8   <none>           <none>
+image-plugin-nydus-dragonfly-94z2k        3/3     Running   0          23m   10.1.0.9       gke-substrate-stream-test-bench-nydus-2c75327b-f0gg   <none>           <none>
+image-plugin-nydus-dragonfly-seed-7625r   3/3     Running   0          23m   10.1.0.10      gke-substrate-stream-test-bench-nydus-2c75327b-6j9c   <none>           <none>
+image-plugin-nydus-dragonfly-slt8j        3/3     Running   0          15s   10.1.0.8       gke-substrate-stream-test-bench-nydus-2c75327b-rbw3   <none>           <none>
+image-plugin-spegel-kjfzp                 1/1     Running   0          22m   10.1.0.13      gke-substrate-stream-tes-bench-spegel-9acfb549-875w   <none>           <none>
+image-plugin-spegel-m66bc                 1/1     Running   0          19m   10.1.0.15      gke-substrate-stream-tes-bench-spegel-9acfb549-1jsw   <none>           <none>
+image-plugin-spegel-xqvnq                 1/1     Running   0          21m   10.1.0.12      gke-substrate-stream-tes-bench-spegel-9acfb549-8j39   <none>           <none>
+# exit: 0  end: 2026-10-30T12:11:32Z

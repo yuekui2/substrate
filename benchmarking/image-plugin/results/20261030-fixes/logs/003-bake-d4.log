@@ -1,0 +1,29 @@
+# bake-d4
+# start: 2026-10-30T12:11:39Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh bake
+
+job.batch/imgbench-bake-0-spegel-w4 created
+job.batch/imgbench-bake-0-riptide-w4 created
+job.batch/imgbench-bake-0-pull-w4 created
+job.batch/imgbench-bake-0-nydus-w4 created
+pod/imgbench-bake-0-spegel-w4-s44n2 condition met
+pod/imgbench-bake-0-riptide-w4-2679s condition met
+pod/imgbench-bake-0-pull-w4-pbj5x condition met
+pod/imgbench-bake-0-nydus-w4-x7cdc condition met
+spegel: imgbench-bake-0-spegel-w4 pod imgbench-bake-0-spegel-w4-s44n2 started 2026-10-30T12:11:58Z
+riptide: imgbench-bake-0-riptide-w4 pod imgbench-bake-0-riptide-w4-2679s started 2026-10-30T12:11:58Z
+pull: imgbench-bake-0-pull-w4 pod imgbench-bake-0-pull-w4-pbj5x started 2026-10-30T12:11:58Z
+nydus: imgbench-bake-0-nydus-w4 pod imgbench-bake-0-nydus-w4-x7cdc started 2026-10-30T12:11:59Z
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-fixes/bake-0/spegel-w4/turns.jsonl: No such file or directory
+spegel: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-fixes/bake-0/pull-w4/turns.jsonl: No such file or directory
+pull: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-fixes/bake-0/riptide-w4/turns.jsonl: No such file or directory
+riptide: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-fixes/bake-0/nydus-w4/turns.jsonl: No such file or directory
+nydus: done (exit 1), 0 lines, 0 errors
+wrote 0 points to benchmarking/image-plugin/results/20261030-fixes/bake-0/spegel-w4/monitoring.jsonl
+wrote 0 points to benchmarking/image-plugin/results/20261030-fixes/bake-0/nydus-w4/monitoring.jsonl
+wrote 0 points to benchmarking/image-plugin/results/20261030-fixes/bake-0/pull-w4/monitoring.jsonl
+wrote 3 points to benchmarking/image-plugin/results/20261030-fixes/bake-0/riptide-w4/monitoring.jsonl
+# exit: 0  end: 2026-10-30T12:14:17Z
