@@ -34,6 +34,9 @@ DISK_SIZE="${DISK_SIZE:-600}"
 DISK_IOPS="${DISK_IOPS:-160000}"
 DISK_THROUGHPUT="${DISK_THROUGHPUT:-2400}"
 ALL_ARMS=(pull riptide nydus spegel)
+# DRAGONFLY_SEEDS=all makes every nydus node a Dragonfly seed peer instead of
+# one.
+DRAGONFLY_SEEDS="${DRAGONFLY_SEEDS:-one}"
 
 action="${1:?usage: pools.sh create|delete|recreate [arm...]}"
 shift
@@ -93,10 +96,16 @@ create_one() {
     --quiet
   echo "created bench-${arm}"
   if [[ "${arm}" == nydus ]]; then
-    # One node runs the Dragonfly seed peer (image-plugin-nydus-dragonfly-seed).
-    local seed
-    seed="$(kubectl get nodes -l bench-arm=nydus -o jsonpath='{.items[0].metadata.name}')"
-    kubectl label node "${seed}" ate.dev/dragonfly-seed=true --overwrite
+    # Seed nodes run image-plugin-nydus-dragonfly-seed.
+    case "${DRAGONFLY_SEEDS}" in
+      one)
+        local seed
+        seed="$(kubectl get nodes -l bench-arm=nydus -o jsonpath='{.items[0].metadata.name}')"
+        kubectl label node "${seed}" ate.dev/dragonfly-seed=true --overwrite
+        ;;
+      all) kubectl label nodes -l bench-arm=nydus ate.dev/dragonfly-seed=true --overwrite ;;
+      *) echo "DRAGONFLY_SEEDS must be one or all" >&2; return 1 ;;
+    esac
   fi
 }
 
