@@ -20,7 +20,8 @@
 #    - dragonfly-manager (REST :8080 / gRPC :65003)
 #    - dragonfly-scheduler (gRPC :8002, P2P piece DAG & cross-node peer routing)
 # 2. Per-Node Data Plane DaemonSet (image-plugin-nydus-dragonfly) on every worker
-#    node:
+#    node, or image-plugin-nydus-dragonfly-seed on nodes labeled
+#    ate.dev/dragonfly-seed=true:
 #    - dfdaemon (proxy :65001 for local nydusd, upload :65000 & peer gRPC :65002
 #      for cross-node P2P piece transfer over LAN, registered with dragonfly-scheduler,
 #      metrics :40902)
@@ -354,498 +355,557 @@ spec:
         configMap:
           name: dragonfly-controlplane-config
 ---
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: image-plugin-nydus-dragonfly
-  namespace: ate-system
-  labels:
-    app: ate-image-plugin
-    ate.dev/image-plugin: nydus-dragonfly
-spec:
-  selector:
-    matchLabels:
+# image-plugin-nydus-dragonfly-seed runs the same pod on nodes labeled
+# ate.dev/dragonfly-seed=true, where dfdaemon also registers as a super seed
+# peer. The scheduler then asks a seed peer to fetch each new task from the
+# registry. dfdaemon reads the seed label of its pod through the downward
+# API. Both DaemonSets are in one List so the seed one can reuse the pod spec
+# through a YAML anchor.
+apiVersion: v1
+kind: List
+items:
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    name: image-plugin-nydus-dragonfly
+    namespace: ate-system
+    labels:
       app: ate-image-plugin
       ate.dev/image-plugin: nydus-dragonfly
-  updateStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 10%
-  template:
-    metadata:
-      labels:
+  spec:
+    selector:
+      matchLabels:
         app: ate-image-plugin
         ate.dev/image-plugin: nydus-dragonfly
-    spec:
-      hostPID: true
-      hostNetwork: true
-      terminationGracePeriodSeconds: 3600
-      dnsPolicy: ClusterFirstWithHostNet
-      tolerations:
-      - key: ate.dev/sandboxClass
-        operator: Exists
-        effect: NoSchedule
-      initContainers:
-      # Stock Ubuntu GKE kernels build erofs and cachefiles without on-demand
-      # fscache. Build both modules once per node and kernel from the exact
-      # Ubuntu source of the running kernel, against the headers in the node
-      # image.
-      - name: build-erofs-modules
-        image: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
-        env:
-        - name: KUBE_HOME
-          value: /home/kubernetes
-        command:
-        - /bin/bash
-        - -euo
-        - pipefail
-        - -c
-        - |
-          kver="$(uname -r)"
-          config="/boot/config-${kver}"
-          out="${KUBE_HOME}/bin/modules/${kver}"
-          if grep -qx CONFIG_EROFS_FS_ONDEMAND=y "${config}" && grep -qx CONFIG_CACHEFILES_ONDEMAND=y "${config}"; then
-            echo "${kver} has on-demand EROFS and cachefiles; nothing to build."
-            exit 0
-          fi
-          if [[ -f "${out}/erofs.ko" && -f "${out}/cachefiles.ko" ]]; then
-            echo "Using existing modules in ${out}."
-            exit 0
-          fi
-
-          # /proc/version_signature looks like "Ubuntu 6.8.0-1062.70-gke 6.8.12".
-          read -r _ sig _ < /proc/version_signature
-          version="${sig%-*}"
-          src="linux-${sig##*-}"
-          launchpad="https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/${src}/${version}"
-          pool="http://archive.ubuntu.com/ubuntu/pool/main/l/${src}"
-          echo "Building on-demand erofs and cachefiles for ${kver} from ${src} ${version}."
-
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
-            build-essential ca-certificates curl kmod libelf1t64 patchutils >/dev/null
-
-          # The archive pool is fast but drops old diffs. Launchpad keeps
-          # every version. The .dsc checksums cover both. Some archive
-          # servers stall and Launchpad sometimes returns 502, so drop a
-          # connection slower than 1 MB/s for 20s and try again. Each attempt
-          # is a new curl, so it resolves the name again and may reach a
-          # different server. -C - keeps what earlier attempts downloaded.
-          fetch() {
-            local name="$1" i base
-            shift
-            for i in {1..10}; do
-              for base in "$@"; do
-                curl -fsSL -C - --speed-limit 1000000 --speed-time 20 -o "${name}" "${base}/${name}" && return 0
-              done
-              sleep 5
-            done
-            echo "FATAL: could not download ${name}." >&2
-            return 1
-          }
-          cd /build
-          fetch "${src}_${version}.dsc" "${launchpad}"
-          awk '/^Checksums-Sha256:/ {f=1; next} /^[^ ]/ {f=0} f {print $1 "  " $3}' "${src}_${version}.dsc" > SHA256SUMS
-          while read -r _ name; do
-            fetch "${name}" "${pool}" "${launchpad}"
-          done < SHA256SUMS
-          sha256sum -c SHA256SUMS
-
-          # Extract only the two module directories, then apply the Ubuntu
-          # diff to them.
-          mkdir src
-          tar -xzf "${src}"_*.orig.tar.gz -C src --strip-components=1 --wildcards '*/fs/erofs/*' '*/fs/cachefiles/*'
-          zcat "${src}_${version}.diff.gz" | filterdiff -p1 -i 'fs/erofs/*' -i 'fs/cachefiles/*' | patch -d src -p1
-
-          # Kbuild reads the rest of the module config from the headers.
-          sed -i '1i CONFIG_EROFS_FS_ONDEMAND := y\nccflags-y += -DCONFIG_EROFS_FS_ONDEMAND=1' src/fs/erofs/Makefile
-          sed -i '1i CONFIG_CACHEFILES_ONDEMAND := y\nccflags-y += -DCONFIG_CACHEFILES_ONDEMAND=1' src/fs/cachefiles/Makefile
-          for m in erofs cachefiles; do
-            make -C "/lib/modules/${kver}/build" M="/build/src/fs/${m}" CC=x86_64-linux-gnu-gcc-13 -j"$(nproc)" modules
-            vermagic="$(modinfo -F vermagic "src/fs/${m}/${m}.ko")"
-            if [[ "${vermagic%% *}" != "${kver}" ]]; then
-              echo "FATAL: ${m}.ko vermagic ${vermagic} does not match ${kver}." >&2
-              exit 1
+        ate.dev/dragonfly-seed: "false"
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 10%
+    template:
+      metadata:
+        labels:
+          app: ate-image-plugin
+          ate.dev/image-plugin: nydus-dragonfly
+          ate.dev/dragonfly-seed: "false"
+      spec: &pod-spec
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: ate.dev/dragonfly-seed
+                  operator: NotIn
+                  values:
+                  - "true"
+        hostPID: true
+        hostNetwork: true
+        terminationGracePeriodSeconds: 3600
+        dnsPolicy: ClusterFirstWithHostNet
+        tolerations:
+        - key: ate.dev/sandboxClass
+          operator: Exists
+          effect: NoSchedule
+        initContainers:
+        # Stock Ubuntu GKE kernels build erofs and cachefiles without on-demand
+        # fscache. Build both modules once per node and kernel from the exact
+        # Ubuntu source of the running kernel, against the headers in the node
+        # image.
+        - name: build-erofs-modules
+          image: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+          env:
+          - name: KUBE_HOME
+            value: /home/kubernetes
+          command:
+          - /bin/bash
+          - -euo
+          - pipefail
+          - -c
+          - |
+            kver="$(uname -r)"
+            config="/boot/config-${kver}"
+            out="${KUBE_HOME}/bin/modules/${kver}"
+            if grep -qx CONFIG_EROFS_FS_ONDEMAND=y "${config}" && grep -qx CONFIG_CACHEFILES_ONDEMAND=y "${config}"; then
+              echo "${kver} has on-demand EROFS and cachefiles; nothing to build."
+              exit 0
             fi
-          done
+            if [[ -f "${out}/erofs.ko" && -f "${out}/cachefiles.ko" ]]; then
+              echo "Using existing modules in ${out}."
+              exit 0
+            fi
 
-          rm -rf "${out}.tmp"
-          mkdir -p "${out}.tmp"
-          cp src/fs/erofs/erofs.ko src/fs/cachefiles/cachefiles.ko "${out}.tmp/"
-          rm -rf "${out}"
-          mv "${out}.tmp" "${out}"
-          echo "Installed erofs.ko and cachefiles.ko in ${out}."
-        volumeMounts:
-        - name: kube-home
-          mountPath: /home/kubernetes
-        - name: boot
-          mountPath: /boot
-          readOnly: true
-        - name: lib-modules
-          mountPath: /lib/modules
-          readOnly: true
-        - name: usr-src
-          mountPath: /usr/src
-          readOnly: true
-        - name: kmod-build
-          mountPath: /build
-      containers:
-      - name: dfdaemon
-        image: dragonflyoss/dfdaemon:v2.1.49
-        env:
-        - name: NODE_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.hostIP
-        command:
-        - /bin/sh
-        - -ec
-        - |
-          mkdir -p /etc/dragonfly /var/lib/dragonfly /var/log/dragonfly /var/cache/dragonfly
-          cat > /etc/dragonfly/dfget.yaml <<EOF
-          aliveTime: 0s
-          gcInterval: 1m0s
-          dataDir: /var/lib/dragonfly
-          logDir: /var/log/dragonfly
-          cacheDir: /var/cache/dragonfly
-          keepStorage: true
-          console: true
-          metrics: :40902
-          scheduler:
-            manager:
-              enable: true
+            # /proc/version_signature looks like "Ubuntu 6.8.0-1062.70-gke 6.8.12".
+            read -r _ sig _ < /proc/version_signature
+            version="${sig%-*}"
+            src="linux-${sig##*-}"
+            launchpad="https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/${src}/${version}"
+            pool="http://archive.ubuntu.com/ubuntu/pool/main/l/${src}"
+            echo "Building on-demand erofs and cachefiles for ${kver} from ${src} ${version}."
+
+            apt-get update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+              build-essential ca-certificates curl kmod libelf1t64 patchutils >/dev/null
+
+            # The archive pool is fast but drops old diffs. Launchpad keeps
+            # every version. The .dsc checksums cover both. Some archive
+            # servers stall and Launchpad sometimes returns 502, so drop a
+            # connection slower than 1 MB/s for 20s and try again. Each attempt
+            # is a new curl, so it resolves the name again and may reach a
+            # different server. -C - keeps what earlier attempts downloaded.
+            fetch() {
+              local name="$1" i base
+              shift
+              for i in {1..10}; do
+                for base in "$@"; do
+                  curl -fsSL -C - --speed-limit 1000000 --speed-time 20 -o "${name}" "${base}/${name}" && return 0
+                done
+                sleep 5
+              done
+              echo "FATAL: could not download ${name}." >&2
+              return 1
+            }
+            cd /build
+            fetch "${src}_${version}.dsc" "${launchpad}"
+            awk '/^Checksums-Sha256:/ {f=1; next} /^[^ ]/ {f=0} f {print $1 "  " $3}' "${src}_${version}.dsc" > SHA256SUMS
+            while read -r _ name; do
+              fetch "${name}" "${pool}" "${launchpad}"
+            done < SHA256SUMS
+            sha256sum -c SHA256SUMS
+
+            # Extract only the two module directories, then apply the Ubuntu
+            # diff to them.
+            mkdir src
+            tar -xzf "${src}"_*.orig.tar.gz -C src --strip-components=1 --wildcards '*/fs/erofs/*' '*/fs/cachefiles/*'
+            zcat "${src}_${version}.diff.gz" | filterdiff -p1 -i 'fs/erofs/*' -i 'fs/cachefiles/*' | patch -d src -p1
+
+            # Kbuild reads the rest of the module config from the headers.
+            sed -i '1i CONFIG_EROFS_FS_ONDEMAND := y\nccflags-y += -DCONFIG_EROFS_FS_ONDEMAND=1' src/fs/erofs/Makefile
+            sed -i '1i CONFIG_CACHEFILES_ONDEMAND := y\nccflags-y += -DCONFIG_CACHEFILES_ONDEMAND=1' src/fs/cachefiles/Makefile
+            for m in erofs cachefiles; do
+              make -C "/lib/modules/${kver}/build" M="/build/src/fs/${m}" CC=x86_64-linux-gnu-gcc-13 -j"$(nproc)" modules
+              vermagic="$(modinfo -F vermagic "src/fs/${m}/${m}.ko")"
+              if [[ "${vermagic%% *}" != "${kver}" ]]; then
+                echo "FATAL: ${m}.ko vermagic ${vermagic} does not match ${kver}." >&2
+                exit 1
+              fi
+            done
+
+            rm -rf "${out}.tmp"
+            mkdir -p "${out}.tmp"
+            cp src/fs/erofs/erofs.ko src/fs/cachefiles/cachefiles.ko "${out}.tmp/"
+            rm -rf "${out}"
+            mv "${out}.tmp" "${out}"
+            echo "Installed erofs.ko and cachefiles.ko in ${out}."
+          volumeMounts:
+          - name: kube-home
+            mountPath: /home/kubernetes
+          - name: boot
+            mountPath: /boot
+            readOnly: true
+          - name: lib-modules
+            mountPath: /lib/modules
+            readOnly: true
+          - name: usr-src
+            mountPath: /usr/src
+            readOnly: true
+          - name: kmod-build
+            mountPath: /build
+        containers:
+        - name: dfdaemon
+          image: dragonflyoss/dfdaemon:v2.1.49
+          env:
+          - name: NODE_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: SEED_PEER
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['ate.dev/dragonfly-seed']
+          command:
+          - /bin/sh
+          - -ec
+          - |
+            mkdir -p /etc/dragonfly /var/lib/dragonfly /var/log/dragonfly /var/cache/dragonfly
+            cat > /etc/dragonfly/dfget.yaml <<EOF
+            aliveTime: 0s
+            gcInterval: 1m0s
+            dataDir: /var/lib/dragonfly
+            logDir: /var/log/dragonfly
+            cacheDir: /var/cache/dragonfly
+            keepStorage: true
+            console: true
+            metrics: :40902
+            scheduler:
+              manager:
+                enable: true
+                netAddrs:
+                - type: tcp
+                  addr: dragonfly-manager.ate-system.svc.cluster.local:65003
+                refreshInterval: 10s
+                seedPeer:
+                  enable: ${SEED_PEER}
+                  type: super
+                  clusterID: 1
+              scheduleTimeout: 30s
+              disableAutoBackSource: false
               netAddrs:
               - type: tcp
-                addr: dragonfly-manager.ate-system.svc.cluster.local:65003
-              refreshInterval: 10s
-              seedPeer:
-                enable: false
-            scheduleTimeout: 30s
-            disableAutoBackSource: false
-            netAddrs:
-            - type: tcp
-              addr: dragonfly-scheduler.ate-system.svc.cluster.local:8002
-          host:
-            idc: gke
-            location: us-central1-a
-            hostname: $(hostname)
-            advertiseIP: ${NODE_IP}
-          download:
-            calculateDigest: false
-            totalRateLimit: 2048Mi
-            perPeerRateLimit: 1024Mi
-            pieceDownloadTimeout: 30s
-            prefetch: true
-            downloadGRPC:
-              security:
-                insecure: true
-              unixListen:
-                socket: /var/run/dfdaemon.sock
-            peerGRPC:
+                addr: dragonfly-scheduler.ate-system.svc.cluster.local:8002
+            host:
+              idc: gke
+              location: us-central1-a
+              hostname: $(hostname)
+              advertiseIP: ${NODE_IP}
+            download:
+              calculateDigest: false
+              totalRateLimit: 2048Mi
+              perPeerRateLimit: 1024Mi
+              pieceDownloadTimeout: 30s
+              prefetch: true
+              downloadGRPC:
+                security:
+                  insecure: true
+                unixListen:
+                  socket: /var/run/dfdaemon.sock
+              peerGRPC:
+                security:
+                  insecure: true
+                tcpListen:
+                  listen: 0.0.0.0
+                  port: 65000
+            upload:
+              rateLimit: 2048Mi
               security:
                 insecure: true
               tcpListen:
                 listen: 0.0.0.0
-                port: 65000
-          upload:
-            rateLimit: 2048Mi
-            security:
-              insecure: true
-            tcpListen:
-              listen: 0.0.0.0
-              port: 65002
-          storage:
-            taskExpireTime: 6h
-            strategy: io.d7y.storage.v2.simple
-            diskGCThreshold: 50Gi
-            diskGCThresholdPercent: 80
-            multiplex: true
-          health:
-            security:
-              insecure: true
-            tcpListen:
-              path: /server/ping
-              listen: 0.0.0.0
-              port: 40901
-          proxy:
-            defaultFilter: "Expires&Signature&ns"
-            defaultTag: ""
-            security:
-              insecure: true
-            tcpListen:
-              listen: 0.0.0.0
-              port: 65001
-            registryMirror:
-              dynamic: true
-              url: https://us-central1-docker.pkg.dev
-              insecure: false
-              useProxies: true
-            proxies:
-            - regx: blobs/sha256.*
-              useHTTPS: true
-            - regx: us-central1-docker\.pkg\.dev
-              useHTTPS: true
-          EOF
-          exec /opt/dragonfly/bin/dfget daemon --config /etc/dragonfly/dfget.yaml
-        ports:
-        - name: metrics
-          containerPort: 40902
-        lifecycle:
-          preStop:
-            exec:
-              command:
-              - /bin/sh
-              - -c
-              - while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done
-        securityContext:
-          privileged: true
-        volumeMounts:
-        - name: run-ate
-          mountPath: /run/ate
-        - name: var-lib-dragonfly
-          mountPath: /var/lib/dragonfly
-      - name: nydus-snapshotter
-        image: debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
-        env:
-        - name: KUBE_HOME
-          value: /home/kubernetes
-        - name: NYDUS_VERSION
-          value: "2.3.0"
-        - name: NYDUS_SNAPSHOTTER_VERSION
-          value: "0.15.0"
-        - name: DRAGONFLY_PROXY_ADDR
-          value: "http://127.0.0.1:65001"
-        command:
-        - nsenter
-        - -t
-        - "1"
-        - -m
-        - -u
-        - -i
-        - -n
-        - --
-        - /bin/bash
-        - -ec
-        - |
-          readonly nydus_root="/var/lib/ate/image-plugin-cache/nydus-snapshotter"
-          readonly nydus_run="/run/containerd-nydus"
-          readonly nydusd_bin="${KUBE_HOME}/bin/nydusd"
-          readonly snapshotter_bin="${KUBE_HOME}/bin/containerd-nydus-grpc"
-          readonly df_addr="${DRAGONFLY_PROXY_ADDR:-http://127.0.0.1:65001}"
+                port: 65002
+            storage:
+              taskExpireTime: 6h
+              strategy: io.d7y.storage.v2.simple
+              diskGCThreshold: 50Gi
+              diskGCThresholdPercent: 80
+              multiplex: true
+            health:
+              security:
+                insecure: true
+              tcpListen:
+                path: /server/ping
+                listen: 0.0.0.0
+                port: 40901
+            proxy:
+              defaultFilter: "Expires&Signature&ns"
+              defaultTag: ""
+              security:
+                insecure: true
+              tcpListen:
+                listen: 0.0.0.0
+                port: 65001
+              registryMirror:
+                dynamic: true
+                url: https://us-central1-docker.pkg.dev
+                insecure: false
+                useProxies: true
+              proxies:
+              - regx: blobs/sha256.*
+                useHTTPS: true
+              - regx: us-central1-docker\.pkg\.dev
+                useHTTPS: true
+            EOF
+            exec /opt/dragonfly/bin/dfget daemon --config /etc/dragonfly/dfget.yaml
+          ports:
+          - name: metrics
+            containerPort: 40902
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - name: run-ate
+            mountPath: /run/ate
+          - name: var-lib-dragonfly
+            mountPath: /var/lib/dragonfly
+        - name: nydus-snapshotter
+          image: debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
+          env:
+          - name: KUBE_HOME
+            value: /home/kubernetes
+          - name: NYDUS_VERSION
+            value: "2.3.0"
+          - name: NYDUS_SNAPSHOTTER_VERSION
+            value: "0.15.0"
+          - name: DRAGONFLY_PROXY_ADDR
+            value: "http://127.0.0.1:65001"
+          command:
+          - nsenter
+          - -t
+          - "1"
+          - -m
+          - -u
+          - -i
+          - -n
+          - --
+          - /bin/bash
+          - -ec
+          - |
+            readonly nydus_root="/var/lib/ate/image-plugin-cache/nydus-snapshotter"
+            readonly nydus_run="/run/containerd-nydus"
+            readonly nydusd_bin="${KUBE_HOME}/bin/nydusd"
+            readonly snapshotter_bin="${KUBE_HOME}/bin/containerd-nydus-grpc"
+            readonly df_addr="${DRAGONFLY_PROXY_ADDR:-http://127.0.0.1:65001}"
 
-          rm -f "${nydus_run}/containerd-nydus-grpc.sock" /run/ate/drain-complete
+            rm -f "${nydus_run}/containerd-nydus-grpc.sock" /run/ate/drain-complete
 
-          # build-erofs-modules leaves on-demand builds here unless the kernel
-          # already has on-demand fscache. Stock cachefiles also exports
-          # cachefiles_ondemand_* tracepoints, so match whole function names
-          # that only on-demand builds contain.
-          has_ondemand() {
-            grep -qw cachefiles_ondemand_init_object /proc/kallsyms && grep -qw erofs_fscache_register_fs /proc/kallsyms
-          }
-          readonly mod_dir="${KUBE_HOME}/bin/modules/$(uname -r)"
-          if [[ -f "${mod_dir}/erofs.ko" ]] && ! has_ondemand; then
-            modprobe -a $(modinfo -F depends "${mod_dir}/erofs.ko" "${mod_dir}/cachefiles.ko" | tr ',' '\n' | sort -u)
-            for m in cachefiles erofs; do
-              if [[ -d "/sys/module/${m}" ]]; then
-                rmmod "${m}"
-              fi
-            done
-            insmod "${mod_dir}/erofs.ko"
-            insmod "${mod_dir}/cachefiles.ko"
-          else
-            modprobe erofs
-            modprobe cachefiles
-          fi
-
-          if ! has_ondemand; then
-            echo "FATAL: erofs or cachefiles lacks on-demand fscache support." >&2
-            exit 1
-          fi
-
-          if ! grep -qw erofs /proc/filesystems; then
-            echo "FATAL: kernel EROFS is not registered in /proc/filesystems; fusedev fallback is disabled." >&2
-            exit 1
-          fi
-          if [[ ! -e /dev/cachefiles ]]; then
-            echo "FATAL: /dev/cachefiles is not available; fusedev fallback is disabled." >&2
-            exit 1
-          fi
-
-          mkdir -p "${KUBE_HOME}/bin" "${nydus_root}/cache/metadata" "${nydus_root}/mnt" "${nydus_run}/docker" /run/ate
-
-          if [[ ! -x "${nydusd_bin}" ]]; then
-            curl -fsSL "https://github.com/dragonflyoss/nydus/releases/download/v${NYDUS_VERSION}/nydus-static-v${NYDUS_VERSION}-linux-amd64.tgz" \
-              | tar -xz -C "${KUBE_HOME}/bin" --strip-components=1 nydus-static/nydusd nydus-static/nydus-image nydus-static/nydusify nydus-static/nydusctl
-            chmod +x "${KUBE_HOME}/bin/nydusd" "${KUBE_HOME}/bin/nydus-image" "${KUBE_HOME}/bin/nydusify" "${KUBE_HOME}/bin/nydusctl"
-          fi
-
-          if [[ ! -x "${snapshotter_bin}" ]]; then
-            curl -fsSL "https://github.com/containerd/nydus-snapshotter/releases/download/v${NYDUS_SNAPSHOTTER_VERSION}/nydus-snapshotter-v${NYDUS_SNAPSHOTTER_VERSION}-linux-amd64.tar.gz" \
-              | tar -xz -C "${KUBE_HOME}/bin" --strip-components=1 bin/containerd-nydus-grpc bin/nydus-overlayfs
-            chmod +x "${KUBE_HOME}/bin/containerd-nydus-grpc" "${KUBE_HOME}/bin/nydus-overlayfs"
-          fi
-
-          echo "Waiting for local Dragonfly dfdaemon health endpoint at http://127.0.0.1:40901/server/ping..."
-          for _ in $(seq 1 120); do
-            if curl -fsS "http://127.0.0.1:40901/server/ping" >/dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
-
-          export PATH="${KUBE_HOME}/bin:${PATH}"
-          export DOCKER_CONFIG="${nydus_run}/docker"
-          if [[ ! -f "${DOCKER_CONFIG}/config.json" ]]; then
-            echo '{"auths":{}}' > "${DOCKER_CONFIG}/config.json"
-          fi
-
-          # Clean up any stale EROFS mounts or orphaned snapshotter metadata from previous runs
-          for mnt in $(awk '$3 == "erofs" {print $2}' /proc/mounts); do
-            umount -l "${mnt}" 2>/dev/null || true
-          done
-          # nydusd views die with the old daemon. The Nydus cache layout is not
-          # yet split from view state, so this clears the whole root on start.
-          rm -rf "${nydus_root:?}"/* /var/lib/ate/image-plugin-cache/nydus-dragonfly/* 2>/dev/null || true
-          mkdir -p "${nydus_root}/snapshots" "${nydus_root}/cache/metadata" "${nydus_root}/mnt"
-
-          cat > "${nydus_root}/nydusd-config.json" <<EOF
-          {
-            "type": "bootstrap",
-            "config": {
-              "backend_type": "registry",
-              "backend_config": {
-                "scheme": "https",
-                "proxy": {
-                  "url": "${df_addr}",
-                  "ping_url": "http://127.0.0.1:40901/server/ping",
-                  "fallback": false,
-                  "check_interval": 5,
-                  "use_http": true
-                },
-                "timeout": 10,
-                "connect_timeout": 10,
-                "retry_limit": 2
-              },
-              "cache_type": "fscache",
-              "cache_config": {
-                "work_dir": "${nydus_root}/cache"
-              },
-              "metadata_path": "${nydus_root}/cache/metadata"
+            # build-erofs-modules leaves on-demand builds here unless the kernel
+            # already has on-demand fscache. Stock cachefiles also exports
+            # cachefiles_ondemand_* tracepoints, so match whole function names
+            # that only on-demand builds contain.
+            has_ondemand() {
+              grep -qw cachefiles_ondemand_init_object /proc/kallsyms && grep -qw erofs_fscache_register_fs /proc/kallsyms
             }
-          }
-          EOF
+            readonly mod_dir="${KUBE_HOME}/bin/modules/$(uname -r)"
+            if [[ -f "${mod_dir}/erofs.ko" ]] && ! has_ondemand; then
+              modprobe -a $(modinfo -F depends "${mod_dir}/erofs.ko" "${mod_dir}/cachefiles.ko" | tr ',' '\n' | sort -u)
+              for m in cachefiles erofs; do
+                if [[ -d "/sys/module/${m}" ]]; then
+                  rmmod "${m}"
+                fi
+              done
+              insmod "${mod_dir}/erofs.ko"
+              insmod "${mod_dir}/cachefiles.ko"
+            else
+              modprobe erofs
+              modprobe cachefiles
+            fi
 
-          rm -f "${nydus_run}/containerd-nydus-grpc.sock" /run/ate/drain-complete
-          exec "${snapshotter_bin}" \
-            --log-level=info \
-            --log-to-stdout \
-            --fs-driver=fscache \
-            --daemon-mode=shared \
-            --nydusd="${nydusd_bin}" \
-            --nydusd-config="${nydus_root}/nydusd-config.json" \
-            --address="${nydus_run}/containerd-nydus-grpc.sock" \
-            --root="${nydus_root}"
-        lifecycle:
-          preStop:
+            if ! has_ondemand; then
+              echo "FATAL: erofs or cachefiles lacks on-demand fscache support." >&2
+              exit 1
+            fi
+
+            if ! grep -qw erofs /proc/filesystems; then
+              echo "FATAL: kernel EROFS is not registered in /proc/filesystems; fusedev fallback is disabled." >&2
+              exit 1
+            fi
+            if [[ ! -e /dev/cachefiles ]]; then
+              echo "FATAL: /dev/cachefiles is not available; fusedev fallback is disabled." >&2
+              exit 1
+            fi
+
+            mkdir -p "${KUBE_HOME}/bin" "${nydus_root}/cache/metadata" "${nydus_root}/mnt" "${nydus_run}/docker" /run/ate
+
+            if [[ ! -x "${nydusd_bin}" ]]; then
+              curl -fsSL "https://github.com/dragonflyoss/nydus/releases/download/v${NYDUS_VERSION}/nydus-static-v${NYDUS_VERSION}-linux-amd64.tgz" \
+                | tar -xz -C "${KUBE_HOME}/bin" --strip-components=1 nydus-static/nydusd nydus-static/nydus-image nydus-static/nydusify nydus-static/nydusctl
+              chmod +x "${KUBE_HOME}/bin/nydusd" "${KUBE_HOME}/bin/nydus-image" "${KUBE_HOME}/bin/nydusify" "${KUBE_HOME}/bin/nydusctl"
+            fi
+
+            if [[ ! -x "${snapshotter_bin}" ]]; then
+              curl -fsSL "https://github.com/containerd/nydus-snapshotter/releases/download/v${NYDUS_SNAPSHOTTER_VERSION}/nydus-snapshotter-v${NYDUS_SNAPSHOTTER_VERSION}-linux-amd64.tar.gz" \
+                | tar -xz -C "${KUBE_HOME}/bin" --strip-components=1 bin/containerd-nydus-grpc bin/nydus-overlayfs
+              chmod +x "${KUBE_HOME}/bin/containerd-nydus-grpc" "${KUBE_HOME}/bin/nydus-overlayfs"
+            fi
+
+            echo "Waiting for local Dragonfly dfdaemon health endpoint at http://127.0.0.1:40901/server/ping..."
+            for _ in $(seq 1 120); do
+              if curl -fsS "http://127.0.0.1:40901/server/ping" >/dev/null 2>&1; then
+                break
+              fi
+              sleep 1
+            done
+
+            export PATH="${KUBE_HOME}/bin:${PATH}"
+            export DOCKER_CONFIG="${nydus_run}/docker"
+            if [[ ! -f "${DOCKER_CONFIG}/config.json" ]]; then
+              echo '{"auths":{}}' > "${DOCKER_CONFIG}/config.json"
+            fi
+
+            # Clean up any stale EROFS mounts or orphaned snapshotter metadata from previous runs
+            for mnt in $(awk '$3 == "erofs" {print $2}' /proc/mounts); do
+              umount -l "${mnt}" 2>/dev/null || true
+            done
+            # nydusd views die with the old daemon. The Nydus cache layout is not
+            # yet split from view state, so this clears the whole root on start.
+            rm -rf "${nydus_root:?}"/* /var/lib/ate/image-plugin-cache/nydus-dragonfly/* 2>/dev/null || true
+            mkdir -p "${nydus_root}/snapshots" "${nydus_root}/cache/metadata" "${nydus_root}/mnt"
+
+            cat > "${nydus_root}/nydusd-config.json" <<EOF
+            {
+              "type": "bootstrap",
+              "config": {
+                "backend_type": "registry",
+                "backend_config": {
+                  "scheme": "https",
+                  "proxy": {
+                    "url": "${df_addr}",
+                    "ping_url": "http://127.0.0.1:40901/server/ping",
+                    "fallback": false,
+                    "check_interval": 5,
+                    "use_http": true
+                  },
+                  "timeout": 10,
+                  "connect_timeout": 10,
+                  "retry_limit": 2
+                },
+                "cache_type": "fscache",
+                "cache_config": {
+                  "work_dir": "${nydus_root}/cache"
+                },
+                "metadata_path": "${nydus_root}/cache/metadata"
+              }
+            }
+            EOF
+
+            rm -f "${nydus_run}/containerd-nydus-grpc.sock" /run/ate/drain-complete
+            exec "${snapshotter_bin}" \
+              --log-level=info \
+              --log-to-stdout \
+              --fs-driver=fscache \
+              --daemon-mode=shared \
+              --nydusd="${nydusd_bin}" \
+              --nydusd-config="${nydus_root}/nydusd-config.json" \
+              --address="${nydus_run}/containerd-nydus-grpc.sock" \
+              --root="${nydus_root}"
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done
+          readinessProbe:
             exec:
               command:
               - /bin/sh
               - -c
-              - while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done
-        readinessProbe:
-          exec:
-            command:
-            - /bin/sh
-            - -c
-            - test -S /run/containerd-nydus/containerd-nydus-grpc.sock && test -S /run/ate/image-plugin.sock
-          initialDelaySeconds: 2
-          periodSeconds: 2
-        securityContext:
-          privileged: true
-        volumeMounts:
+              - test -S /run/containerd-nydus/containerd-nydus-grpc.sock && test -S /run/ate/image-plugin.sock
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - name: kube-home
+            mountPath: /home/kubernetes
+          - name: run-nydus
+            mountPath: /run/containerd-nydus
+          - name: run-ate
+            mountPath: /run/ate
+          - name: ate-base
+            mountPath: /var/lib/ate
+            mountPropagation: Bidirectional
+        - name: image-plugin-dragonfly
+          image: ko://go.ate.dev/substrate/image-plugin/cmd/nydus-dragonfly
+          env:
+          - name: DRAGONFLY_PROXY_ADDR
+            value: "http://127.0.0.1:65001"
+          - name: DRAGONFLY_SCHEDULER_ADDR
+            value: "dragonfly-scheduler.ate-system.svc.cluster.local:8002"
+          - name: DRAGONFLY_MANAGER_ADDR
+            value: "dragonfly-manager.ate-system.svc.cluster.local:65003"
+          args:
+          - --listen-socket=/run/ate/image-plugin.sock
+          - --snapshotter-socket=/run/containerd-nydus/containerd-nydus-grpc.sock
+          - --docker-config=/run/containerd-nydus/docker/config.json
+          - --work-dir=/var/lib/ate/image-plugin-cache/nydus-dragonfly
+          - --verify-dragonfly-ping=true
+          - --idle-ttl=10m
+          - --startup-timeout=2m
+          - --drain-timeout=30m
+          - --drain-complete-file=/run/ate/drain-complete
+          readinessProbe:
+            exec:
+              command:
+              - /ko-app/nydus-dragonfly
+              - --probe
+              - --listen-socket=/run/ate/image-plugin.sock
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsGroup: 0
+          volumeMounts:
+          - name: run-ate
+            mountPath: /run/ate
+          - name: ate-base
+            mountPath: /var/lib/ate
+            mountPropagation: Bidirectional
+          - name: run-nydus
+            mountPath: /run/containerd-nydus
+        volumes:
         - name: kube-home
-          mountPath: /home/kubernetes
-        - name: run-nydus
-          mountPath: /run/containerd-nydus
+          hostPath:
+            path: /home/kubernetes
+            type: Directory
         - name: run-ate
-          mountPath: /run/ate
+          hostPath:
+            path: /run/ate
+            type: DirectoryOrCreate
         - name: ate-base
-          mountPath: /var/lib/ate
-          mountPropagation: Bidirectional
-      - name: image-plugin-dragonfly
-        image: ko://go.ate.dev/substrate/image-plugin/cmd/nydus-dragonfly
-        env:
-        - name: DRAGONFLY_PROXY_ADDR
-          value: "http://127.0.0.1:65001"
-        - name: DRAGONFLY_SCHEDULER_ADDR
-          value: "dragonfly-scheduler.ate-system.svc.cluster.local:8002"
-        - name: DRAGONFLY_MANAGER_ADDR
-          value: "dragonfly-manager.ate-system.svc.cluster.local:65003"
-        args:
-        - --listen-socket=/run/ate/image-plugin.sock
-        - --snapshotter-socket=/run/containerd-nydus/containerd-nydus-grpc.sock
-        - --docker-config=/run/containerd-nydus/docker/config.json
-        - --work-dir=/var/lib/ate/image-plugin-cache/nydus-dragonfly
-        - --verify-dragonfly-ping=true
-        - --idle-ttl=10m
-        - --startup-timeout=2m
-        - --drain-timeout=30m
-        - --drain-complete-file=/run/ate/drain-complete
-        readinessProbe:
-          exec:
-            command:
-            - /ko-app/nydus-dragonfly
-            - --probe
-            - --listen-socket=/run/ate/image-plugin.sock
-          initialDelaySeconds: 2
-          periodSeconds: 2
-        securityContext:
-          privileged: true
-          runAsUser: 0
-          runAsGroup: 0
-        volumeMounts:
-        - name: run-ate
-          mountPath: /run/ate
-        - name: ate-base
-          mountPath: /var/lib/ate
-          mountPropagation: Bidirectional
+          hostPath:
+            path: /var/lib/ate
+            type: DirectoryOrCreate
         - name: run-nydus
-          mountPath: /run/containerd-nydus
-      volumes:
-      - name: kube-home
-        hostPath:
-          path: /home/kubernetes
-          type: Directory
-      - name: run-ate
-        hostPath:
-          path: /run/ate
-          type: DirectoryOrCreate
-      - name: ate-base
-        hostPath:
-          path: /var/lib/ate
-          type: DirectoryOrCreate
-      - name: run-nydus
-        hostPath:
-          path: /run/containerd-nydus
-          type: DirectoryOrCreate
-      - name: var-lib-dragonfly
-        hostPath:
-          path: /var/lib/dragonfly
-          type: DirectoryOrCreate
-      - name: boot
-        hostPath:
-          path: /boot
-          type: Directory
-      - name: lib-modules
-        hostPath:
-          path: /lib/modules
-          type: Directory
-      - name: usr-src
-        hostPath:
-          path: /usr/src
-          type: Directory
-      - name: kmod-build
-        emptyDir: {}
+          hostPath:
+            path: /run/containerd-nydus
+            type: DirectoryOrCreate
+        - name: var-lib-dragonfly
+          hostPath:
+            path: /var/lib/dragonfly
+            type: DirectoryOrCreate
+        - name: boot
+          hostPath:
+            path: /boot
+            type: Directory
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+            type: Directory
+        - name: usr-src
+          hostPath:
+            path: /usr/src
+            type: Directory
+        - name: kmod-build
+          emptyDir: {}
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    name: image-plugin-nydus-dragonfly-seed
+    namespace: ate-system
+    labels:
+      app: ate-image-plugin
+      ate.dev/image-plugin: nydus-dragonfly
+  spec:
+    selector:
+      matchLabels:
+        app: ate-image-plugin
+        ate.dev/image-plugin: nydus-dragonfly
+        ate.dev/dragonfly-seed: "true"
+    updateStrategy:
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app: ate-image-plugin
+          ate.dev/image-plugin: nydus-dragonfly
+          ate.dev/dragonfly-seed: "true"
+      spec:
+        <<: *pod-spec
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: ate.dev/dragonfly-seed
+                  operator: In
+                  values:
+                  - "true"
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
