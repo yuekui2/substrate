@@ -1,0 +1,8 @@
+# bake-d8
+# start: 2026-10-30T14:28:06Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh bake nydus
+
+job.batch/imgbench-bake-0-nydus-w8 created
+pod/imgbench-bake-0-nydus-w8-qwmch condition met
+pod/imgbench-bake-0-nydus-w8-xcnlt condition met
+nydus: imgbench-bake-0-nydus-w8 pod imgbench-bake-0-nydus-w8-qwmch started 2026-10-30T14:28:19Z

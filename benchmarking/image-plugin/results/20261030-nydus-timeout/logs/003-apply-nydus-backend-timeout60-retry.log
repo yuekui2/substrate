@@ -1,0 +1,19 @@
+# apply-nydus-backend-timeout60-retry
+# start: 2026-10-30T14:28:03Z
+$ python3 benchmarking/image-plugin/scope_plugin.py nydus < /tmp/nydus-resolved.yaml | kubectl apply -f -; grep -c "\"timeout\": 60" /tmp/nydus-resolved.yaml
+
+service/dragonfly-redis unchanged
+deployment.apps/dragonfly-redis unchanged
+service/dragonfly-mysql unchanged
+deployment.apps/dragonfly-mysql unchanged
+configmap/dragonfly-controlplane-config unchanged
+service/dragonfly-manager unchanged
+deployment.apps/dragonfly-manager unchanged
+service/dragonfly-scheduler unchanged
+deployment.apps/dragonfly-scheduler unchanged
+daemonset.apps/image-plugin-nydus-dragonfly unchanged
+daemonset.apps/image-plugin-nydus-dragonfly-seed unchanged
+networkpolicy.networking.k8s.io/dragonfly-backing-stores unchanged
+networkpolicy.networking.k8s.io/dragonfly-controlplane-and-peers unchanged
+1
+# exit: 0  end: 2026-10-30T14:28:06Z

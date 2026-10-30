@@ -1,0 +1,7 @@
+# apply-nydus-backend-timeout60
+# start: 2026-10-30T14:27:31Z
+$ KO=$(cd hack/tools/ko && go tool -n ko); $KO resolve --base-import-paths -f image-plugin/manifests/nydus-dragonfly.yaml 2>/dev/null | python3 benchmarking/image-plugin/scope_plugin.py nydus | kubectl apply -f - | grep -i daemonset
+
+daemonset.apps/image-plugin-nydus-dragonfly configured
+daemonset.apps/image-plugin-nydus-dragonfly-seed configured
+# exit: 0  end: 2026-10-30T14:27:44Z

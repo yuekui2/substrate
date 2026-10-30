@@ -749,9 +749,9 @@ items:
                     "check_interval": 5,
                     "use_http": true
                   },
-                  "timeout": 10,
+                  "timeout": 60,
                   "connect_timeout": 10,
-                  "retry_limit": 2
+                  "retry_limit": 5
                 },
                 "cache_type": "fscache",
                 "cache_config": {
