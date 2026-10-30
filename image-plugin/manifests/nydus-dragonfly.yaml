@@ -762,8 +762,17 @@ items:
             }
             EOF
 
+            # One shared nydusd serves every actor on the node. Its fscache
+            # worker threads bound how many cache misses are fetched at once.
+            cat > "${nydus_root}/config.toml" <<EOF
+            version = 1
+            [daemon]
+            threads_number = ${NYDUS_FSCACHE_THREADS:-64}
+            EOF
+
             rm -f "${nydus_run}/containerd-nydus-grpc.sock" /run/ate/drain-complete
             exec "${snapshotter_bin}" \
+              --config="${nydus_root}/config.toml" \
               --log-level=info \
               --log-to-stdout \
               --fs-driver=fscache \
