@@ -192,7 +192,9 @@ data:
       advertisePort: 8002
     scheduler:
       algorithm: default
-      backToSourceCount: 200
+      # A peer may go to the registry while at most backToSourceCount peers
+      # of the task have. The rest download pieces from them.
+      backToSourceCount: 1
       retryBackToSourceLimit: 5
       retryLimit: 10
       retryInterval: 50ms
