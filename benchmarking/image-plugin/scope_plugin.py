@@ -82,7 +82,8 @@ def main():
     arm = sys.argv[1]
     docs = [d for d in yaml.safe_load_all(sys.stdin) if d]
     for d in docs:
-        patch(d, arm)
+        for item in d.get("items", []) if d.get("kind") == "List" else [d]:
+            patch(item, arm)
     yaml.safe_dump_all(docs, sys.stdout, sort_keys=False)
 
 

@@ -31,6 +31,9 @@ for arm in "${arms[@]}"; do
     ds="image-plugin-${arm}"
     [[ "${arm}" == nydus ]] && ds=image-plugin-nydus-dragonfly
     kubectl -n ate-system rollout status "ds/${ds}" --timeout=40m
+    if [[ "${arm}" == nydus ]]; then
+      kubectl -n ate-system rollout status ds/image-plugin-nydus-dragonfly-seed --timeout=40m
+    fi
   fi
 done
 kubectl -n ate-system rollout status ds/atelet --timeout=20m

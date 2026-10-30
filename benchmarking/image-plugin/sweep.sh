@@ -19,7 +19,7 @@
 # Arms run in parallel on their own pools, so they share Artifact Registry
 # and the control plane.
 #
-#   RUN_DIR=... LOADER_ARGS=... sweep.sh <density...>
+#   RUN_DIR=... LOADER_ARGS=... [ARMS="nydus spegel"] sweep.sh <density...>
 
 set -uo pipefail
 
@@ -27,6 +27,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 : "${RUN_DIR:?set RUN_DIR}"
 EV="${HERE}/ev.sh"
 export RUN_DIR
+ARMS="${ARMS:-pull riptide nydus spegel}"
 densities=("$@")
 if [[ ${#densities[@]} -eq 0 ]]; then
   densities=(1 2 4 8)
@@ -34,7 +35,7 @@ fi
 
 pids=()
 for d in "${densities[@]}"; do
-  DENSITY="${d}" LOADER_ARGS="-actors 320 -concurrency 48" "${EV}" "bake-d${d}" "${HERE}/run.sh bake" &
+  DENSITY="${d}" LOADER_ARGS="-actors 320 -concurrency 48" "${EV}" "bake-d${d}" "${HERE}/run.sh bake ${ARMS}" &
   pids+=($!)
 done
 for pid in "${pids[@]}"; do
@@ -42,8 +43,8 @@ for pid in "${pids[@]}"; do
 done
 
 for d in "${densities[@]}"; do
-  "${EV}" "d${d}-recreate-pools" "${HERE}/pools.sh recreate"
-  "${EV}" "d${d}-wait-ready" "${HERE}/wait-ready.sh"
-  DENSITY="${d}" "${EV}" "d${d}-run" "${HERE}/run.sh rep 1"
+  "${EV}" "d${d}-recreate-pools" "${HERE}/pools.sh recreate ${ARMS}"
+  "${EV}" "d${d}-wait-ready" "${HERE}/wait-ready.sh ${ARMS}"
+  DENSITY="${d}" "${EV}" "d${d}-run" "${HERE}/run.sh rep 1 ${ARMS}"
 done
 echo SWEEP-DONE

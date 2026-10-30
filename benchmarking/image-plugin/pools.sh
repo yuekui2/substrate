@@ -92,6 +92,12 @@ create_one() {
     --system-config-from-file "${sysctls_file}" \
     --quiet
   echo "created bench-${arm}"
+  if [[ "${arm}" == nydus ]]; then
+    # One node runs the Dragonfly seed peer (image-plugin-nydus-dragonfly-seed).
+    local seed
+    seed="$(kubectl get nodes -l bench-arm=nydus -o jsonpath='{.items[0].metadata.name}')"
+    kubectl label node "${seed}" ate.dev/dragonfly-seed=true --overwrite
+  fi
 }
 
 delete_one() {
