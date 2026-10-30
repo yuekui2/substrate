@@ -15,18 +15,18 @@
 # Full Cross-Node Nydus RAFS v6 + Dragonfly v2 P2P Stack over Kernel EROFS + fscache.
 #
 # Deploys:
-# 1. Dragonfly v2 Cluster Control Plane in ate-system:
+# 1. Dragonfly v2.5 Cluster Control Plane in ate-system:
 #    - dragonfly-mysql + dragonfly-redis (backing store for Dragonfly Manager)
 #    - dragonfly-manager (REST :8080 / gRPC :65003)
-#    - dragonfly-scheduler (gRPC :8002, P2P piece DAG & cross-node peer routing)
+#    - dragonfly-scheduler (gRPC :8002, metrics :8000)
 # 2. Per-Node Data Plane DaemonSet (image-plugin-nydus-dragonfly) on every worker
 #    node, or image-plugin-nydus-dragonfly-seed on nodes labeled
 #    ate.dev/dragonfly-seed=true:
-#    - dfdaemon (proxy :65001 for local nydusd, upload :65000 & peer gRPC :65002
-#      for cross-node P2P piece transfer over LAN, registered with dragonfly-scheduler,
-#      metrics :40902)
+#    - dfdaemon, the Rust Dragonfly client (registry mirror proxy on
+#      127.0.0.1:4001 for local nydusd, upload gRPC :4000, piece storage
+#      :4005/tcp and :4006/udp for peers, metrics :4002, health :4003)
 #    - nydus-snapshotter (containerd-nydus-grpc + nydusd singleton in Kernel EROFS
-#      + fscache mode routing all chunk requests through http://127.0.0.1:65001)
+#      + fscache mode, using the dfdaemon proxy as a registry mirror)
 #    - image-plugin-dragonfly (ImagePlugin gRPC plugin on
 #      /run/ate/image-plugin.sock)
 #
@@ -78,7 +78,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: redis
-        image: redis:7-alpine
+        image: redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
         args:
         - redis-server
         - --requirepass
@@ -127,7 +127,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: mysql
-        image: mysql:8.0
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
         env:
         - name: MYSQL_ROOT_PASSWORD
           value: dragonfly
@@ -181,9 +181,6 @@ data:
       local:
         size: 10000
         ttl: 30s
-    security:
-      autoIssueCert: false
-      tlsPolicy: default
     metrics:
       enable: false
     console: true
@@ -201,6 +198,7 @@ data:
       retryLimit: 10
       retryInterval: 50ms
       gc:
+        pieceDownloadTimeout: 30m
         peerGCInterval: 10m
         peerTTL: 24h
         taskGCInterval: 10m
@@ -267,7 +265,7 @@ spec:
         effect: NoSchedule
       initContainers:
       - name: wait-for-db
-        image: busybox:1.36
+        image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
         command:
         - /bin/sh
         - -ec
@@ -278,7 +276,7 @@ spec:
           done
       containers:
       - name: manager
-        image: dragonflyoss/manager:v2.1.49
+        image: dragonflyoss/manager:v2.5.3@sha256:c329042d7b79f59ca92a38bd57512f6e56c8a8a0354c855515849f38d67be227
         ports:
         - containerPort: 8080
         - containerPort: 65003
@@ -331,7 +329,7 @@ spec:
         effect: NoSchedule
       initContainers:
       - name: wait-for-manager
-        image: busybox:1.36
+        image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
         command:
         - /bin/sh
         - -ec
@@ -342,7 +340,7 @@ spec:
           done
       containers:
       - name: scheduler
-        image: dragonflyoss/scheduler:v2.1.49
+        image: dragonflyoss/scheduler:v2.5.3@sha256:8f5ef78dab479650723bb5f1937a92bfbac12e9e552fb2ee07979368320cc2e6
         ports:
         - containerPort: 8002
         - name: metrics
@@ -357,10 +355,12 @@ spec:
 ---
 # image-plugin-nydus-dragonfly-seed runs the same pod on nodes labeled
 # ate.dev/dragonfly-seed=true, where dfdaemon also registers as a super seed
-# peer. The scheduler then asks a seed peer to fetch each new task from the
-# registry. dfdaemon reads the seed label of its pod through the downward
-# API. Both DaemonSets are in one List so the seed one can reuse the pod spec
-# through a YAML anchor.
+# peer. When a normal peer asks for a new task, the scheduler picks a seed
+# peer by hashing the task ID and asks it to fetch the task from the
+# registry. A seed peer that asks for a new task fetches it itself. dfdaemon
+# reads the seed label of its pod through the downward API. Both DaemonSets
+# are in one List so the seed one can reuse the pod spec through a YAML
+# anchor.
 apiVersion: v1
 kind: List
 items:
@@ -512,7 +512,7 @@ items:
             mountPath: /build
         containers:
         - name: dfdaemon
-          image: dragonflyoss/dfdaemon:v2.1.49
+          image: dragonflyoss/client:v1.5.10@sha256:1025b0ef1ec1f9684600ce722f66e5776129cc42fd2dfde5784514d5b7dca942
           env:
           - name: NODE_IP
             valueFrom:
@@ -522,101 +522,73 @@ items:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.labels['ate.dev/dragonfly-seed']
+          # The proxy serves nydusd as a registry mirror. Blob requests become
+          # Dragonfly tasks keyed by the blob digest, without the Range header,
+          # so every Range read of a layer is a slice of one task. dfdaemon
+          # fetches only the pieces a Range read needs, from peers when they
+          # have them, and with prefetch fetches the rest of the task in the
+          # background.
           command:
           - /bin/sh
           - -ec
           - |
-            mkdir -p /etc/dragonfly /var/lib/dragonfly /var/log/dragonfly /var/cache/dragonfly
-            cat > /etc/dragonfly/dfget.yaml <<EOF
-            aliveTime: 0s
-            gcInterval: 1m0s
-            dataDir: /var/lib/dragonfly
-            logDir: /var/log/dragonfly
-            cacheDir: /var/cache/dragonfly
-            keepStorage: true
-            console: true
-            metrics: :40902
-            scheduler:
-              manager:
-                enable: true
-                netAddrs:
-                - type: tcp
-                  addr: dragonfly-manager.ate-system.svc.cluster.local:65003
-                refreshInterval: 10s
-                seedPeer:
-                  enable: ${SEED_PEER}
-                  type: super
-                  clusterID: 1
-              scheduleTimeout: 30s
-              disableAutoBackSource: false
-              netAddrs:
-              - type: tcp
-                addr: dragonfly-scheduler.ate-system.svc.cluster.local:8002
+            mkdir -p /etc/dragonfly /var/run/dragonfly
+            cat > /etc/dragonfly/dfdaemon.yaml <<EOF
             host:
+              schedulerClusterID: 1
               idc: gke
               location: us-central1-a
-              hostname: $(hostname)
-              advertiseIP: ${NODE_IP}
+              ip: ${NODE_IP}
             download:
-              calculateDigest: false
-              totalRateLimit: 2048Mi
-              perPeerRateLimit: 1024Mi
-              pieceDownloadTimeout: 30s
-              prefetch: true
-              downloadGRPC:
-                security:
-                  insecure: true
-                unixListen:
-                  socket: /var/run/dfdaemon.sock
-              peerGRPC:
-                security:
-                  insecure: true
-                tcpListen:
-                  listen: 0.0.0.0
-                  port: 65000
+              server:
+                socketPath: /var/run/dragonfly/dfdaemon.sock
             upload:
-              rateLimit: 2048Mi
-              security:
-                insecure: true
-              tcpListen:
-                listen: 0.0.0.0
-                port: 65002
+              server:
+                port: 4000
+                requestRateLimit: 10000
+            manager:
+              addr: http://dragonfly-manager.ate-system.svc.cluster.local:65003
+            scheduler:
+              announceInterval: 1m
+              enableBackToSource: true
+            seedPeer:
+              enable: ${SEED_PEER}
+              type: super
             storage:
-              taskExpireTime: 6h
-              strategy: io.d7y.storage.v2.simple
-              diskGCThreshold: 50Gi
-              diskGCThresholdPercent: 80
-              multiplex: true
-            health:
-              security:
-                insecure: true
-              tcpListen:
-                path: /server/ping
-                listen: 0.0.0.0
-                port: 40901
+              server:
+                tcpPort: 4005
+                quicPort: 4006
+              dir: /var/lib/dragonfly
+              keep: true
+            gc:
+              policy:
+                taskTTL: 6h
+                diskHighThresholdPercent: 80
+                diskLowThresholdPercent: 60
             proxy:
-              defaultFilter: "Expires&Signature&ns"
-              defaultTag: ""
-              security:
-                insecure: true
-              tcpListen:
-                listen: 0.0.0.0
-                port: 65001
+              server:
+                ip: 127.0.0.1
+                port: 4001
+                # nydusd treats the 429 of the proxy rate limiter as a
+                # failed read, so keep the limit out of reach.
+                requestRateLimit: 100000
+              rules:
+              - regex: 'blobs/sha256.*'
               registryMirror:
-                dynamic: true
-                url: https://us-central1-docker.pkg.dev
-                insecure: false
-                useProxies: true
-              proxies:
-              - regx: blobs/sha256.*
-                useHTTPS: true
-              - regx: us-central1-docker\.pkg\.dev
-                useHTTPS: true
+                addr: https://us-central1-docker.pkg.dev
+                enableTaskIDBasedBlobDigest: true
+              prefetch: true
+            health:
+              server:
+                port: 4003
+            metrics:
+              server:
+                port: 4002
             EOF
-            exec /opt/dragonfly/bin/dfget daemon --config /etc/dragonfly/dfget.yaml
+            exec /usr/local/bin/dfdaemon --config /etc/dragonfly/dfdaemon.yaml --console
           ports:
           - name: metrics
-            containerPort: 40902
+            containerPort: 4002
           lifecycle:
             preStop:
               exec:
@@ -641,7 +613,9 @@ items:
           - name: NYDUS_SNAPSHOTTER_VERSION
             value: "0.15.0"
           - name: DRAGONFLY_PROXY_ADDR
-            value: "http://127.0.0.1:65001"
+            value: "http://127.0.0.1:4001"
+          - name: DRAGONFLY_HEALTH_URL
+            value: "http://127.0.0.1:4003/healthy"
           command:
           - nsenter
           - -t
@@ -658,7 +632,8 @@ items:
             readonly nydus_run="/run/containerd-nydus"
             readonly nydusd_bin="${KUBE_HOME}/bin/nydusd"
             readonly snapshotter_bin="${KUBE_HOME}/bin/containerd-nydus-grpc"
-            readonly df_addr="${DRAGONFLY_PROXY_ADDR:-http://127.0.0.1:65001}"
+            readonly df_addr="${DRAGONFLY_PROXY_ADDR}"
+            readonly df_health="${DRAGONFLY_HEALTH_URL}"
 
             rm -f "${nydus_run}/containerd-nydus-grpc.sock" /run/ate/drain-complete
 
@@ -712,9 +687,9 @@ items:
               chmod +x "${KUBE_HOME}/bin/containerd-nydus-grpc" "${KUBE_HOME}/bin/nydus-overlayfs"
             fi
 
-            echo "Waiting for local Dragonfly dfdaemon health endpoint at http://127.0.0.1:40901/server/ping..."
+            echo "Waiting for local Dragonfly dfdaemon health endpoint at ${df_health}..."
             for _ in $(seq 1 120); do
-              if curl -fsS "http://127.0.0.1:40901/server/ping" >/dev/null 2>&1; then
+              if curl -fsS "${df_health}" >/dev/null 2>&1; then
                 break
               fi
               sleep 1
@@ -742,13 +717,17 @@ items:
                 "backend_type": "registry",
                 "backend_config": {
                   "scheme": "https",
-                  "proxy": {
-                    "url": "${df_addr}",
-                    "ping_url": "http://127.0.0.1:40901/server/ping",
-                    "fallback": false,
-                    "check_interval": 5,
-                    "use_http": true
-                  },
+                  "mirrors": [
+                    {
+                      "host": "${df_addr}",
+                      "ping_url": "${df_health}",
+                      "headers": {
+                        "X-Dragonfly-Registry": "https://us-central1-docker.pkg.dev"
+                      },
+                      "health_check_interval": 5,
+                      "failure_limit": 5
+                    }
+                  ],
                   "timeout": 60,
                   "connect_timeout": 10,
                   "retry_limit": 5
@@ -812,7 +791,9 @@ items:
           image: ko://go.ate.dev/substrate/image-plugin/cmd/nydus-dragonfly
           env:
           - name: DRAGONFLY_PROXY_ADDR
-            value: "http://127.0.0.1:65001"
+            value: "http://127.0.0.1:4001"
+          - name: DRAGONFLY_HEALTH_URL
+            value: "http://127.0.0.1:4003/healthy"
           - name: DRAGONFLY_SCHEDULER_ADDR
             value: "dragonfly-scheduler.ate-system.svc.cluster.local:8002"
           - name: DRAGONFLY_MANAGER_ADDR
@@ -975,12 +956,12 @@ spec:
     - protocol: TCP
       port: 8002
     - protocol: TCP
-      port: 65000
-    - protocol: TCP
-      port: 65001
-    - protocol: TCP
-      port: 65002
-    - protocol: TCP
       port: 8000
     - protocol: TCP
-      port: 40902
+      port: 4000
+    - protocol: TCP
+      port: 4002
+    - protocol: TCP
+      port: 4005
+    - protocol: UDP
+      port: 4006
