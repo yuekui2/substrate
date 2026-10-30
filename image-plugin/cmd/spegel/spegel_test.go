@@ -30,6 +30,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -172,7 +174,7 @@ func TestSpegelPeerServerPeers(t *testing.T) {
 	}
 	self := ln.Addr().String()
 	_ = ln.Close()
-	s, err := NewSpegelPeerServer(self, t.TempDir(), "", 0, []string{"10.0.0.2:5000", self, "10.0.0.1"}, "", nil, &spegelCounters{})
+	s, err := NewSpegelPeerServer(self, t.TempDir(), "", 0, []string{"10.0.0.2:5000", self, "10.0.0.1"}, "", nil, &spegelCounters{}, nil)
 	if err != nil {
 		t.Fatalf("NewSpegelPeerServer failed: %v", err)
 	}
@@ -369,6 +371,248 @@ func TestSpegelSharedLayerDeduplicationAndCorruptBlobFallback(t *testing.T) {
 	if upstreamCalls.Load() != 1 {
 		t.Fatalf("expected shared layer to reuse on-disk unpacked layer without extra upstream calls, got %d", upstreamCalls.Load())
 	}
+}
+
+func TestSpegelOneUpstreamFetchPerBlob(t *testing.T) {
+	addrs := reserveAddrs(t, 3)
+	blob, blobDigest, diffID := layerOwnedBy(t, addrs, addrs[0])
+	up := newGatedUpstream(blob)
+	// Open the gate once both non-owners get a 200 from the owner, while
+	// the owner's upstream fetch is still blocked.
+	var ownerResponses atomic.Int64
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		resp, err := http.DefaultTransport.RoundTrip(req)
+		if err == nil && resp.StatusCode == http.StatusOK && req.Header.Get(HeaderSpegelFetchUpstream) != "" && ownerResponses.Add(1) == 2 {
+			up.open()
+		}
+		return resp, err
+	})}
+	var nodes []*SpegelDriver
+	for _, addr := range addrs {
+		nodes = append(nodes, newTestNode(t, addr, addrs, up.fetch, client, diffID, blobDigest))
+	}
+	t.Cleanup(up.open)
+
+	errs := make(chan error, len(nodes))
+	for _, n := range nodes {
+		go func() {
+			_, err := n.PrepareImage(context.Background(), &imagepluginclient.PrepareRequest{ImageRef: testNodeImage})
+			errs <- err
+		}()
+	}
+	for range nodes {
+		if err := <-errs; err != nil {
+			t.Fatalf("PrepareImage failed: %v", err)
+		}
+	}
+	if got := up.calls.Load(); got != 1 {
+		t.Fatalf("upstream fetches = %d, want 1", got)
+	}
+}
+
+func TestSpegelServesBlobWhileOwnerFetches(t *testing.T) {
+	addrs := reserveAddrs(t, 2)
+	blob, blobDigest, diffID := layerOwnedBy(t, addrs, addrs[0])
+	up := newGatedUpstream(blob)
+	firstBytes := make(chan struct{})
+	var once sync.Once
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		resp, err := http.DefaultTransport.RoundTrip(req)
+		if err == nil && req.Header.Get(HeaderSpegelFetchUpstream) != "" {
+			resp.Body = notifyingBody{resp.Body, func() { once.Do(func() { close(firstBytes) }) }}
+		}
+		return resp, err
+	})}
+	var nonOwnerUpstreamCalls atomic.Int64
+	failingUpstream := func(context.Context, string, *imagepluginclient.AuthConfig, int, string) (io.ReadCloser, error) {
+		nonOwnerUpstreamCalls.Add(1)
+		return nil, errors.New("upstream offline")
+	}
+	newTestNode(t, addrs[0], addrs, up.fetch, nil, diffID, blobDigest)
+	nonOwner := newTestNode(t, addrs[1], addrs, failingUpstream, client, diffID, blobDigest)
+	t.Cleanup(up.open)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := nonOwner.PrepareImage(context.Background(), &imagepluginclient.PrepareRequest{ImageRef: testNodeImage})
+		done <- err
+	}()
+	select {
+	case <-firstBytes:
+	case err := <-done:
+		t.Fatalf("PrepareImage returned %v before the owner streamed any bytes", err)
+	}
+	up.open()
+	if err := <-done; err != nil {
+		t.Fatalf("PrepareImage failed: %v", err)
+	}
+	if up.calls.Load() != 1 || nonOwnerUpstreamCalls.Load() != 0 {
+		t.Fatalf("upstream fetches: owner = %d, non-owner = %d, want 1 and 0", up.calls.Load(), nonOwnerUpstreamCalls.Load())
+	}
+}
+
+func TestSpegelOwnerFailureFallsBackToUpstream(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		owner func(t *testing.T) string
+	}{
+		{
+			name:  "owner unreachable",
+			owner: func(t *testing.T) string { return reserveAddrs(t, 1)[0] },
+		},
+		{
+			name: "owner sends a corrupt blob",
+			owner: func(t *testing.T) string {
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte("corrupt"))
+				}))
+				t.Cleanup(srv.Close)
+				return srv.Listener.Addr().String()
+			},
+		},
+		{
+			name: "owner returns not found",
+			owner: func(t *testing.T) string {
+				srv := httptest.NewServer(http.NotFoundHandler())
+				t.Cleanup(srv.Close)
+				return srv.Listener.Addr().String()
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			owner := tc.owner(t)
+			self := reserveAddrs(t, 1)[0]
+			blob, blobDigest, diffID := layerOwnedBy(t, []string{self, owner}, owner)
+			var askedOwner atomic.Bool
+			client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				if req.URL.Host == owner && req.Header.Get(HeaderSpegelFetchUpstream) != "" {
+					askedOwner.Store(true)
+				}
+				return http.DefaultTransport.RoundTrip(req)
+			})}
+			var upstreamCalls atomic.Int64
+			upstream := func(context.Context, string, *imagepluginclient.AuthConfig, int, string) (io.ReadCloser, error) {
+				upstreamCalls.Add(1)
+				return io.NopCloser(bytes.NewReader(blob)), nil
+			}
+			node := newTestNode(t, self, []string{owner}, upstream, client, diffID, blobDigest)
+			if _, err := node.PrepareImage(context.Background(), &imagepluginclient.PrepareRequest{ImageRef: testNodeImage}); err != nil {
+				t.Fatalf("PrepareImage failed: %v", err)
+			}
+			if !askedOwner.Load() || upstreamCalls.Load() != 1 {
+				t.Fatalf("asked owner = %v, upstream fetches = %d, want true and 1", askedOwner.Load(), upstreamCalls.Load())
+			}
+		})
+	}
+}
+
+const testNodeImage = "us-central1-docker.pkg.dev/p/r/app:v1"
+
+// newTestNode starts a Spegel node listening on addr with a one-layer image.
+func newTestNode(t *testing.T, addr string, peers []string, upstream BlobFetcherFunc, client *http.Client, diffID, blobDigest string) *SpegelDriver {
+	t.Helper()
+	dir := t.TempDir()
+	sd, err := NewSpegel(SpegelConfig{
+		StoreDir:            filepath.Join(dir, "store"),
+		DockerConfigPath:    filepath.Join(dir, "docker", "config.json"),
+		EnableP2PServer:     true,
+		P2PListenAddr:       addr,
+		SpegelBootstrapDNS:  "nonexistent.invalid",
+		SpegelPeers:         peers,
+		HTTPClient:          client,
+		UpstreamBlobFetcher: upstream,
+		ServerOpts: []plugin.Option{
+			plugin.WithWorkDir(filepath.Join(dir, "work")),
+			plugin.WithImageResolver(func(context.Context, string, *imagepluginclient.AuthConfig) (string, *v1.Config, []string, []string, error) {
+				return "sha256:3333333333333333333333333333333333333333333333333333333333333333", &v1.Config{}, []string{diffID}, []string{blobDigest}, nil
+			}),
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewSpegel(%s) failed: %v", addr, err)
+	}
+	t.Cleanup(func() { _ = sd.Close() })
+	return sd
+}
+
+// reserveAddrs returns n free loopback addresses.
+func reserveAddrs(t *testing.T, n int) []string {
+	t.Helper()
+	var addrs []string
+	for range n {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = ln.Close() }()
+		addrs = append(addrs, ln.Addr().String())
+	}
+	return addrs
+}
+
+// layerOwnedBy builds a gzip layer whose blob rendezvousOwner assigns to
+// owner among members.
+func layerOwnedBy(t *testing.T, members []string, owner string) (blob []byte, blobDigest, diffID string) {
+	t.Helper()
+	for i := range 1000 {
+		tarball, diff := buildTestTar(t, map[string]string{"nonce": strconv.Itoa(i)})
+		blob, blobDigest := compressGzip(t, tarball)
+		if rendezvousOwner(members, stripSHA256Prefix(blobDigest)) == owner {
+			return blob, blobDigest, diff
+		}
+	}
+	t.Fatalf("no layer owned by %s", owner)
+	return nil, "", ""
+}
+
+// gatedUpstream serves blob from upstream: the first half, then the rest
+// once open is called. A second fetch opens the gate, so a test expecting
+// one fetch fails instead of hanging.
+type gatedUpstream struct {
+	blob    []byte
+	calls   atomic.Int64
+	release chan struct{}
+	once    sync.Once
+}
+
+func newGatedUpstream(blob []byte) *gatedUpstream {
+	return &gatedUpstream{blob: blob, release: make(chan struct{})}
+}
+
+func (g *gatedUpstream) open() { g.once.Do(func() { close(g.release) }) }
+
+func (g *gatedUpstream) fetch(context.Context, string, *imagepluginclient.AuthConfig, int, string) (io.ReadCloser, error) {
+	if g.calls.Add(1) > 1 {
+		g.open()
+	}
+	half := len(g.blob) / 2
+	return io.NopCloser(io.MultiReader(bytes.NewReader(g.blob[:half]), gateReader(g.release), bytes.NewReader(g.blob[half:]))), nil
+}
+
+// gateReader blocks until the channel is closed, then reports EOF.
+type gateReader chan struct{}
+
+func (g gateReader) Read([]byte) (int, error) {
+	<-g
+	return 0, io.EOF
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+// notifyingBody calls notify whenever a read returns bytes.
+type notifyingBody struct {
+	io.ReadCloser
+	notify func()
+}
+
+func (b notifyingBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	if n > 0 {
+		b.notify()
+	}
+	return n, err
 }
 
 func buildTestTar(t *testing.T, files map[string]string) ([]byte, string) {
