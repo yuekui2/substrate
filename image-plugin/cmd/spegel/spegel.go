@@ -30,6 +30,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -94,6 +95,9 @@ const (
 
 	// HeaderSpegelPeer reports the Spegel peer address that served a blob.
 	HeaderSpegelPeer = "X-Spegel-Peer"
+
+	// peerRefreshInterval is how often SpegelPeerServer re-resolves its peers.
+	peerRefreshInterval = 5 * time.Second
 )
 
 // BlobFetcherFunc returns a reader for the compressed OCI layer blob at
@@ -173,6 +177,14 @@ type SpegelPeerServer struct {
 	listener           net.Listener
 	server             *http.Server
 	counters           *spegelCounters
+	stopRefresh        context.CancelFunc
+	// dnsAddrs holds the last successful bootstrap DNS answer. Only
+	// refreshPeers uses it.
+	dnsAddrs []string
+
+	peersMu sync.RWMutex
+	// peers is the sorted list of other peers' host:port addresses.
+	peers []string
 
 	localHits      atomic.Int64
 	peerHits       atomic.Int64
@@ -219,6 +231,10 @@ func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS string, peerPort int
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	refreshCtx, stopRefresh := context.WithCancel(context.Background())
+	s.stopRefresh = stopRefresh
+	s.refreshPeers(refreshCtx)
+	go s.refreshPeersLoop(refreshCtx)
 	go func() {
 		_ = s.server.Serve(ln)
 	}()
@@ -238,6 +254,7 @@ func (s *SpegelPeerServer) Close() error {
 	if s == nil || s.server == nil {
 		return nil
 	}
+	s.stopRefresh()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	return s.server.Shutdown(ctx)
@@ -259,9 +276,6 @@ func (s *SpegelPeerServer) Stats() SpegelStats {
 			}
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
-	peers := s.discoverPeers(ctx)
-	cancel()
 	return SpegelStats{
 		BlobsCached:      blobsCached,
 		BytesCached:      bytesCached,
@@ -274,7 +288,7 @@ func (s *SpegelPeerServer) Stats() SpegelStats {
 		P2PBytesReceived: s.counters.p2pBytesReceived.Load(),
 		UpstreamBytes:    s.counters.upstreamBytes.Load(),
 		HealthPings:      s.healthPings.Load(),
-		DiscoveredPeers:  peers,
+		DiscoveredPeers:  s.Peers(),
 	}
 }
 
@@ -337,9 +351,8 @@ func (s *SpegelPeerServer) handleV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Query discovered cluster Spegel peers (via static list + headless DNS).
-	peers := s.discoverPeers(r.Context())
-	for _, peer := range peers {
+	// Query cluster Spegel peers (static list + headless DNS).
+	for _, peer := range s.Peers() {
 		if s.streamFromPeer(w, r, peer, hexDigest) {
 			s.peerHits.Add(1)
 			return
@@ -358,7 +371,48 @@ func (s *SpegelPeerServer) handleV2(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
-func (s *SpegelPeerServer) discoverPeers(ctx context.Context) []string {
+// Peers returns the sorted host:port addresses of the other peers, as of the
+// last refresh.
+func (s *SpegelPeerServer) Peers() []string {
+	s.peersMu.RLock()
+	defer s.peersMu.RUnlock()
+	return append([]string(nil), s.peers...)
+}
+
+func (s *SpegelPeerServer) refreshPeersLoop(ctx context.Context) {
+	t := time.NewTicker(peerRefreshInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.refreshPeers(ctx)
+		}
+	}
+}
+
+// refreshPeers resolves the static and headless-DNS peers. If the DNS lookup
+// fails, it keeps the previous DNS answer.
+func (s *SpegelPeerServer) refreshPeers(ctx context.Context) {
+	if s.bootstrapDNS != "" {
+		lookupCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+		addrs, err := net.DefaultResolver.LookupHost(lookupCtx, s.bootstrapDNS)
+		cancel()
+		if err != nil {
+			slog.DebugContext(ctx, "Spegel peer DNS lookup failed",
+				slog.String("bootstrapDNS", s.bootstrapDNS), slog.Any("err", err))
+		} else {
+			s.dnsAddrs = addrs
+		}
+	}
+	peers := s.discoverPeers()
+	s.peersMu.Lock()
+	s.peers = peers
+	s.peersMu.Unlock()
+}
+
+func (s *SpegelPeerServer) discoverPeers() []string {
 	seen := make(map[string]struct{})
 	localIPs := localInterfaceIPs()
 	var out []string
@@ -387,19 +441,13 @@ func (s *SpegelPeerServer) discoverPeers(ctx context.Context) []string {
 	for _, p := range s.staticPeers {
 		addPeer(p)
 	}
-	if s.bootstrapDNS != "" {
-		lookupCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
-		addrs, err := net.DefaultResolver.LookupHost(lookupCtx, s.bootstrapDNS)
-		cancel()
-		if err == nil {
-			for _, ip := range addrs {
-				if _, isLocal := localIPs[ip]; isLocal {
-					continue
-				}
-				addPeer(net.JoinHostPort(ip, fmt.Sprintf("%d", s.peerPort)))
-			}
+	for _, ip := range s.dnsAddrs {
+		if _, isLocal := localIPs[ip]; isLocal {
+			continue
 		}
+		addPeer(net.JoinHostPort(ip, fmt.Sprintf("%d", s.peerPort)))
 	}
+	sort.Strings(out)
 	return out
 }
 

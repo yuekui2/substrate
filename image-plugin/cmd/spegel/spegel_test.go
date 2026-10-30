@@ -24,10 +24,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -160,6 +162,24 @@ func TestNewSpegelClearStore(t *testing.T) {
 				t.Fatalf("layer store missing after NewSpegel: %v", err)
 			}
 		})
+	}
+}
+
+func TestSpegelPeerServerPeers(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	self := ln.Addr().String()
+	_ = ln.Close()
+	s, err := NewSpegelPeerServer(self, t.TempDir(), "", 0, []string{"10.0.0.2:5000", self, "10.0.0.1"}, "", nil, &spegelCounters{})
+	if err != nil {
+		t.Fatalf("NewSpegelPeerServer failed: %v", err)
+	}
+	defer func() { _ = s.Close() }()
+	want := []string{"10.0.0.1:5000", "10.0.0.2:5000"}
+	if got := s.Peers(); !slices.Equal(got, want) {
+		t.Fatalf("Peers() = %v, want %v", got, want)
 	}
 }
 
