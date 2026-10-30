@@ -1,0 +1,9 @@
+# rep1-riptide-run
+# start: 2026-10-30T05:19:27Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 riptide
+
+job.batch/imgbench-rep-1-riptide created
+pod/imgbench-rep-1-riptide-fscrf condition met
+riptide: imgbench-rep-1-riptide pod imgbench-rep-1-riptide-fscrf started 2026-10-30T05:19:43Z
+riptide: done (exit 0), 4800 lines, 31 errors
+# exit: 143  end: 2026-10-30T05:50:19Z

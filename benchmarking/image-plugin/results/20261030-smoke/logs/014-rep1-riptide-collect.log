@@ -1,0 +1,6 @@
+# rep1-riptide-collect
+# start: 2026-10-30T05:50:30Z
+$ d=$RUN_DIR/rep-1/riptide; start=2026-10-30T05:19:27Z; nodes=$(kubectl get nodes -l bench-arm=riptide -o jsonpath="{.items[*].metadata.name}"); p=$(kubectl -n imgbench get pods -l job-name=imgbench-rep-1-riptide -o jsonpath="{.items[0].metadata.name}"); kubectl -n imgbench logs $p > $d/loader.log; : > $d/node-snapshots.jsonl; : > $d/diskstats.jsonl; for n in $nodes; do a=$(kubectl -n ate-system get pods -l app=atelet --field-selector spec.nodeName=$n -o jsonpath="{.items[0].metadata.name}"); kubectl -n ate-system logs $a -c atelet --since-time=$start | grep -E "Restore timing breakdown|falling back|ImagePlugin|Suspended actor on draining" > $d/atelet-$n.log; s=$(kubectl -n imgbench get pods -l app=node-sampler --field-selector spec.nodeName=$n -o jsonpath="{.items[0].metadata.name}"); kubectl -n imgbench logs $s --since-time=$start >> $d/diskstats.jsonl; kubectl -n imgbench exec $s -- /bin/bash /scripts/node-sampler.sh snapshot >> $d/node-snapshots.jsonl; done; python3 benchmarking/image-plugin/monitoring.py kuiyue-gke-dev $start 2026-10-30T05:29:00Z $d/monitoring.jsonl $nodes; kubectl -n imgbench delete job imgbench-rep-1-riptide --wait=false; wc -l $d/*.jsonl
+
+/scripts/node-sampler.sh: connect: Connection refused
+/scripts/node-sampler.sh: line 60: /dev/tcp/127.0.0.1/5000: Connection refused

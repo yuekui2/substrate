@@ -1,0 +1,37 @@
+# bake-d4
+# start: 2026-10-30T06:13:42Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh bake
+
+NAME               AGE
+imgbench-pull-w4   0s
+NAME                  AGE
+imgbench-riptide-w4   0s
+NAME                 AGE
+imgbench-spegel-w4   0s
+NAME                AGE
+imgbench-nydus-w4   0s
+job.batch/imgbench-bake-0-pull-w4 created
+job.batch/imgbench-bake-0-riptide-w4 created
+job.batch/imgbench-bake-0-nydus-w4 created
+job.batch/imgbench-bake-0-spegel-w4 created
+pod/imgbench-bake-0-pull-w4-gfsk7 condition met
+pod/imgbench-bake-0-nydus-w4-2g4w2 condition met
+pod/imgbench-bake-0-riptide-w4-qqrlf condition met
+pull: imgbench-bake-0-pull-w4 pod imgbench-bake-0-pull-w4-gfsk7 started 2026-10-30T06:14:06Z
+pod/imgbench-bake-0-spegel-w4-9p2k2 condition met
+riptide: imgbench-bake-0-riptide-w4 pod imgbench-bake-0-riptide-w4-qqrlf started 2026-10-30T06:14:06Z
+spegel: imgbench-bake-0-spegel-w4 pod imgbench-bake-0-spegel-w4-9p2k2 started 2026-10-30T06:14:07Z
+nydus: imgbench-bake-0-nydus-w4 pod imgbench-bake-0-nydus-w4-2g4w2 started 2026-10-30T06:14:06Z
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 104: benchmarking/image-plugin/results/20261030-sweep/bake-0/pull-w4/turns.jsonl: No such file or directory
+pull: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 104: benchmarking/image-plugin/results/20261030-sweep/bake-0/nydus-w4/turns.jsonl: No such file or directory
+nydus: done (exit 1), 0 lines, 0 errors
+wrote 705 points to benchmarking/image-plugin/results/20261030-sweep/bake-0/nydus-w4/monitoring.jsonl
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 104: benchmarking/image-plugin/results/20261030-sweep/bake-0/riptide-w4/turns.jsonl: No such file or directory
+riptide: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 104: benchmarking/image-plugin/results/20261030-sweep/bake-0/spegel-w4/turns.jsonl: No such file or directory
+spegel: done (exit 1), 0 lines, 0 errors
+wrote 756 points to benchmarking/image-plugin/results/20261030-sweep/bake-0/pull-w4/monitoring.jsonl
+wrote 810 points to benchmarking/image-plugin/results/20261030-sweep/bake-0/spegel-w4/monitoring.jsonl
+wrote 792 points to benchmarking/image-plugin/results/20261030-sweep/bake-0/riptide-w4/monitoring.jsonl
+# exit: 0  end: 2026-10-30T07:04:08Z

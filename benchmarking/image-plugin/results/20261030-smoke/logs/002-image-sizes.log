@@ -1,0 +1,21 @@
+# image-sizes
+# start: 2026-10-30T01:28:18Z
+$ python3 benchmarking/image-plugin/image_sizes.py benchmarking/image-plugin/images-320.jsonl benchmarking/image-plugin/results/20261030-smoke/images
+
+{
+  "oci": {
+    "images": 320,
+    "layers_unique": 486,
+    "compressed_bytes_total": 423325466584,
+    "compressed_bytes_unique": 94671237907,
+    "dedup_ratio": 4.472
+  },
+  "nydus": {
+    "images": 320,
+    "layers_unique": 805,
+    "compressed_bytes_total": 415941948896,
+    "compressed_bytes_unique": 96011526477,
+    "dedup_ratio": 4.332
+  }
+}
+# exit: 0  end: 2026-10-30T01:30:34Z

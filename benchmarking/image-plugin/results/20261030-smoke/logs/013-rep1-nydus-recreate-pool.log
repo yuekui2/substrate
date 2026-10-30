@@ -1,0 +1,4 @@
+# rep1-nydus-recreate-pool
+# start: 2026-10-30T05:50:19Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate nydus
+

@@ -1,0 +1,20 @@
+# rep1-riptide-recreate-pool
+# start: 2026-10-30T05:15:26Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate riptide
+
+deleted bench-riptide
+created bench-riptide
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-te-bench-riptide-34c047c9-0c23   Ready    <none>   10s     v1.36.4-gke.2046003   riptide
+gke-substrate-stream-te-bench-riptide-34c047c9-qffv   Ready    <none>   11s     v1.36.4-gke.2046003   riptide
+gke-substrate-stream-te-bench-riptide-34c047c9-wfdc   Ready    <none>   11s     v1.36.4-gke.2046003   riptide
+gke-substrate-stream-tes-bench-spegel-c604b125-7x7k   Ready    <none>   3h47m   v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-c604b125-k1j6   Ready    <none>   3h44m   v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-c604b125-zd1l   Ready    <none>   3h47m   v1.36.4-gke.2046003   spegel
+gke-substrate-stream-test-bench-nydus-64f2a227-09km   Ready    <none>   3h47m   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-64f2a227-764m   Ready    <none>   3h47m   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-64f2a227-vtv3   Ready    <none>   3h47m   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-pull-3f6bce31-cl31    Ready    <none>   16m     v1.36.4-gke.2046003   pull
+gke-substrate-stream-test-bench-pull-3f6bce31-lt7f    Ready    <none>   16m     v1.36.4-gke.2046003   pull
+gke-substrate-stream-test-bench-pull-3f6bce31-mnwx    Ready    <none>   16m     v1.36.4-gke.2046003   pull
+# exit: 0  end: 2026-10-30T05:18:59Z

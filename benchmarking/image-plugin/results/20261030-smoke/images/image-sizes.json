@@ -1,0 +1,174 @@
+{
+  "oci": {
+    "images": 320,
+    "layers_total": 3200,
+    "layers_unique": 486,
+    "compressed_bytes_total": 423325466584,
+    "compressed_bytes_unique": 94671237907,
+    "dedup_ratio": 4.472,
+    "bytes_in_shared_layers": 25754052792,
+    "per_image_compressed_bytes": {
+      "min": 955788034,
+      "p50": 1157765520,
+      "p95": 2265955606,
+      "max": 3150304360,
+      "mean": 1322892083
+    },
+    "layers_shared_by_n_images": {
+      "1": 391,
+      "2": 24,
+      "3": 14,
+      "4": 8,
+      "5": 5,
+      "6": 9,
+      "8": 9,
+      "12": 2,
+      "14": 4,
+      "24": 2,
+      "30": 2,
+      "36": 2,
+      "38": 2,
+      "45": 5,
+      "267": 5,
+      "320": 2
+    },
+    "top_shared_layers": [
+      {
+        "digest": "sha256:39a945af8df2ad9343f141c82355d3f2c4b576d432eda34c460d630607462b60",
+        "bytes": 29736517,
+        "images": 320
+      },
+      {
+        "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+        "bytes": 32,
+        "images": 320
+      },
+      {
+        "digest": "sha256:fd3f01088aa854fa99907bd918d9bc8146064c2f452aae3e07d61a6244ca9968",
+        "bytes": 210296452,
+        "images": 267
+      },
+      {
+        "digest": "sha256:079027039e9d5fa1677dd462c60fd9240097243a87ff8a124fffbd16f909c266",
+        "bytes": 420170791,
+        "images": 267
+      },
+      {
+        "digest": "sha256:407de719c2d3bde9e1d31481e451ac465ef6cdcf90f48b446b000dd907979233",
+        "bytes": 21565,
+        "images": 267
+      },
+      {
+        "digest": "sha256:0ddda5039dab8b2772d0f65857071df489438384259b8fabd0a7882656cf8ca0",
+        "bytes": 164,
+        "images": 267
+      },
+      {
+        "digest": "sha256:53752545c9b26814a5dadb2ac5d26e71ee039f17d72ee04fbc55e8e14a42966e",
+        "bytes": 4313,
+        "images": 267
+      },
+      {
+        "digest": "sha256:a4d326e88417b9b4a3363dfabc9de79b87be8ce1cba4f09c1893df8147cbe669",
+        "bytes": 210294821,
+        "images": 45
+      },
+      {
+        "digest": "sha256:fd7a87c0b95ba9470ab5b292bee0cde8f8f4b91a5c9755052c1b36b06f71c7d3",
+        "bytes": 420167964,
+        "images": 45
+      },
+      {
+        "digest": "sha256:d07e7f5cb3eb9bc05af4042e06ff23bc67fd825fe4615d36a7c1cfbe561c80f4",
+        "bytes": 21559,
+        "images": 45
+      }
+    ]
+  },
+  "nydus": {
+    "images": 320,
+    "layers_total": 3200,
+    "layers_unique": 805,
+    "compressed_bytes_total": 415941948896,
+    "compressed_bytes_unique": 96011526477,
+    "dedup_ratio": 4.332,
+    "bytes_in_shared_layers": 25272497096,
+    "per_image_compressed_bytes": {
+      "min": 941660266,
+      "p50": 1146541208,
+      "p95": 2262468920,
+      "max": 3118830728,
+      "mean": 1299818590
+    },
+    "layers_shared_by_n_images": {
+      "1": 711,
+      "2": 24,
+      "3": 14,
+      "4": 8,
+      "5": 5,
+      "6": 9,
+      "8": 9,
+      "12": 2,
+      "14": 4,
+      "24": 2,
+      "30": 2,
+      "36": 2,
+      "38": 2,
+      "45": 5,
+      "267": 5,
+      "320": 1
+    },
+    "top_shared_layers": [
+      {
+        "digest": "sha256:1b4dd216053f2a33cea46c655727aded064f59aceb0403a47fa3af2f5819dd18",
+        "bytes": 32358243,
+        "images": 320
+      },
+      {
+        "digest": "sha256:a570ef718dd064b0ab17c9241835ed1f1666dbfe7bacfe0f00f0a8eef830f544",
+        "bytes": 207873468,
+        "images": 267
+      },
+      {
+        "digest": "sha256:96f8bfabe631bf4d0476eb42e2e5b38c6b45838bd66a0109ab79793b34f4b850",
+        "bytes": 397318743,
+        "images": 267
+      },
+      {
+        "digest": "sha256:216a22f3ea9cc597e9ec2ab51a1ddc058803f66caf88e25925b48fa2b61cdbe3",
+        "bytes": 31127,
+        "images": 267
+      },
+      {
+        "digest": "sha256:f7f7158f44e1cae618c24f4794e6e8a1fa506e2d7fa51062be22d68dd7a7a64c",
+        "bytes": 7696,
+        "images": 267
+      },
+      {
+        "digest": "sha256:5434e6cf624a499c8739cbb4d31ad9cdeb56aa74ba3e5d489c6a6fbcc9e865c9",
+        "bytes": 14061,
+        "images": 267
+      },
+      {
+        "digest": "sha256:935576e595d91093cb16832894cb025bcb772874b16a7dfd9f6fc00b1a619c0f",
+        "bytes": 207873418,
+        "images": 45
+      },
+      {
+        "digest": "sha256:46f4f9b03d991313fce3e7efb2b4b64b6e8238c4c93638e79c1d0d309dc6e17a",
+        "bytes": 397318596,
+        "images": 45
+      },
+      {
+        "digest": "sha256:f64b82a1b3d8e833e501bccd395087d0839ddab5f9af7fc6bc6a5f5072a465ef",
+        "bytes": 31130,
+        "images": 45
+      },
+      {
+        "digest": "sha256:d85087e7e2987b3a796a03cfe66cd2a6662c2556b322466b7ff93cdfadb1dc5b",
+        "bytes": 7697,
+        "images": 45
+      }
+    ]
+  }
+}

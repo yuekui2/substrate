@@ -1,0 +1,28 @@
+# d2-run
+# start: 2026-10-30T08:10:03Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1
+
+job.batch/imgbench-rep-1-pull-w2 created
+job.batch/imgbench-rep-1-nydus-w2 created
+job.batch/imgbench-rep-1-spegel-w2 created
+job.batch/imgbench-rep-1-riptide-w2 created
+pod/imgbench-rep-1-nydus-w2-t4kfw condition met
+pod/imgbench-rep-1-spegel-w2-bh67x condition met
+pod/imgbench-rep-1-pull-w2-489cp condition met
+pod/imgbench-rep-1-riptide-w2-6gzbl condition met
+nydus: imgbench-rep-1-nydus-w2 pod imgbench-rep-1-nydus-w2-t4kfw started 2026-10-30T08:10:25Z
+spegel: imgbench-rep-1-spegel-w2 pod imgbench-rep-1-spegel-w2-bh67x started 2026-10-30T08:10:25Z
+riptide: imgbench-rep-1-riptide-w2 pod imgbench-rep-1-riptide-w2-6gzbl started 2026-10-30T08:10:25Z
+pull: imgbench-rep-1-pull-w2 pod imgbench-rep-1-pull-w2-489cp started 2026-10-30T08:10:25Z
+riptide: done (exit 0), 2400 lines, 0
+0 errors
+wrote 60 points to benchmarking/image-plugin/results/20261030-sweep/rep-1/riptide-w2/monitoring.jsonl
+spegel: done (exit 0), 2400 lines, 0
+0 errors
+pull: done (exit 0), 2400 lines, 0
+0 errors
+wrote 189 points to benchmarking/image-plugin/results/20261030-sweep/rep-1/pull-w2/monitoring.jsonl
+wrote 126 points to benchmarking/image-plugin/results/20261030-sweep/rep-1/spegel-w2/monitoring.jsonl
+nydus: done (exit 0), 2400 lines, 244 errors
+wrote 345 points to benchmarking/image-plugin/results/20261030-sweep/rep-1/nydus-w2/monitoring.jsonl
+# exit: 0  end: 2026-10-30T08:32:25Z

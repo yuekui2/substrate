@@ -1,0 +1,24 @@
+# bake-d2
+# start: 2026-10-30T05:51:24Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh bake
+
+NAME                AGE
+imgbench-nydus-d2   0s
+NAME                  AGE
+imgbench-riptide-d2   0s
+NAME               AGE
+imgbench-pull-d2   0s
+NAME                 AGE
+imgbench-spegel-d2   0s
+job.batch/imgbench-bake-0-spegel-d2 created
+job.batch/imgbench-bake-0-riptide-d2 created
+job.batch/imgbench-bake-0-nydus-d2 created
+job.batch/imgbench-bake-0-pull-d2 created
+pod/imgbench-bake-0-nydus-d2-flrpj condition met
+nydus: imgbench-bake-0-nydus-d2 pod imgbench-bake-0-nydus-d2-flrpj started 2026-10-30T05:52:03Z
+pod/imgbench-bake-0-spegel-d2-dg6mm condition met
+pod/imgbench-bake-0-riptide-d2-fn9f9 condition met
+pod/imgbench-bake-0-pull-d2-v97nl condition met
+spegel: imgbench-bake-0-spegel-d2 pod imgbench-bake-0-spegel-d2-dg6mm started 2026-10-30T05:52:03Z
+riptide: imgbench-bake-0-riptide-d2 pod imgbench-bake-0-riptide-d2-fn9f9 started 2026-10-30T05:52:03Z
+pull: imgbench-bake-0-pull-d2 pod imgbench-bake-0-pull-d2-v97nl started 2026-10-30T05:52:04Z

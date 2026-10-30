@@ -1,0 +1,60 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# One loader Job. run.sh fills in imgbench-rep-1-riptide-w2, riptide, run and , "-rep", "1", "-cpu-millicores", "500", "-memory-bytes", "1040187392", "-actors", "480", "-turns", "5", "-reads", "1000"
+# (extra args start with a comma). It runs on the system pool, away from the
+# bench nodes. The loader lingers after it finishes so run.sh can copy
+# /results out.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: imgbench-rep-1-riptide-w2
+  namespace: imgbench
+  labels:
+    app: imgbench-loader
+    arm: riptide
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 172800
+  template:
+    metadata:
+      labels:
+        app: imgbench-loader
+        arm: riptide
+    spec:
+      restartPolicy: Never
+      serviceAccountName: loader
+      nodeSelector:
+        cloud.google.com/gke-nodepool: bench-system
+      containers:
+      - name: loader
+        image: ko://go.ate.dev/substrate/benchmarking/image-plugin/loader
+        args: [run, -arm, riptide, -atespace, imgbench-riptide-w2, -workload, bench-riptide,
+          -snapshot-location, "gs://snapshot-substrate-test-kuiyue-gke-dev/image-plugin-bench/",
+          -out, /results/out.jsonl, -linger, 2h , "-rep", "1", "-cpu-millicores", "500", "-memory-bytes", "1040187392", "-actors", "480", "-turns", "5", "-reads", "1000"]
+        resources:
+          requests:
+            cpu: "2"
+            memory: 2Gi
+        volumeMounts:
+        - name: config
+          mountPath: /config
+        - name: results
+          mountPath: /results
+      volumes:
+      - name: config
+        configMap:
+          name: imgbench-images
+      - name: results
+        emptyDir: {}

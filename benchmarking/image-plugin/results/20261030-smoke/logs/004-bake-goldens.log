@@ -1,0 +1,16 @@
+# bake-goldens
+# start: 2026-10-30T02:29:11Z
+$ benchmarking/image-plugin/run.sh bake pull riptide nydus spegel
+
+job.batch/imgbench-bake-0-pull created
+job.batch/imgbench-bake-0-spegel created
+job.batch/imgbench-bake-0-nydus created
+job.batch/imgbench-bake-0-riptide created
+pod/imgbench-bake-0-spegel-t9hnr condition met
+pod/imgbench-bake-0-nydus-cxw47 condition met
+spegel: imgbench-bake-0-spegel pod imgbench-bake-0-spegel-t9hnr started 2026-10-30T02:29:31Z
+nydus: imgbench-bake-0-nydus pod imgbench-bake-0-nydus-cxw47 started 2026-10-30T02:29:31Z
+pod/imgbench-bake-0-pull-q7pjl condition met
+pod/imgbench-bake-0-riptide-gpwbz condition met
+pull: imgbench-bake-0-pull pod imgbench-bake-0-pull-q7pjl started 2026-10-30T02:29:31Z
+riptide: imgbench-bake-0-riptide pod imgbench-bake-0-riptide-gpwbz started 2026-10-30T02:29:31Z

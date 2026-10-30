@@ -1,0 +1,29 @@
+# bake-goldens
+# start: 2026-10-30T04:38:09Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh bake pull riptide nydus spegel
+
+job.batch/imgbench-bake-0-spegel created
+job.batch/imgbench-bake-0-riptide created
+job.batch/imgbench-bake-0-pull created
+job.batch/imgbench-bake-0-nydus created
+pod/imgbench-bake-0-pull-2gjp6 condition met
+pull: imgbench-bake-0-pull pod imgbench-bake-0-pull-2gjp6 started 2026-10-30T04:38:24Z
+pod/imgbench-bake-0-riptide-5cclr condition met
+riptide: imgbench-bake-0-riptide pod imgbench-bake-0-riptide-5cclr started 2026-10-30T04:38:24Z
+pod/imgbench-bake-0-spegel-k46fm condition met
+pod/imgbench-bake-0-nydus-62bck condition met
+spegel: imgbench-bake-0-spegel pod imgbench-bake-0-spegel-k46fm started 2026-10-30T04:38:24Z
+nydus: imgbench-bake-0-nydus pod imgbench-bake-0-nydus-62bck started 2026-10-30T04:38:24Z
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 87: benchmarking/image-plugin/results/20261030-smoke/bake-0/pull/turns.jsonl: No such file or directory
+pull: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 87: benchmarking/image-plugin/results/20261030-smoke/bake-0/riptide/turns.jsonl: No such file or directory
+riptide: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 87: benchmarking/image-plugin/results/20261030-smoke/bake-0/spegel/turns.jsonl: No such file or directory
+spegel: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 87: benchmarking/image-plugin/results/20261030-smoke/bake-0/nydus/turns.jsonl: No such file or directory
+nydus: done (exit 1), 0 lines, 0 errors
+wrote 0 points to benchmarking/image-plugin/results/20261030-smoke/bake-0/pull/monitoring.jsonl
+wrote 0 points to benchmarking/image-plugin/results/20261030-smoke/bake-0/spegel/monitoring.jsonl
+wrote 0 points to benchmarking/image-plugin/results/20261030-smoke/bake-0/nydus/monitoring.jsonl
+wrote 18 points to benchmarking/image-plugin/results/20261030-smoke/bake-0/riptide/monitoring.jsonl
+# exit: 0  end: 2026-10-30T04:59:37Z

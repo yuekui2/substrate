@@ -1,0 +1,10 @@
+# rep1-pull-run
+# start: 2026-10-30T05:03:30Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 pull
+
+job.batch/imgbench-rep-1-pull created
+pod/imgbench-rep-1-pull-5ddhn condition met
+pull: imgbench-rep-1-pull pod imgbench-rep-1-pull-5ddhn started 2026-10-30T05:03:41Z
+pull: done (exit 0), 4800 lines, 10 errors
+wrote 165 points to benchmarking/image-plugin/results/20261030-smoke/rep-1/pull/monitoring.jsonl
+# exit: 0  end: 2026-10-30T05:15:26Z

@@ -1,0 +1,1 @@
+{"kind":"snapshot","ts":"2026-10-30T08:44:16Z","node":"gke-substrate-stream-te-bench-riptide-c393d6fc-303d","bytes":{"image-cache":2,"image-plugin-cache":60923555712,"actors":0,"image-plugin-cache/riptide-gcfs":62252504243,"image-plugin-cache/riptide":1229496},"rootfs":{"size":622945865728,"used":77129441280,"avail":545799647232},"spegel":null}
