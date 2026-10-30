@@ -1,0 +1,29 @@
+# bake-d10
+# start: 2026-10-30T14:38:49Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh bake pull riptide spegel
+
+NAME                   AGE
+imgbench-riptide-w10   0s
+NAME                  AGE
+imgbench-spegel-w10   0s
+NAME                AGE
+imgbench-pull-w10   0s
+job.batch/imgbench-bake-0-pull-w10 created
+job.batch/imgbench-bake-0-riptide-w10 created
+job.batch/imgbench-bake-0-spegel-w10 created
+pod/imgbench-bake-0-pull-w10-5lhfr condition met
+pod/imgbench-bake-0-spegel-w10-njhnh condition met
+pull: imgbench-bake-0-pull-w10 pod imgbench-bake-0-pull-w10-5lhfr started 2026-10-30T14:39:04Z
+spegel: imgbench-bake-0-spegel-w10 pod imgbench-bake-0-spegel-w10-njhnh started 2026-10-30T14:39:05Z
+pod/imgbench-bake-0-riptide-w10-xrm4d condition met
+riptide: imgbench-bake-0-riptide-w10 pod imgbench-bake-0-riptide-w10-xrm4d started 2026-10-30T14:39:05Z
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-density-high/bake-0/pull-w10/turns.jsonl: No such file or directory
+pull: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-density-high/bake-0/riptide-w10/turns.jsonl: No such file or directory
+riptide: done (exit 1), 0 lines, 0 errors
+wrote 519 points to benchmarking/image-plugin/results/20261030-density-high/bake-0/pull-w10/monitoring.jsonl
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-density-high/bake-0/spegel-w10/turns.jsonl: No such file or directory
+spegel: done (exit 1), 0 lines, 0 errors
+wrote 549 points to benchmarking/image-plugin/results/20261030-density-high/bake-0/spegel-w10/monitoring.jsonl
+wrote 552 points to benchmarking/image-plugin/results/20261030-density-high/bake-0/riptide-w10/monitoring.jsonl
+# exit: 0  end: 2026-10-30T15:11:45Z

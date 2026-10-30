@@ -1,0 +1,22 @@
+# d10-run
+# start: 2026-10-30T15:26:07Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 pull riptide spegel
+
+job.batch/imgbench-rep-1-pull-w10 created
+job.batch/imgbench-rep-1-spegel-w10 created
+job.batch/imgbench-rep-1-riptide-w10 created
+pod/imgbench-rep-1-riptide-w10-zjpzd condition met
+riptide: imgbench-rep-1-riptide-w10 pod imgbench-rep-1-riptide-w10-zjpzd started 2026-10-30T15:26:20Z
+pod/imgbench-rep-1-spegel-w10-p4d8n condition met
+pod/imgbench-rep-1-pull-w10-87dx9 condition met
+pull: imgbench-rep-1-pull-w10 pod imgbench-rep-1-pull-w10-87dx9 started 2026-10-30T15:26:20Z
+spegel: imgbench-rep-1-spegel-w10 pod imgbench-rep-1-spegel-w10-p4d8n started 2026-10-30T15:26:20Z
+riptide: done (exit 0), 2400 lines, 5 errors
+wrote 81 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/riptide-w10/monitoring.jsonl
+spegel: done (exit 0), 2400 lines, 0
+0 errors
+pull: done (exit 0), 2400 lines, 0
+0 errors
+wrote 108 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/spegel-w10/monitoring.jsonl
+wrote 126 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/pull-w10/monitoring.jsonl
+# exit: 0  end: 2026-10-30T15:36:04Z

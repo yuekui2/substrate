@@ -1,0 +1,161 @@
+imgbench-pull-w10   0s
+job.batch/imgbench-bake-0-pull-w10 created
+job.batch/imgbench-bake-0-riptide-w10 created
+job.batch/imgbench-bake-0-spegel-w10 created
+pod/imgbench-bake-0-pull-w10-5lhfr condition met
+pod/imgbench-bake-0-spegel-w10-njhnh condition met
+pull: imgbench-bake-0-pull-w10 pod imgbench-bake-0-pull-w10-5lhfr started 2026-10-30T14:39:04Z
+spegel: imgbench-bake-0-spegel-w10 pod imgbench-bake-0-spegel-w10-njhnh started 2026-10-30T14:39:05Z
+pod/imgbench-bake-0-riptide-w10-xrm4d condition met
+riptide: imgbench-bake-0-riptide-w10 pod imgbench-bake-0-riptide-w10-xrm4d started 2026-10-30T14:39:05Z
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-density-high/bake-0/pull-w10/turns.jsonl: No such file or directory
+pull: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-density-high/bake-0/riptide-w10/turns.jsonl: No such file or directory
+riptide: done (exit 1), 0 lines, 0 errors
+wrote 519 points to benchmarking/image-plugin/results/20261030-density-high/bake-0/pull-w10/monitoring.jsonl
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-density-high/bake-0/spegel-w10/turns.jsonl: No such file or directory
+spegel: done (exit 1), 0 lines, 0 errors
+wrote 549 points to benchmarking/image-plugin/results/20261030-density-high/bake-0/spegel-w10/monitoring.jsonl
+wrote 552 points to benchmarking/image-plugin/results/20261030-density-high/bake-0/riptide-w10/monitoring.jsonl
+# exit: 0  end: 2026-10-30T15:11:45Z
+imgbench-pull-w16   0s
+job.batch/imgbench-bake-0-riptide-w16 created
+job.batch/imgbench-bake-0-pull-w16 created
+job.batch/imgbench-bake-0-spegel-w16 created
+pod/imgbench-bake-0-riptide-w16-w8v5t condition met
+pod/imgbench-bake-0-pull-w16-fs7hv condition met
+riptide: imgbench-bake-0-riptide-w16 pod imgbench-bake-0-riptide-w16-w8v5t started 2026-10-30T14:39:05Z
+pull: imgbench-bake-0-pull-w16 pod imgbench-bake-0-pull-w16-fs7hv started 2026-10-30T14:39:05Z
+pod/imgbench-bake-0-spegel-w16-9cd8b condition met
+spegel: imgbench-bake-0-spegel-w16 pod imgbench-bake-0-spegel-w16-9cd8b started 2026-10-30T14:39:05Z
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-density-high/bake-0/pull-w16/turns.jsonl: No such file or directory
+pull: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-density-high/bake-0/riptide-w16/turns.jsonl: No such file or directory
+riptide: done (exit 1), 0 lines, 0 errors
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-density-high/bake-0/spegel-w16/turns.jsonl: No such file or directory
+spegel: done (exit 1), 0 lines, 0 errors
+wrote 552 points to benchmarking/image-plugin/results/20261030-density-high/bake-0/pull-w16/monitoring.jsonl
+wrote 552 points to benchmarking/image-plugin/results/20261030-density-high/bake-0/riptide-w16/monitoring.jsonl
+wrote 594 points to benchmarking/image-plugin/results/20261030-density-high/bake-0/spegel-w16/monitoring.jsonl
+# exit: 0  end: 2026-10-30T15:14:25Z
+deleted bench-pull
+deleted bench-riptide
+deleted bench-spegel
+created bench-riptide
+created bench-spegel
+created bench-pull
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-te-bench-riptide-e0f00c99-10zq   Ready    <none>   7m55s   v1.36.4-gke.2046003   riptide
+gke-substrate-stream-te-bench-riptide-e0f00c99-6fk7   Ready    <none>   7m55s   v1.36.4-gke.2046003   riptide
+gke-substrate-stream-te-bench-riptide-e0f00c99-dg0g   Ready    <none>   7m50s   v1.36.4-gke.2046003   riptide
+gke-substrate-stream-tes-bench-spegel-a1ad0a37-8b5r   Ready    <none>   7m33s   v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-a1ad0a37-8j4v   Ready    <none>   7m50s   v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-a1ad0a37-p3q7   Ready    <none>   7m49s   v1.36.4-gke.2046003   spegel
+gke-substrate-stream-test-bench-nydus-7834dfec-869f   Ready    <none>   7m26s   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-7834dfec-ddq8   Ready    <none>   7m29s   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-7834dfec-mn0s   Ready    <none>   7m45s   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-pull-bf4d509e-02wg    Ready    <none>   7m53s   v1.36.4-gke.2046003   pull
+gke-substrate-stream-test-bench-pull-bf4d509e-8w1j    Ready    <none>   7m53s   v1.36.4-gke.2046003   pull
+gke-substrate-stream-test-bench-pull-bf4d509e-rkxx    Ready    <none>   12s     v1.36.4-gke.2046003   pull
+# exit: 0  end: 2026-10-30T15:25:51Z
+deployment "bench-spegel" successfully rolled out
+daemon set "image-plugin-spegel" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       18h
+bench-pull      48        48         48      gvisor-default   True       18h
+bench-riptide   48        48         48      gvisor-default   True       18h
+bench-spegel    48        48         48      gvisor-default   True       18h
+NAME                                      READY   STATUS    RESTARTS   AGE     IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-j8w4h        3/3     Running   0          7m37s   10.1.15.192   gke-substrate-stream-test-bench-nydus-7834dfec-ddq8   <none>           <none>
+image-plugin-nydus-dragonfly-seed-lv2fk   3/3     Running   0          7m28s   10.1.15.193   gke-substrate-stream-test-bench-nydus-7834dfec-869f   <none>           <none>
+image-plugin-nydus-dragonfly-xwjsq        3/3     Running   0          7m51s   10.1.0.61     gke-substrate-stream-test-bench-nydus-7834dfec-mn0s   <none>           <none>
+image-plugin-riptide-74gr6                2/2     Running   0          7m58s   10.1.0.55     gke-substrate-stream-te-bench-riptide-e0f00c99-dg0g   <none>           <none>
+image-plugin-riptide-bjd8d                2/2     Running   0          8m3s    10.1.0.53     gke-substrate-stream-te-bench-riptide-e0f00c99-10zq   <none>           <none>
+image-plugin-riptide-l9vbd                2/2     Running   0          8m3s    10.1.0.52     gke-substrate-stream-te-bench-riptide-e0f00c99-6fk7   <none>           <none>
+image-plugin-spegel-72rht                 1/1     Running   0          7m40s   10.1.0.63     gke-substrate-stream-tes-bench-spegel-a1ad0a37-8b5r   <none>           <none>
+image-plugin-spegel-lxnlx                 1/1     Running   0          7m55s   10.1.0.57     gke-substrate-stream-tes-bench-spegel-a1ad0a37-8j4v   <none>           <none>
+image-plugin-spegel-pl4xr                 1/1     Running   0          7m55s   10.1.0.56     gke-substrate-stream-tes-bench-spegel-a1ad0a37-p3q7   <none>           <none>
+# exit: 0  end: 2026-10-30T15:26:07Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 pull riptide spegel
+
+job.batch/imgbench-rep-1-pull-w10 created
+job.batch/imgbench-rep-1-spegel-w10 created
+job.batch/imgbench-rep-1-riptide-w10 created
+pod/imgbench-rep-1-riptide-w10-zjpzd condition met
+riptide: imgbench-rep-1-riptide-w10 pod imgbench-rep-1-riptide-w10-zjpzd started 2026-10-30T15:26:20Z
+pod/imgbench-rep-1-spegel-w10-p4d8n condition met
+pod/imgbench-rep-1-pull-w10-87dx9 condition met
+pull: imgbench-rep-1-pull-w10 pod imgbench-rep-1-pull-w10-87dx9 started 2026-10-30T15:26:20Z
+spegel: imgbench-rep-1-spegel-w10 pod imgbench-rep-1-spegel-w10-p4d8n started 2026-10-30T15:26:20Z
+riptide: done (exit 0), 2400 lines, 5 errors
+wrote 81 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/riptide-w10/monitoring.jsonl
+spegel: done (exit 0), 2400 lines, 0
+0 errors
+pull: done (exit 0), 2400 lines, 0
+0 errors
+wrote 108 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/spegel-w10/monitoring.jsonl
+wrote 126 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/pull-w10/monitoring.jsonl
+# exit: 0  end: 2026-10-30T15:36:04Z
+deleted bench-riptide
+deleted bench-pull
+deleted bench-spegel
+created bench-riptide
+created bench-pull
+created bench-spegel
+NAME                                                  STATUS   ROLES    AGE   VERSION               BENCH-ARM
+gke-substrate-stream-te-bench-riptide-00adea65-mbcv   Ready    <none>   17s   v1.36.4-gke.2046003   riptide
+gke-substrate-stream-te-bench-riptide-00adea65-mx1q   Ready    <none>   18s   v1.36.4-gke.2046003   riptide
+gke-substrate-stream-te-bench-riptide-00adea65-rpvq   Ready    <none>   16s   v1.36.4-gke.2046003   riptide
+gke-substrate-stream-tes-bench-spegel-23821b6a-8wcj   Ready    <none>   15s   v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-23821b6a-cx59   Ready    <none>   15s   v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-23821b6a-ggfx   Ready    <none>   14s   v1.36.4-gke.2046003   spegel
+gke-substrate-stream-test-bench-nydus-7834dfec-869f   Ready    <none>   21m   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-7834dfec-ddq8   Ready    <none>   21m   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-7834dfec-mn0s   Ready    <none>   21m   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-pull-61d537b7-4xn4    Ready    <none>   18s   v1.36.4-gke.2046003   pull
+gke-substrate-stream-test-bench-pull-61d537b7-dnk6    Ready    <none>   17s   v1.36.4-gke.2046003   pull
+gke-substrate-stream-test-bench-pull-61d537b7-rk37    Ready    <none>   18s   v1.36.4-gke.2046003   pull
+# exit: 0  end: 2026-10-30T15:39:55Z
+deployment "bench-spegel" successfully rolled out
+daemon set "image-plugin-spegel" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       18h
+bench-pull      48        48         48      gvisor-default   True       18h
+bench-riptide   48        48         48      gvisor-default   True       18h
+bench-spegel    48        48         48      gvisor-default   True       18h
+NAME                                      READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-j8w4h        3/3     Running   0          22m   10.1.15.192   gke-substrate-stream-test-bench-nydus-7834dfec-ddq8   <none>           <none>
+image-plugin-nydus-dragonfly-seed-lv2fk   3/3     Running   0          22m   10.1.15.193   gke-substrate-stream-test-bench-nydus-7834dfec-869f   <none>           <none>
+image-plugin-nydus-dragonfly-xwjsq        3/3     Running   0          22m   10.1.0.61     gke-substrate-stream-test-bench-nydus-7834dfec-mn0s   <none>           <none>
+image-plugin-riptide-9bcgh                2/2     Running   0          70s   10.1.15.198   gke-substrate-stream-te-bench-riptide-00adea65-mbcv   <none>           <none>
+image-plugin-riptide-tp8jc                2/2     Running   0          69s   10.1.15.201   gke-substrate-stream-te-bench-riptide-00adea65-rpvq   <none>           <none>
+image-plugin-riptide-vzs9c                2/2     Running   0          72s   10.1.15.202   gke-substrate-stream-te-bench-riptide-00adea65-mx1q   <none>           <none>
+image-plugin-spegel-h58bc                 1/1     Running   0          65s   10.1.15.209   gke-substrate-stream-tes-bench-spegel-23821b6a-cx59   <none>           <none>
+image-plugin-spegel-mfn4s                 1/1     Running   0          67s   10.1.15.237   gke-substrate-stream-tes-bench-spegel-23821b6a-ggfx   <none>           <none>
+image-plugin-spegel-zg5xw                 1/1     Running   0          66s   10.1.15.205   gke-substrate-stream-tes-bench-spegel-23821b6a-8wcj   <none>           <none>
+# exit: 0  end: 2026-10-30T15:40:58Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 pull riptide spegel
+
+job.batch/imgbench-rep-1-riptide-w16 created
+job.batch/imgbench-rep-1-pull-w16 created
+job.batch/imgbench-rep-1-spegel-w16 created
+pod/imgbench-rep-1-spegel-w16-6jrzw condition met
+pod/imgbench-rep-1-riptide-w16-gzh8w condition met
+pod/imgbench-rep-1-pull-w16-r67rr condition met
+spegel: imgbench-rep-1-spegel-w16 pod imgbench-rep-1-spegel-w16-6jrzw started 2026-10-30T15:41:18Z
+riptide: imgbench-rep-1-riptide-w16 pod imgbench-rep-1-riptide-w16-gzh8w started 2026-10-30T15:41:18Z
+pull: imgbench-rep-1-pull-w16 pod imgbench-rep-1-pull-w16-r67rr started 2026-10-30T15:41:18Z
+riptide: done (exit 0), 2400 lines, 1 errors
+wrote 81 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/riptide-w16/monitoring.jsonl
+spegel: done (exit 0), 2400 lines, 0
+0 errors
+pull: done (exit 0), 2400 lines, 0
+0 errors
+wrote 105 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/pull-w16/monitoring.jsonl
+wrote 120 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/spegel-w16/monitoring.jsonl
+# exit: 0  end: 2026-10-30T15:50:47Z
+SWEEP-DONE

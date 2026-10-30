@@ -1,0 +1,22 @@
+# d16-run
+# start: 2026-10-30T15:40:58Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 pull riptide spegel
+
+job.batch/imgbench-rep-1-riptide-w16 created
+job.batch/imgbench-rep-1-pull-w16 created
+job.batch/imgbench-rep-1-spegel-w16 created
+pod/imgbench-rep-1-spegel-w16-6jrzw condition met
+pod/imgbench-rep-1-riptide-w16-gzh8w condition met
+pod/imgbench-rep-1-pull-w16-r67rr condition met
+spegel: imgbench-rep-1-spegel-w16 pod imgbench-rep-1-spegel-w16-6jrzw started 2026-10-30T15:41:18Z
+riptide: imgbench-rep-1-riptide-w16 pod imgbench-rep-1-riptide-w16-gzh8w started 2026-10-30T15:41:18Z
+pull: imgbench-rep-1-pull-w16 pod imgbench-rep-1-pull-w16-r67rr started 2026-10-30T15:41:18Z
+riptide: done (exit 0), 2400 lines, 1 errors
+wrote 81 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/riptide-w16/monitoring.jsonl
+spegel: done (exit 0), 2400 lines, 0
+0 errors
+pull: done (exit 0), 2400 lines, 0
+0 errors
+wrote 105 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/pull-w16/monitoring.jsonl
+wrote 120 points to benchmarking/image-plugin/results/20261030-density-high/rep-1/spegel-w16/monitoring.jsonl
+# exit: 0  end: 2026-10-30T15:50:47Z
