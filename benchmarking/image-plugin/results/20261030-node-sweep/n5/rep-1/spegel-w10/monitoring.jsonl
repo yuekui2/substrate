@@ -1,0 +1,3 @@
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-tes-bench-spegel-c2e9cbb3-hw10", "device": "gke-substrate-stream-tes-bench-spegel-c2e9cbb3-hw10", "end": "2026-10-30T16:40:06Z", "per_s": 43695809.21666667}
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-tes-bench-spegel-c2e9cbb3-p31z", "device": "gke-substrate-stream-tes-bench-spegel-c2e9cbb3-p31z", "end": "2026-10-30T16:40:06Z", "per_s": 38647345.13333333}
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-tes-bench-spegel-c2e9cbb3-2kkk", "device": "gke-substrate-stream-tes-bench-spegel-c2e9cbb3-2kkk", "end": "2026-10-30T16:40:06Z", "per_s": 63658535.833333336}

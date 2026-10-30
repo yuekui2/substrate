@@ -1,0 +1,23 @@
+# n40-run
+# start: 2026-10-30T17:11:44Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 pull riptide spegel
+
+job.batch/imgbench-rep-1-pull-w10 created
+job.batch/imgbench-rep-1-riptide-w10 created
+job.batch/imgbench-rep-1-spegel-w10 created
+pod/imgbench-rep-1-pull-w10-b8cx7 condition met
+pod/imgbench-rep-1-spegel-w10-vlw4n condition met
+pod/imgbench-rep-1-riptide-w10-26pcq condition met
+pull: imgbench-rep-1-pull-w10 pod imgbench-rep-1-pull-w10-b8cx7 started 2026-10-30T17:11:57Z
+spegel: imgbench-rep-1-spegel-w10 pod imgbench-rep-1-spegel-w10-vlw4n started 2026-10-30T17:11:57Z
+riptide: imgbench-rep-1-riptide-w10 pod imgbench-rep-1-riptide-w10-26pcq started 2026-10-30T17:11:57Z
+spegel: done (exit 0), 600 lines, 0
+0 errors
+riptide: done (exit 0), 600 lines, 0
+0 errors
+wrote 33 points to benchmarking/image-plugin/results/20261030-node-sweep/n40/rep-1/riptide-w10/monitoring.jsonl
+wrote 33 points to benchmarking/image-plugin/results/20261030-node-sweep/n40/rep-1/spegel-w10/monitoring.jsonl
+pull: done (exit 0), 600 lines, 0
+0 errors
+wrote 69 points to benchmarking/image-plugin/results/20261030-node-sweep/n40/rep-1/pull-w10/monitoring.jsonl
+# exit: 0  end: 2026-10-30T17:17:52Z

@@ -1,0 +1,10 @@
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-bench-nydus-seed-29c14924-p883", "device": "gke-substrate-stream-bench-nydus-seed-29c14924-p883", "end": "2026-10-30T17:35:12Z", "per_s": 88331564.93333334}
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-test-bench-nydus-71bd6355-5dn9", "device": "gke-substrate-stream-test-bench-nydus-71bd6355-5dn9", "end": "2026-10-30T17:35:12Z", "per_s": 117231109.93333334}
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-test-bench-nydus-71bd6355-cxr8", "device": "gke-substrate-stream-test-bench-nydus-71bd6355-cxr8", "end": "2026-10-30T17:35:12Z", "per_s": 141769932.93333334}
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-bench-nydus-seed-29c14924-xk03", "device": "gke-substrate-stream-bench-nydus-seed-29c14924-xk03", "end": "2026-10-30T17:35:12Z", "per_s": 136902233.73333332}
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-test-bench-nydus-71bd6355-0ntz", "device": "gke-substrate-stream-test-bench-nydus-71bd6355-0ntz", "end": "2026-10-30T17:35:12Z", "per_s": 118961643.03333333}
+{"metric": "network/sent_bytes_count", "node": "gke-substrate-stream-bench-nydus-seed-29c14924-p883", "device": null, "end": "2026-10-30T17:35:12Z", "per_s": 579226.9833333333}
+{"metric": "network/sent_bytes_count", "node": "gke-substrate-stream-test-bench-nydus-71bd6355-5dn9", "device": null, "end": "2026-10-30T17:35:12Z", "per_s": 186569.71666666667}
+{"metric": "network/sent_bytes_count", "node": "gke-substrate-stream-test-bench-nydus-71bd6355-cxr8", "device": null, "end": "2026-10-30T17:35:12Z", "per_s": 395666.11666666664}
+{"metric": "network/sent_bytes_count", "node": "gke-substrate-stream-bench-nydus-seed-29c14924-xk03", "device": null, "end": "2026-10-30T17:35:12Z", "per_s": 812106.1333333333}
+{"metric": "network/sent_bytes_count", "node": "gke-substrate-stream-test-bench-nydus-71bd6355-0ntz", "device": null, "end": "2026-10-30T17:35:12Z", "per_s": 400694.56666666665}

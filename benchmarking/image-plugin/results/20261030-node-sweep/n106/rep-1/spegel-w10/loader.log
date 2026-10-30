@@ -1,0 +1,5 @@
+2026/10/30 17:35:22 INFO serving results addr=:8080 dir=/results
+2026/10/30 17:35:23 WARN skipping template without a golden template=img-077 image=psf__requests-1724
+2026/10/30 17:35:24 INFO templates ready ready=317 images=318 actors=318
+2026/10/30 17:36:57 WARN probe failed; retrying actor=r1-056 turn=0 tries=1 err="HTTP 503: upstream connect error or disconnect/reset before headers. reset reason: connection termination"
+2026/10/30 17:40:14 INFO run done arm=spegel rep=1 elapsed=4m50s

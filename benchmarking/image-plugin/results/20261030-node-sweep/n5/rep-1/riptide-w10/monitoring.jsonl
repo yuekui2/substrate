@@ -1,0 +1,3 @@
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-te-bench-riptide-384fa6bf-ff9h", "device": "gke-substrate-stream-te-bench-riptide-384fa6bf-ff9h", "end": "2026-10-30T16:40:07Z", "per_s": 48637799.96666667}
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-te-bench-riptide-384fa6bf-r9lq", "device": "gke-substrate-stream-te-bench-riptide-384fa6bf-r9lq", "end": "2026-10-30T16:40:07Z", "per_s": 22175676.833333332}
+{"metric": "disk/write_bytes_count", "node": "gke-substrate-stream-te-bench-riptide-384fa6bf-4ngx", "device": "gke-substrate-stream-te-bench-riptide-384fa6bf-4ngx", "end": "2026-10-30T16:40:07Z", "per_s": 32345611.983333334}

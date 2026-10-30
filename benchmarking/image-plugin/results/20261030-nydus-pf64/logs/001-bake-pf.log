@@ -1,0 +1,13 @@
+# bake-pf
+# start: 2026-10-30T17:20:53Z
+$ benchmarking/image-plugin/run.sh bake nydus
+
+NAME                   AGE
+imgbench-nydus-pf-w8   0s
+job.batch/imgbench-bake-0-nydus-pf-w8 created
+pod/imgbench-bake-0-nydus-pf-w8-5zs7x condition met
+nydus: imgbench-bake-0-nydus-pf-w8 pod imgbench-bake-0-nydus-pf-w8-5zs7x started 2026-10-30T17:21:06Z
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261030-nydus-pf64/bake-0/nydus-pf-w8/turns.jsonl: No such file or directory
+nydus: done (exit 1), 0 lines, 0 errors
+wrote 30 points to benchmarking/image-plugin/results/20261030-nydus-pf64/bake-0/nydus-pf-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-30T17:24:01Z

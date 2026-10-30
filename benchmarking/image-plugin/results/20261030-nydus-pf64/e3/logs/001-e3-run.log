@@ -1,0 +1,11 @@
+# e3-run
+# start: 2026-10-30T17:29:02Z
+$ benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-pf-w8 created
+pod/imgbench-rep-1-nydus-pf-w8-khbmk condition met
+nydus: imgbench-rep-1-nydus-pf-w8 pod imgbench-rep-1-nydus-pf-w8-khbmk started 2026-10-30T17:29:14Z
+nydus: done (exit 1), 0 lines, 0
+0 errors
+wrote 0 points to benchmarking/image-plugin/results/20261030-nydus-pf64/e3/rep-1/nydus-pf-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-30T17:29:43Z

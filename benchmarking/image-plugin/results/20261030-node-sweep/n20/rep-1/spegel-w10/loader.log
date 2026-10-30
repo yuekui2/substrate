@@ -1,0 +1,3 @@
+2026/10/30 17:03:34 INFO serving results addr=:8080 dir=/results
+2026/10/30 17:03:35 INFO templates ready ready=60 images=60 actors=60
+2026/10/30 17:05:59 INFO run done arm=spegel rep=1 elapsed=2m24s
