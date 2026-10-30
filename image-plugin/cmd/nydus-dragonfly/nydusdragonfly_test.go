@@ -190,12 +190,17 @@ func TestVerifyKernelEROFSSupportNoFallback(t *testing.T) {
 
 func TestResolveDragonflyEndpoints(t *testing.T) {
 	t.Setenv(EnvDragonflyProxyAddr, "")
+	t.Setenv(EnvDragonflyHealthURL, "")
 	t.Setenv(EnvDragonflySchedulerAddr, "")
 	t.Setenv(EnvDragonflyManagerAddr, "")
 
 	proxyAddr, err := ResolveDragonflyProxyAddr("")
 	if err != nil || proxyAddr != DefaultDragonflyProxyAddr {
 		t.Fatalf("default ResolveDragonflyProxyAddr = (%q, %v), want (%q, nil)", proxyAddr, err, DefaultDragonflyProxyAddr)
+	}
+	healthURL, err := ResolveDragonflyHealthURL("")
+	if err != nil || healthURL != DefaultDragonflyHealthURL {
+		t.Fatalf("default ResolveDragonflyHealthURL = (%q, %v), want (%q, nil)", healthURL, err, DefaultDragonflyHealthURL)
 	}
 
 	schedAddr, err := ResolveDragonflyHostPort("", EnvDragonflySchedulerAddr, DefaultDragonflySchedulerAddr, "scheduler")
@@ -208,13 +213,18 @@ func TestResolveDragonflyEndpoints(t *testing.T) {
 		t.Fatalf("default manager = (%q, %v), want (%q, nil)", mgrAddr, err, DefaultDragonflyManagerAddr)
 	}
 
-	t.Setenv(EnvDragonflyProxyAddr, "http://127.0.0.1:65001/")
+	t.Setenv(EnvDragonflyProxyAddr, "http://127.0.0.1:4001/")
+	t.Setenv(EnvDragonflyHealthURL, "http://127.0.0.1:4003/healthy")
 	t.Setenv(EnvDragonflySchedulerAddr, "127.0.0.1:8002")
 	t.Setenv(EnvDragonflyManagerAddr, "127.0.0.1:65003")
 
 	proxyAddr, err = ResolveDragonflyProxyAddr("")
-	if err != nil || proxyAddr != "http://127.0.0.1:65001" {
-		t.Fatalf("env ResolveDragonflyProxyAddr = (%q, %v), want (http://127.0.0.1:65001, nil)", proxyAddr, err)
+	if err != nil || proxyAddr != "http://127.0.0.1:4001" {
+		t.Fatalf("env ResolveDragonflyProxyAddr = (%q, %v), want (http://127.0.0.1:4001, nil)", proxyAddr, err)
+	}
+	healthURL, err = ResolveDragonflyHealthURL("")
+	if err != nil || healthURL != "http://127.0.0.1:4003/healthy" {
+		t.Fatalf("env ResolveDragonflyHealthURL = (%q, %v), want (http://127.0.0.1:4003/healthy, nil)", healthURL, err)
 	}
 	schedAddr, err = ResolveDragonflyHostPort("", EnvDragonflySchedulerAddr, DefaultDragonflySchedulerAddr, "scheduler")
 	if err != nil || schedAddr != "127.0.0.1:8002" {
@@ -241,7 +251,7 @@ func TestPingDragonflyProxyAndCanProvide(t *testing.T) {
 	proxyHealthy.Store(true)
 
 	dfServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/server/ping" {
+		if r.URL.Path == "/healthy" {
 			if proxyHealthy.Load() {
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte("OK"))
@@ -262,6 +272,7 @@ func TestPingDragonflyProxyAndCanProvide(t *testing.T) {
 	driver, err := NewNydusDragonfly(NydusDragonflyConfig{
 		SkipKernelCheck:        true,
 		DragonflyProxyAddr:     dfServer.URL,
+		DragonflyHealthURL:     dfServer.URL + "/healthy",
 		DragonflySchedulerAddr: "127.0.0.1:8002",
 		DragonflyManagerAddr:   "127.0.0.1:65003",
 		VerifyDragonflyPing:    true,
@@ -338,7 +349,7 @@ func newFakeNodeDfdaemon(t *testing.T, nodeName string, scheduler *fakeDragonfly
 		localPieces: make(map[string][]byte),
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/server/ping", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/healthy", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 	})
@@ -471,6 +482,7 @@ func TestNydusDragonflyCrossNodeP2PFlow(t *testing.T) {
 			SkipKernelCheck:        true,
 			DockerConfigPath:       filepath.Join(tmpDir, "docker", "config.json"),
 			DragonflyProxyAddr:     nodeDf.server.URL,
+			DragonflyHealthURL:     nodeDf.server.URL + "/healthy",
 			DragonflySchedulerAddr: "127.0.0.1:8002",
 			DragonflyManagerAddr:   "127.0.0.1:65003",
 			VerifyDragonflyPing:    true,

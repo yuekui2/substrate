@@ -57,7 +57,15 @@ const (
 
 	// DefaultDragonflyProxyAddr is the default local Dragonfly dfdaemon HTTP
 	// proxy address on each worker node.
-	DefaultDragonflyProxyAddr = "http://127.0.0.1:65001"
+	DefaultDragonflyProxyAddr = "http://127.0.0.1:4001"
+
+	// EnvDragonflyHealthURL is the environment variable configuring the local
+	// Dragonfly dfdaemon health endpoint.
+	EnvDragonflyHealthURL = "DRAGONFLY_HEALTH_URL"
+
+	// DefaultDragonflyHealthURL is the default health endpoint of the local
+	// Dragonfly dfdaemon.
+	DefaultDragonflyHealthURL = "http://127.0.0.1:4003/healthy"
 
 	// EnvDragonflySchedulerAddr is the environment variable configuring the
 	// cluster-wide Dragonfly Scheduler gRPC endpoint used for cross-node P2P
@@ -121,6 +129,7 @@ type StatFSFunc func(path string) (int64, error)
 type NydusDragonflyConfig struct {
 	DockerConfigPath       string
 	DragonflyProxyAddr     string
+	DragonflyHealthURL     string
 	DragonflySchedulerAddr string
 	DragonflyManagerAddr   string
 	VerifyDragonflyPing    bool
@@ -144,6 +153,7 @@ type NydusDragonflyDriver struct {
 	*plugin.Driver
 	dockerSyncer           *plugin.DockerConfigSyncer
 	dragonflyProxyAddr     string
+	dragonflyHealthURL     string
 	dragonflySchedulerAddr string
 	dragonflyManagerAddr   string
 	verifyDragonflyPing    bool
@@ -167,16 +177,27 @@ type NydusDragonflyDriver struct {
 // variable, or DefaultDragonflyProxyAddr, validating that it is a well-formed
 // HTTP(S) URL.
 func ResolveDragonflyProxyAddr(flagVal string) (string, error) {
-	addr := strings.TrimSpace(flagVal)
+	return resolveDragonflyURL(flagVal, EnvDragonflyProxyAddr, DefaultDragonflyProxyAddr, "P2P proxy")
+}
+
+// ResolveDragonflyHealthURL returns the local Dragonfly dfdaemon health
+// endpoint from val, the DRAGONFLY_HEALTH_URL environment variable, or
+// DefaultDragonflyHealthURL.
+func ResolveDragonflyHealthURL(val string) (string, error) {
+	return resolveDragonflyURL(val, EnvDragonflyHealthURL, DefaultDragonflyHealthURL, "health")
+}
+
+func resolveDragonflyURL(val, envVar, defaultVal, label string) (string, error) {
+	addr := strings.TrimSpace(val)
 	if addr == "" {
-		addr = strings.TrimSpace(os.Getenv(EnvDragonflyProxyAddr))
+		addr = strings.TrimSpace(os.Getenv(envVar))
 	}
 	if addr == "" {
-		addr = DefaultDragonflyProxyAddr
+		addr = defaultVal
 	}
 	u, err := url.Parse(addr)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return "", fmt.Errorf("invalid Dragonfly P2P proxy endpoint %q (expected http:// or https:// URL)", addr)
+		return "", fmt.Errorf("invalid Dragonfly %s endpoint %q (expected http:// or https:// URL)", label, addr)
 	}
 	return strings.TrimRight(addr, "/"), nil
 }
@@ -238,6 +259,10 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 	if err != nil {
 		return nil, err
 	}
+	healthURL, err := ResolveDragonflyHealthURL(cfg.DragonflyHealthURL)
+	if err != nil {
+		return nil, err
+	}
 	schedAddr, err := ResolveDragonflyHostPort(cfg.DragonflySchedulerAddr, EnvDragonflySchedulerAddr, DefaultDragonflySchedulerAddr, "scheduler")
 	if err != nil {
 		return nil, err
@@ -270,6 +295,7 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 	nd := &NydusDragonflyDriver{
 		dockerSyncer:           plugin.NewDockerConfigSyncer(cfg.DockerConfigPath),
 		dragonflyProxyAddr:     dfAddr,
+		dragonflyHealthURL:     healthURL,
 		dragonflySchedulerAddr: schedAddr,
 		dragonflyManagerAddr:   mgrAddr,
 		verifyDragonflyPing:    cfg.VerifyDragonflyPing,
@@ -331,34 +357,23 @@ func (nd *NydusDragonflyDriver) DragonflyManagerAddr() string {
 	return nd.dragonflyManagerAddr
 }
 
-// PingDragonflyProxy probes the local dfdaemon /server/ping endpoint to ensure
-// the Dragonfly P2P proxy is reachable before Nydus attempts to stream chunks.
+// PingDragonflyProxy probes the local dfdaemon health endpoint to ensure the
+// Dragonfly P2P proxy is up before Nydus attempts to stream chunks.
 func (nd *NydusDragonflyDriver) PingDragonflyProxy(ctx context.Context) error {
-	var candidates []string
-	if u, err := url.Parse(nd.dragonflyProxyAddr); err == nil && u.Port() == "65001" {
-		candidates = append(candidates, fmt.Sprintf("%s://%s:40901/server/ping", u.Scheme, u.Hostname()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, nd.dragonflyHealthURL, nil)
+	if err != nil {
+		return fmt.Errorf("creating Dragonfly ping request %q: %w", nd.dragonflyHealthURL, err)
 	}
-	candidates = append(candidates, nd.dragonflyProxyAddr+"/server/ping")
-	var lastErr error
-	for _, pingURL := range candidates {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, pingURL, nil)
-		if err != nil {
-			lastErr = fmt.Errorf("creating Dragonfly ping request %q: %w", pingURL, err)
-			continue
-		}
-		resp, err := nd.httpClient.Do(req)
-		if err != nil {
-			lastErr = fmt.Errorf("probing Dragonfly dfdaemon at %q: %w", pingURL, err)
-			continue
-		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-		if resp.StatusCode == http.StatusOK {
-			return nil
-		}
-		lastErr = fmt.Errorf("dragonfly dfdaemon ping %q returned HTTP %d", pingURL, resp.StatusCode)
+	resp, err := nd.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("probing Dragonfly dfdaemon at %q: %w", nd.dragonflyHealthURL, err)
 	}
-	return lastErr
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("dragonfly dfdaemon ping %q returned HTTP %d", nd.dragonflyHealthURL, resp.StatusCode)
+	}
+	return nil
 }
 
 func (nd *NydusDragonflyDriver) probeDragonfly(ctx context.Context) error {
