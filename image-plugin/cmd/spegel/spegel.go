@@ -123,15 +123,41 @@ type SpegelConfig struct {
 
 // SpegelStats holds counters exposed by SpegelPeerServer's /stats endpoint.
 type SpegelStats struct {
-	BlobsCached     int      `json:"blobs_cached"`
-	BytesCached     int64    `json:"bytes_cached"`
-	LocalHits       int64    `json:"local_hits"`
-	PeerHits        int64    `json:"peer_hits"`
-	PeerMisses      int64    `json:"peer_misses"`
-	P2PRequestsIn   int64    `json:"p2p_requests_in"`
-	P2PBytesServed  int64    `json:"p2p_bytes_served"`
-	HealthPings     int64    `json:"health_pings"`
-	DiscoveredPeers []string `json:"discovered_peers"`
+	BlobsCached      int      `json:"blobs_cached"`
+	BytesCached      int64    `json:"bytes_cached"`
+	LocalHits        int64    `json:"local_hits"`
+	LocalStoreHits   int64    `json:"local_store_hits"`
+	PeerHits         int64    `json:"peer_hits"`
+	PeerMisses       int64    `json:"peer_misses"`
+	P2PRequestsIn    int64    `json:"p2p_requests_in"`
+	P2PBytesServed   int64    `json:"p2p_bytes_served"`
+	P2PBytesReceived int64    `json:"p2p_bytes_received"`
+	UpstreamBytes    int64    `json:"upstream_bytes"`
+	HealthPings      int64    `json:"health_pings"`
+	DiscoveredPeers  []string `json:"discovered_peers"`
+}
+
+// spegelCounters holds blob counters that SpegelDriver and SpegelPeerServer
+// share.
+type spegelCounters struct {
+	// localStoreHits counts layers whose blob was already in the store.
+	localStoreHits atomic.Int64
+	// p2pBytesReceived counts blob bytes read from peers or the mirror.
+	p2pBytesReceived atomic.Int64
+	// upstreamBytes counts blob bytes read from the upstream registry.
+	upstreamBytes atomic.Int64
+}
+
+// countingReader adds the number of bytes read to n.
+type countingReader struct {
+	r io.Reader
+	n *atomic.Int64
+}
+
+func (c countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n.Add(int64(n))
+	return n, err
 }
 
 // SpegelPeerServer implements a Spegel-compatible stateless P2P OCI registry
@@ -146,6 +172,7 @@ type SpegelPeerServer struct {
 	httpClient         *http.Client
 	listener           net.Listener
 	server             *http.Server
+	counters           *spegelCounters
 
 	localHits      atomic.Int64
 	peerHits       atomic.Int64
@@ -157,7 +184,7 @@ type SpegelPeerServer struct {
 
 // NewSpegelPeerServer creates and starts a Spegel-compatible P2P OCI registry
 // mirror server on listenAddr.
-func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS string, peerPort int, staticPeers []string, upstreamMirrorAddr string, httpClient *http.Client) (*SpegelPeerServer, error) {
+func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS string, peerPort int, staticPeers []string, upstreamMirrorAddr string, httpClient *http.Client, counters *spegelCounters) (*SpegelPeerServer, error) {
 	if listenAddr == "" {
 		listenAddr = ":5000"
 	}
@@ -182,6 +209,7 @@ func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS string, peerPort int
 		upstreamMirrorAddr: strings.TrimRight(strings.TrimSpace(upstreamMirrorAddr), "/"),
 		httpClient:         httpClient,
 		listener:           ln,
+		counters:           counters,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
@@ -235,15 +263,18 @@ func (s *SpegelPeerServer) Stats() SpegelStats {
 	peers := s.discoverPeers(ctx)
 	cancel()
 	return SpegelStats{
-		BlobsCached:     blobsCached,
-		BytesCached:     bytesCached,
-		LocalHits:       s.localHits.Load(),
-		PeerHits:        s.peerHits.Load(),
-		PeerMisses:      s.peerMisses.Load(),
-		P2PRequestsIn:   s.p2pRequestsIn.Load(),
-		P2PBytesServed:  s.p2pBytesServed.Load(),
-		HealthPings:     s.healthPings.Load(),
-		DiscoveredPeers: peers,
+		BlobsCached:      blobsCached,
+		BytesCached:      bytesCached,
+		LocalHits:        s.localHits.Load(),
+		LocalStoreHits:   s.counters.localStoreHits.Load(),
+		PeerHits:         s.peerHits.Load(),
+		PeerMisses:       s.peerMisses.Load(),
+		P2PRequestsIn:    s.p2pRequestsIn.Load(),
+		P2PBytesServed:   s.p2pBytesServed.Load(),
+		P2PBytesReceived: s.counters.p2pBytesReceived.Load(),
+		UpstreamBytes:    s.counters.upstreamBytes.Load(),
+		HealthPings:      s.healthPings.Load(),
+		DiscoveredPeers:  peers,
 	}
 }
 
@@ -491,6 +522,7 @@ type SpegelDriver struct {
 	httpClient          *http.Client
 	upstreamBlobFetcher BlobFetcherFunc
 	peerServer          *SpegelPeerServer
+	counters            *spegelCounters
 
 	p2pBlobHits      atomic.Int64
 	upstreamBlobMiss atomic.Int64
@@ -577,6 +609,7 @@ func NewSpegel(cfg SpegelConfig) (*SpegelDriver, error) {
 		}
 	}
 
+	counters := &spegelCounters{}
 	var peerServer *SpegelPeerServer
 	if cfg.EnableP2PServer {
 		peerServer, err = NewSpegelPeerServer(
@@ -587,6 +620,7 @@ func NewSpegel(cfg SpegelConfig) (*SpegelDriver, error) {
 			cfg.SpegelPeers,
 			upstreamMirror,
 			httpClient,
+			counters,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("starting Spegel P2P server: %w", err)
@@ -609,6 +643,7 @@ func NewSpegel(cfg SpegelConfig) (*SpegelDriver, error) {
 		httpClient:          httpClient,
 		upstreamBlobFetcher: cfg.UpstreamBlobFetcher,
 		peerServer:          peerServer,
+		counters:            counters,
 	}
 
 	opts := append([]plugin.Option{
@@ -825,6 +860,10 @@ func (sd *SpegelDriver) materializeSpegelLayer(ctx context.Context, imageRef, re
 		return fmt.Errorf("opening cached blob %s: %w", blobPath, err)
 	}
 	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("stat cached blob %s: %w", blobPath, err)
+	}
 
 	tarRC, err := openDecompressedTarStream(f)
 	if err != nil {
@@ -855,6 +894,7 @@ func (sd *SpegelDriver) materializeSpegelLayer(ctx context.Context, imageRef, re
 	slog.InfoContext(ctx, "Materialized Spegel OCI layer",
 		slog.Int("layerIndex", layerIndex),
 		slog.String("blobDigest", "sha256:"+blobHex),
+		slog.Int64("blobBytes", info.Size()),
 		slog.String("source", sourcePeer),
 		slog.String("layerFSDir", layerFSDir))
 	return nil
@@ -863,6 +903,7 @@ func (sd *SpegelDriver) materializeSpegelLayer(ctx context.Context, imageRef, re
 func (sd *SpegelDriver) ensureBlobInStore(ctx context.Context, imageRef, registryHost, repoPath string, auth *imagepluginclient.AuthConfig, layerIndex int, blobHex string) (string, string, error) {
 	blobPath := filepath.Join(sd.storeDir, "blobs", "sha256", blobHex)
 	if info, err := os.Stat(blobPath); err == nil && !info.IsDir() && info.Size() > 0 {
+		sd.counters.localStoreHits.Add(1)
 		return blobPath, "local-store", nil
 	}
 
@@ -878,7 +919,7 @@ func (sd *SpegelDriver) ensureBlobInStore(ctx context.Context, imageRef, registr
 				if peer == "" {
 					peer = sd.spegelMirrorAddr
 				}
-				writeErr := writeVerifiedBlobAtomically(resp.Body, blobPath, blobHex)
+				writeErr := writeVerifiedBlobAtomically(countingReader{resp.Body, &sd.counters.p2pBytesReceived}, blobPath, blobHex)
 				_ = resp.Body.Close()
 				if writeErr == nil {
 					sd.p2pBlobHits.Add(1)
@@ -902,7 +943,7 @@ func (sd *SpegelDriver) ensureBlobInStore(ctx context.Context, imageRef, registr
 	}
 	defer func() { _ = rc.Close() }()
 
-	if err := writeVerifiedBlobAtomically(rc, blobPath, blobHex); err != nil {
+	if err := writeVerifiedBlobAtomically(countingReader{rc, &sd.counters.upstreamBytes}, blobPath, blobHex); err != nil {
 		return "", "", fmt.Errorf("storing upstream blob sha256:%s: %w", blobHex, err)
 	}
 	sd.upstreamBlobMiss.Add(1)

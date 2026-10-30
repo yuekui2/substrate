@@ -274,9 +274,13 @@ func TestSpegelCrossNodeP2PFlow(t *testing.T) {
 			nodeB.P2PBlobHits(), nodeB.UpstreamBlobMisses())
 	}
 
+	totalBytes := int64(len(gzBlob0) + len(zstdBlob1))
 	statsA := nodeA.PeerServer().Stats()
-	if statsA.P2PRequestsIn < 2 || statsA.P2PBytesServed != int64(len(gzBlob0)+len(zstdBlob1)) {
-		t.Fatalf("unexpected Node A P2P server stats: %+v (want P2PBytesServed=%d)", statsA, len(gzBlob0)+len(zstdBlob1))
+	if statsA.P2PRequestsIn < 2 || statsA.P2PBytesServed != totalBytes || statsA.UpstreamBytes != totalBytes {
+		t.Fatalf("unexpected Node A P2P server stats: %+v (want P2PBytesServed=UpstreamBytes=%d)", statsA, totalBytes)
+	}
+	if statsB := nodeB.PeerServer().Stats(); statsB.P2PBytesReceived != totalBytes || statsB.UpstreamBytes != 0 {
+		t.Fatalf("unexpected Node B P2P server stats: %+v (want P2PBytesReceived=%d)", statsB, totalBytes)
 	}
 
 	gotAgentPy, err := os.ReadFile(filepath.Join(resB.LayerDirs[1], "fs", "app", "agent.py"))
