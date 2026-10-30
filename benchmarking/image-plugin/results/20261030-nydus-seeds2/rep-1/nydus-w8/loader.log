@@ -1,0 +1,4 @@
+2026/10/30 16:22:39 INFO serving results addr=:8080 dir=/results
+2026/10/30 16:22:40 WARN skipping template without a golden template=img-077 image=psf__requests-1724
+2026/10/30 16:22:41 INFO templates ready ready=319 images=320 actors=480
+2026/10/30 16:26:38 INFO run done arm=nydus rep=1 elapsed=3m57s
