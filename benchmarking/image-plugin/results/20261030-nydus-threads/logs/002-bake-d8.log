@@ -1,0 +1,11 @@
+# bake-d8
+# start: 2026-10-30T13:44:20Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh bake nydus
+
+job.batch/imgbench-bake-0-nydus-w8 created
+pod/imgbench-bake-0-nydus-w8-2gbvv condition met
+nydus: imgbench-bake-0-nydus-w8 pod imgbench-bake-0-nydus-w8-2gbvv started 2026-10-30T13:44:38Z
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 105: benchmarking/image-plugin/results/20261030-nydus-threads/bake-0/nydus-w8/turns.jsonl: No such file or directory
+nydus: done (exit 1), 0 lines, 0 errors
+wrote 0 points to benchmarking/image-plugin/results/20261030-nydus-threads/bake-0/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-30T13:45:07Z

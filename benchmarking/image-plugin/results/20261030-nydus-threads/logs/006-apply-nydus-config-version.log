@@ -1,0 +1,16 @@
+# apply-nydus-config-version
+# start: 2026-10-30T13:51:46Z
+$ KO=$(cd hack/tools/ko && go tool -n ko); $KO resolve --base-import-paths -f image-plugin/manifests/nydus-dragonfly.yaml 2>/dev/null | python3 benchmarking/image-plugin/scope_plugin.py nydus | kubectl apply -f - | grep -i daemonset; kubectl -n ate-system delete pod -l app=ate-image-plugin,ate.dev/image-plugin=nydus-dragonfly --grace-period=0 --force 2>&1 | tail -3; sleep 90; kubectl -n ate-system get pods -l app=ate-image-plugin,ate.dev/image-plugin=nydus-dragonfly --no-headers; for p in $(kubectl -n ate-system get pods -l app=ate-image-plugin,ate.dev/image-plugin=nydus-dragonfly -o name); do timeout 20 kubectl -n ate-system exec $p -c nydus-snapshotter -- sh -c "ps -eo nlwp,args | grep \"[n]ydusd singleton\" | cut -c1-220"; done
+
+daemonset.apps/image-plugin-nydus-dragonfly configured
+daemonset.apps/image-plugin-nydus-dragonfly-seed configured
+pod "image-plugin-nydus-dragonfly-58gds" force deleted from ate-system namespace
+pod "image-plugin-nydus-dragonfly-djtr6" force deleted from ate-system namespace
+pod "image-plugin-nydus-dragonfly-seed-b2lzw" force deleted from ate-system namespace
+image-plugin-nydus-dragonfly-g2b8l        3/3   Running   0     91s
+image-plugin-nydus-dragonfly-seed-2f89v   3/3   Running   0     92s
+image-plugin-nydus-dragonfly-wrj6c        3/3   Running   0     91s
+ 385 /home/kubernetes/bin/nydusd singleton --fscache /var/lib/ate/image-plugin-cache/nydus-snapshotter/cache --fscache-threads 64 --apisock /var/lib/ate/image-plugin-cache/nydus-snapshotter/socket/dbia20ctcimg77322b6g/ap
+ 724 /home/kubernetes/bin/nydusd singleton --fscache /var/lib/ate/image-plugin-cache/nydus-snapshotter/cache --fscache-threads 64 --apisock /var/lib/ate/image-plugin-cache/nydus-snapshotter/socket/dbia204tcimvcv44hll0/ap
+ 788 /home/kubernetes/bin/nydusd singleton --fscache /var/lib/ate/image-plugin-cache/nydus-snapshotter/cache --fscache-threads 64 --apisock /var/lib/ate/image-plugin-cache/nydus-snapshotter/socket/dbia20ctcimjphd7dkf0/ap
+# exit: 0  end: 2026-10-30T13:53:34Z

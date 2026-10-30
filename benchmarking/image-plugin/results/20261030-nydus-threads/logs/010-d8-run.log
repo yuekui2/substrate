@@ -1,0 +1,10 @@
+# d8-run
+# start: 2026-10-30T14:10:46Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w8 created
+pod/imgbench-rep-1-nydus-w8-t2v48 condition met
+nydus: imgbench-rep-1-nydus-w8 pod imgbench-rep-1-nydus-w8-t2v48 started 2026-10-30T14:10:59Z
+nydus: done (exit 0), 2400 lines, 974 errors
+wrote 147 points to benchmarking/image-plugin/results/20261030-nydus-threads/rep-1/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-30T14:21:22Z
