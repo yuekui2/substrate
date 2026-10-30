@@ -624,6 +624,10 @@ items:
             value: "http://127.0.0.1:4001"
           - name: DRAGONFLY_HEALTH_URL
             value: "http://127.0.0.1:4003/healthy"
+          # In fscache mode, nydusd prefetch reads each whole blob in order.
+          # Images built with a prefetch list put those files first.
+          - name: NYDUS_PREFETCH
+            value: "false"
           command:
           - nsenter
           - -t
@@ -743,6 +747,11 @@ items:
                 "cache_type": "fscache",
                 "cache_config": {
                   "work_dir": "${nydus_root}/cache"
+                },
+                "prefetch_config": {
+                  "enable": ${NYDUS_PREFETCH},
+                  "threads_count": 8,
+                  "merging_size": 1048576
                 },
                 "metadata_path": "${nydus_root}/cache/metadata"
               }

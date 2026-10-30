@@ -25,6 +25,9 @@
 # atespace imgbench-<arm>-w<n>, each actor gets 1000/n millicores and 1984/n
 # MiB, and results go to <arm>-w<n>/. Unset, it uses imgbench-<arm> (10 per
 # worker, baked by an earlier run).
+#
+# TAG=<t> appends t to the atespace, Job and results names, so templates
+# baked from another image list (LOADER_ARGS="-images ...") stay separate.
 
 set -uo pipefail
 
@@ -67,9 +70,9 @@ done
 
 run_arm() {
   local arm="$1" job dir pod start atespace
-  atespace="imgbench-${arm}${suffix}"
-  job="imgbench-${mode}-${rep}-${arm}${suffix}"
-  dir="${RUN_DIR}/${mode}-${rep}/${arm}${suffix}"
+  atespace="imgbench-${arm}${TAG:-}${suffix}"
+  job="imgbench-${mode}-${rep}-${arm}${TAG:-}${suffix}"
+  dir="${RUN_DIR}/${mode}-${rep}/${arm}${TAG:-}${suffix}"
   mkdir -p "${dir}"
   "${ATE}" get atespace "${atespace}" >/dev/null 2>&1 || "${ATE}" create atespace "${atespace}" 2>/dev/null
   kubectl -n imgbench delete job "${job}" --ignore-not-found --wait=true >/dev/null
@@ -111,6 +114,9 @@ run_arm() {
     kubectl -n ate-system logs "${p}" -c atelet --since-time="${start}" 2>/dev/null |
       grep -E 'Restore timing breakdown|falling back|ImagePlugin|Suspended actor on draining' >"${dir}/atelet-${n}.log" || true
   done
+  if [[ "${arm}" == nydus ]]; then
+    nodes+=" $(kubectl get nodes -l bench-arm=nydus-seed -o jsonpath='{.items[*].metadata.name}')"
+  fi
   collect_nodes "${arm}" "${dir}" "${start}" "${nodes}"
   kubectl -n imgbench delete job "${job}" --wait=false >/dev/null
 }

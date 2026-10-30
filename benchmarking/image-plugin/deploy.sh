@@ -37,7 +37,11 @@ OUT="$(mktemp -d)"
 trap 'rm -rf "${OUT}"' EXIT
 
 kubectl apply -f "${HERE}/manifests/base.yaml"
-kubectl -n imgbench create configmap imgbench-images --from-file="${HERE}/images-320.jsonl" \
+image_lists=()
+for f in "${HERE}"/images-*.jsonl; do
+  image_lists+=(--from-file="${f}")
+done
+kubectl -n imgbench create configmap imgbench-images "${image_lists[@]}" \
   --dry-run=client -o yaml | kubectl apply -f -
 kubectl -n imgbench create configmap node-sampler --from-file="${HERE}/node-sampler.sh" \
   --dry-run=client -o yaml | kubectl apply -f -

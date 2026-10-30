@@ -34,9 +34,14 @@ DISK_SIZE="${DISK_SIZE:-600}"
 DISK_IOPS="${DISK_IOPS:-160000}"
 DISK_THROUGHPUT="${DISK_THROUGHPUT:-2400}"
 ALL_ARMS=(pull riptide nydus spegel)
-# DRAGONFLY_SEEDS=all makes every nydus node a Dragonfly seed peer instead of
-# one.
-DRAGONFLY_SEEDS="${DRAGONFLY_SEEDS:-one}"
+# Dragonfly seed peers for the nydus arm:
+#   dedicated  pool bench-nydus-seed of SEED_NODES x SEED_MACHINE, labeled
+#              bench-arm=nydus-seed, runs only the seed DaemonSet
+#   one        the first bench-nydus node
+#   all        every bench-nydus node
+DRAGONFLY_SEEDS="${DRAGONFLY_SEEDS:-dedicated}"
+SEED_NODES="${SEED_NODES:-2}"
+SEED_MACHINE="${SEED_MACHINE:-c3-standard-8}"
 
 action="${1:?usage: pools.sh create|delete|recreate [arm...]}"
 shift
@@ -76,44 +81,74 @@ gke() {
 }
 
 exists() {
-  gcloud container node-pools describe "bench-$1" --project "${PROJECT}" --zone "${ZONE}" --cluster "${CLUSTER}" >/dev/null 2>&1
+  gcloud container node-pools describe "$1" --project "${PROJECT}" --zone "${ZONE}" --cluster "${CLUSTER}" >/dev/null 2>&1
 }
 
-create_one() {
-  local arm="$1"
-  exists "${arm}" && return 0
-  gke node-pools create "bench-${arm}" \
+# create_pool <pool> <machine> <nodes> <labels>
+create_pool() {
+  local pool="$1" machine="$2" nodes="$3" labels="$4"
+  exists "${pool}" && return 0
+  gke node-pools create "${pool}" \
     --project "${PROJECT}" --zone "${ZONE}" --cluster "${CLUSTER}" \
-    --machine-type "${MACHINE}" --num-nodes "${NODES}" \
+    --machine-type "${machine}" --num-nodes "${nodes}" \
     --image-type UBUNTU_CONTAINERD --disk-type "${DISK_TYPE}" --disk-size "${DISK_SIZE}" \
     --boot-disk-provisioned-iops "${DISK_IOPS}" --boot-disk-provisioned-throughput "${DISK_THROUGHPUT}" \
     --no-shielded-secure-boot --shielded-integrity-monitoring --no-enable-image-streaming \
     --workload-metadata GKE_METADATA \
     --no-enable-autoupgrade --no-enable-autorepair \
-    --node-labels "bench-arm=${arm}" \
+    --node-labels "${labels}" \
     --node-taints "ate.dev/sandboxClass=gvisor:NoSchedule" \
     --system-config-from-file "${sysctls_file}" \
     --quiet
-  echo "created bench-${arm}"
-  if [[ "${arm}" == nydus ]]; then
-    # Seed nodes run image-plugin-nydus-dragonfly-seed.
-    case "${DRAGONFLY_SEEDS}" in
-      one)
-        local seed
-        seed="$(kubectl get nodes -l bench-arm=nydus -o jsonpath='{.items[0].metadata.name}')"
-        kubectl label node "${seed}" ate.dev/dragonfly-seed=true --overwrite
-        ;;
-      all) kubectl label nodes -l bench-arm=nydus ate.dev/dragonfly-seed=true --overwrite ;;
-      *) echo "DRAGONFLY_SEEDS must be one or all" >&2; return 1 ;;
-    esac
+  echo "created ${pool}"
+}
+
+create_one() {
+  local arm="$1"
+  if [[ "${arm}" != nydus ]]; then
+    create_pool "bench-${arm}" "${MACHINE}" "${NODES}" "bench-arm=${arm}"
+    return
   fi
+  # Seed nodes run image-plugin-nydus-dragonfly-seed.
+  case "${DRAGONFLY_SEEDS}" in
+    dedicated)
+      local rc=0
+      create_pool bench-nydus "${MACHINE}" "${NODES}" "bench-arm=nydus" &
+      create_pool bench-nydus-seed "${SEED_MACHINE}" "${SEED_NODES}" \
+        "bench-arm=nydus-seed,ate.dev/dragonfly-seed=true" &
+      wait -n || rc=1
+      wait -n || rc=1
+      return "${rc}"
+      ;;
+    one)
+      create_pool bench-nydus "${MACHINE}" "${NODES}" "bench-arm=nydus"
+      local seed
+      seed="$(kubectl get nodes -l bench-arm=nydus -o jsonpath='{.items[0].metadata.name}')"
+      kubectl label node "${seed}" ate.dev/dragonfly-seed=true --overwrite
+      ;;
+    all)
+      create_pool bench-nydus "${MACHINE}" "${NODES}" "bench-arm=nydus"
+      kubectl label nodes -l bench-arm=nydus ate.dev/dragonfly-seed=true --overwrite
+      ;;
+    *) echo "DRAGONFLY_SEEDS must be dedicated, one or all" >&2; return 1 ;;
+  esac
+}
+
+delete_pool() {
+  exists "$1" || return 0
+  gke node-pools delete "$1" --project "${PROJECT}" --zone "${ZONE}" --cluster "${CLUSTER}" --quiet
+  echo "deleted $1"
 }
 
 delete_one() {
   local arm="$1"
-  exists "${arm}" || return 0
-  gke node-pools delete "bench-${arm}" --project "${PROJECT}" --zone "${ZONE}" --cluster "${CLUSTER}" --quiet
-  echo "deleted bench-${arm}"
+  if [[ "${arm}" == nydus ]]; then
+    delete_pool bench-nydus-seed &
+    delete_pool bench-nydus
+    wait $!
+    return
+  fi
+  delete_pool "bench-${arm}"
 }
 
 pids=()
