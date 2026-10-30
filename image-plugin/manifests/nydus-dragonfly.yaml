@@ -192,11 +192,13 @@ data:
     scheduler:
       algorithm: default
       # A peer may go to the registry while at most backToSourceCount peers
-      # of the task have. The rest download pieces from them.
+      # of the task have. The rest download pieces from them. A peer waits
+      # about retryBackToSourceLimit x retryInterval for parents, such as
+      # the seed peer, before it goes to the registry.
       backToSourceCount: 1
-      retryBackToSourceLimit: 5
-      retryLimit: 10
-      retryInterval: 50ms
+      retryBackToSourceLimit: 10
+      retryLimit: 20
+      retryInterval: 500ms
       gc:
         pieceDownloadTimeout: 30m
         peerGCInterval: 10m
@@ -522,6 +524,8 @@ items:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.labels['ate.dev/dragonfly-seed']
+          - name: DRAGONFLY_PREFETCH
+            value: "true"
           # The proxy serves nydusd as a registry mirror. Blob requests become
           # Dragonfly tasks keyed by the blob digest, without the Range header,
           # so every Range read of a layer is a slice of one task. dfdaemon
@@ -542,6 +546,8 @@ items:
             download:
               server:
                 socketPath: /var/run/dragonfly/dfdaemon.sock
+              concurrentPieceCount: 16
+              backToSourceConcurrentPieceCount: 16
             upload:
               server:
                 port: 4000
@@ -560,11 +566,13 @@ items:
                 quicPort: 4006
               dir: /var/lib/dragonfly
               keep: true
+            # Tasks stay on disk for a whole run so peers can keep fetching
+            # pieces from them.
             gc:
               policy:
-                taskTTL: 6h
-                diskHighThresholdPercent: 80
-                diskLowThresholdPercent: 60
+                taskTTL: 24h
+                diskHighThresholdPercent: 90
+                diskLowThresholdPercent: 85
             proxy:
               server:
                 ip: 127.0.0.1
@@ -577,7 +585,7 @@ items:
               registryMirror:
                 addr: https://us-central1-docker.pkg.dev
                 enableTaskIDBasedBlobDigest: true
-              prefetch: true
+              prefetch: ${DRAGONFLY_PREFETCH}
             health:
               server:
                 port: 4003
