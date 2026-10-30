@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Rebuilds the Nydus images of the first N entries of IMAGES with batched
-# chunks and a prefetch table, pushes them to TARGET_REPO/<name>:pf, and
+# Rebuilds the Nydus images of the first N entries of IMAGES with a prefetch
+# table, which puts the listed files first in each blob, pushes them to
+# TARGET_REPO/<name>:pf, and
 # writes OUT with the same schema as IMAGES and `nydus` set to the new
 # digest. The prefetch list comes from prefetch_list.py run on the existing
 # Nydus bootstrap, so the full image is pulled only by nydusify.
@@ -79,7 +80,7 @@ convert_one() {
   start="$(date +%s)"
   "${NYDUS}/nydusify" convert \
     --source "${oci}" --target "${target}:pf" \
-    --fs-version 6 --compressor zstd --batch-size 0x100000 \
+    --fs-version 6 --compressor zstd \
     --nydus-image "${NYDUS}/nydus-image" --work-dir "${dir}/tmp" \
     --prefetch-patterns <"${dir}/prefetch.txt" >"${dir}/convert.log" 2>&1
   secs=$(($(date +%s) - start))
@@ -87,12 +88,6 @@ convert_one() {
 
   digest="$(crane digest "${target}:pf")"
   fetch_bootstrap "${target}@${digest}" "${dir}/new"
-  "${NYDUS}/nydus-image" check "${dir}/new/image/image.boot" >"${dir}/new.txt" 2>&1
-  if ! grep -qE '^[[:space:]]+[0-9]+: ' "${dir}/new.txt" ||
-    grep -E '^[[:space:]]+[0-9]+: ' "${dir}/new.txt" | grep -qv ' batch '; then
-    echo "${id}: blob without batch chunks" >&2
-    return 1
-  fi
   "${NYDUS}/nydus-image" inspect -R prefetch "${dir}/new/image/image.boot" 2>/dev/null >"${dir}/prefetch-table.json"
   if [[ "$(jq length "${dir}/prefetch-table.json")" -lt 2 ]]; then
     echo "${id}: no prefetch table" >&2
