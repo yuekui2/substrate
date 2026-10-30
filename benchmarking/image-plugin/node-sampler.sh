@@ -89,24 +89,35 @@ snapshot() {
   fi
   local fs
   fs="$(df -B1 --output=size,used,avail "${ATE}" 2>/dev/null | tail -1 | awk '{printf "{\"size\":%s,\"used\":%s,\"avail\":%s}", $1, $2, $3}')"
-  echo "{\"kind\":\"snapshot\",\"ts\":\"${ts}\",\"node\":\"${NODE}\",\"bytes\":{${dirs}},\"rootfs\":${fs:-null},\"spegel\":$(spegel_stats),\"dragonfly\":$(dragonfly_metrics)}"
+  echo "{\"kind\":\"snapshot\",\"ts\":\"${ts}\",\"node\":\"${NODE}\",\"bytes\":{${dirs}},\"rootfs\":${fs:-null},\"spegel\":$(spegel_stats),\"dragonfly\":$(dragonfly_metrics),\"nydusd\":$(nydusd_metrics)}"
 }
 
-# dragonfly_metrics prints the Dragonfly client's traffic and task counters
-# from its metrics port as a JSON array of Prometheus lines, or null.
-dragonfly_metrics() {
+# prom_lines <port> <path> <regex> prints the Prometheus lines matching regex
+# from 127.0.0.1:<port><path> as a JSON array, or null if nothing listens.
+prom_lines() {
   local resp
-  if ! exec 4<>/dev/tcp/127.0.0.1/4002 2>/dev/null; then
+  if ! exec 4<>"/dev/tcp/127.0.0.1/$1" 2>/dev/null; then
     echo null
     return
   fi
-  printf 'GET /metrics HTTP/1.0\r\nHost: localhost\r\n\r\n' >&4
+  printf 'GET %s HTTP/1.0\r\nHost: localhost\r\n\r\n' "$2" >&4
   resp="$(timeout 10 cat <&4 || true)"
   exec 4<&-
   local lines
-  lines="$(printf '%s\n' "${resp}" | grep -E '^dragonfly_client_[a-z_]*(traffic|task_total|back_to_source|upload|download)[a-z_]*[{ ]' |
+  lines="$(printf '%s\n' "${resp}" | grep -E "$3" |
     sed 's/\\/\\\\/g; s/"/\\"/g; s/^/"/; s/$/"/' | paste -sd,)"
   echo "[${lines}]"
+}
+
+# dragonfly_metrics prints the Dragonfly client's traffic and task counters.
+dragonfly_metrics() {
+  prom_lines 4002 /metrics '^dragonfly_client_[a-z_]*(traffic|task_total|back_to_source|upload|download)[a-z_]*[{ ]'
+}
+
+# nydusd_metrics prints nydusd's counters and latency histograms, which
+# nydus-snapshotter exports on port 9110.
+nydusd_metrics() {
+  prom_lines 9110 /v1/metrics '^nydusd_'
 }
 
 case "${1:-}" in

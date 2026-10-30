@@ -764,6 +764,8 @@ items:
             version = 1
             [daemon]
             threads_number = ${NYDUS_FSCACHE_THREADS:-64}
+            [metrics]
+            address = ":9110"
             EOF
 
             rm -f "${nydus_run}/containerd-nydus-grpc.sock" /run/ate/drain-complete

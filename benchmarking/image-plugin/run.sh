@@ -117,6 +117,11 @@ run_arm() {
   if [[ "${arm}" == nydus ]]; then
     nodes+=" $(kubectl get nodes -l bench-arm=nydus-seed -o jsonpath='{.items[*].metadata.name}')"
   fi
+  # ateworker's restore and checkpoint phase timings for this rep.
+  for p in $(kubectl -n imgbench get pods -o name | grep "^pod/bench-${arm}-"); do
+    kubectl -n imgbench logs "${p}" --since-time="${start}" 2>/dev/null |
+      grep -E 'Restore timing breakdown|Checkpoint timing breakdown' >>"${dir}/worker-phases.log" || true
+  done
   collect_nodes "${arm}" "${dir}" "${start}" "${nodes}"
   kubectl -n imgbench delete job "${job}" --wait=false >/dev/null
 }
