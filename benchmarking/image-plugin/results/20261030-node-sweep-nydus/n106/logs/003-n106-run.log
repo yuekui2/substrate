@@ -1,0 +1,10 @@
+# n106-run
+# start: 2026-10-30T20:33:20Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w8 created
+pod/imgbench-rep-1-nydus-w8-p2b6j condition met
+nydus: imgbench-rep-1-nydus-w8 pod imgbench-rep-1-nydus-w8-p2b6j started 2026-10-30T20:33:33Z
+nydus: done (exit 0), 1590 lines, 5 errors
+wrote 120 points to benchmarking/image-plugin/results/20261030-node-sweep-nydus/n106/rep-1/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-30T20:39:10Z
