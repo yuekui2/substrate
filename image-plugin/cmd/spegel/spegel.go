@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -87,6 +88,9 @@ const (
 	// EnvSpegelBootstrapDNS overrides the headless Service DNS domain for peer discovery.
 	EnvSpegelBootstrapDNS = "SPEGEL_BOOTSTRAP_DNS"
 
+	// EnvSpegelNodeIP sets this node's IP, which peers use to reach it.
+	EnvSpegelNodeIP = "SPEGEL_NODE_IP"
+
 	// EnvSpegelUpstreamMirrorAddr specifies an optional secondary local Spegel
 	// daemon endpoint (e.g. http://127.0.0.1:5003).
 	EnvSpegelUpstreamMirrorAddr = "SPEGEL_UPSTREAM_MIRROR_ADDR"
@@ -105,9 +109,16 @@ const (
 	// peerRefreshInterval is how often SpegelPeerServer re-resolves its peers.
 	peerRefreshInterval = 5 * time.Second
 
-	// peerStallTimeout aborts a peer blob transfer that sends no bytes for
-	// this long.
-	peerStallTimeout = 10 * time.Second
+	// blobFirstByteTimeout aborts a blob transfer that sends no bytes this
+	// long after it starts. It covers registry token exchange.
+	blobFirstByteTimeout = 60 * time.Second
+
+	// blobStallTimeout aborts a blob transfer that sends no bytes for this
+	// long after its first byte.
+	blobStallTimeout = 10 * time.Second
+
+	// maxPeerFetches caps the upstream fetches that peers can start at once.
+	maxPeerFetches = 64
 )
 
 // BlobFetcherFunc returns a reader for the compressed OCI layer blob at
@@ -119,12 +130,15 @@ type SpegelConfig struct {
 	StoreDir string
 	// ClearStore deletes StoreDir before use, so the node starts cold.
 	// Actors still running on layers from the store lose their rootfs.
-	ClearStore               bool
-	DockerConfigPath         string
-	SpegelMirrorAddr         string
-	SpegelRouterAddr         string
-	SpegelBootstrapDNS       string
-	SpegelPeerPort           int
+	ClearStore         bool
+	DockerConfigPath   string
+	SpegelMirrorAddr   string
+	SpegelRouterAddr   string
+	SpegelBootstrapDNS string
+	SpegelPeerPort     int
+	// SpegelNodeIP is this node's IP as peers see it. Defaults to
+	// $SPEGEL_NODE_IP. Required with EnableP2PServer.
+	SpegelNodeIP             string
 	SpegelPeers              []string
 	SpegelUpstreamMirrorAddr string
 	EnableP2PServer          bool
@@ -205,6 +219,8 @@ type SpegelPeerServer struct {
 	fetchesMu sync.Mutex
 	// fetches holds the running upstream fetches by hex digest.
 	fetches map[string]*blobFetch
+	// fetchWG tracks runFetch goroutines.
+	fetchWG sync.WaitGroup
 
 	localHits      atomic.Int64
 	peerHits       atomic.Int64
@@ -215,8 +231,9 @@ type SpegelPeerServer struct {
 }
 
 // NewSpegelPeerServer creates and starts a Spegel-compatible P2P OCI registry
-// mirror server on listenAddr. upstream fetches blobs on behalf of peers.
-func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS string, peerPort int, staticPeers []string, upstreamMirrorAddr string, httpClient *http.Client, counters *spegelCounters, upstream BlobFetcherFunc) (*SpegelPeerServer, error) {
+// mirror server on listenAddr. Peers reach it at nodeIP:peerPort. upstream
+// fetches blobs on behalf of peers.
+func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS, nodeIP string, peerPort int, staticPeers []string, upstreamMirrorAddr string, httpClient *http.Client, counters *spegelCounters, upstream BlobFetcherFunc) (*SpegelPeerServer, error) {
 	if listenAddr == "" {
 		listenAddr = ":5000"
 	}
@@ -226,8 +243,22 @@ func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS string, peerPort int
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 5 * time.Minute}
 	}
-	if err := os.MkdirAll(filepath.Join(storeDir, "blobs", "sha256"), 0o755); err != nil {
+	if net.ParseIP(nodeIP) == nil {
+		return nil, fmt.Errorf("invalid Spegel node IP %q (set $%s)", nodeIP, EnvSpegelNodeIP)
+	}
+	blobDir := filepath.Join(storeDir, "blobs", "sha256")
+	if err := os.MkdirAll(blobDir, 0o755); err != nil {
 		return nil, fmt.Errorf("creating Spegel blob store directory: %w", err)
+	}
+	// Remove partial blobs left by a previous process.
+	partials, err := filepath.Glob(filepath.Join(blobDir, "*.partial"))
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range partials {
+		if err := os.Remove(p); err != nil {
+			return nil, fmt.Errorf("removing stale partial blob: %w", err)
+		}
 	}
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
@@ -244,6 +275,7 @@ func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS string, peerPort int
 		counters:           counters,
 		upstream:           upstream,
 		fetches:            make(map[string]*blobFetch),
+		self:               net.JoinHostPort(nodeIP, strconv.Itoa(peerPort)),
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.handleHealthz)
@@ -278,7 +310,12 @@ func (s *SpegelPeerServer) Close() error {
 	s.cancel()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	return s.server.Shutdown(ctx)
+	err := s.server.Shutdown(ctx)
+	// fetchBlob starts no fetch once s.ctx is canceled, so no Add races Wait.
+	s.fetchesMu.Lock()
+	s.fetchesMu.Unlock() //nolint:staticcheck // Barrier for in-flight fetchBlob calls.
+	s.fetchWG.Wait()
+	return err
 }
 
 // Stats returns the current P2P mirror counters and on-disk blob inventory.
@@ -340,7 +377,7 @@ func (s *SpegelPeerServer) handleV2(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	hexDigest := strings.TrimPrefix(r.URL.Path[idx+len("/blobs/"):], "sha256:")
+	hexDigest := strings.ToLower(strings.TrimPrefix(r.URL.Path[idx+len("/blobs/"):], "sha256:"))
 	if !isValidSHA256Hex(hexDigest) {
 		http.Error(w, "invalid digest", http.StatusBadRequest)
 		return
@@ -432,17 +469,15 @@ func (s *SpegelPeerServer) refreshPeers(ctx context.Context) {
 			s.dnsAddrs = addrs
 		}
 	}
-	peers, self := s.discoverPeers()
+	peers := s.discoverPeers()
 	s.peersMu.Lock()
-	s.peers, s.self = peers, self
+	s.peers = peers
 	s.peersMu.Unlock()
 }
 
-// discoverPeers returns the other peers and this peer's own address. Self is
-// the local IP in the DNS answer, or the listener address without one.
-func (s *SpegelPeerServer) discoverPeers() ([]string, string) {
-	seen := make(map[string]struct{})
-	localIPs := localInterfaceIPs()
+// discoverPeers returns the static and DNS peers other than s.self.
+func (s *SpegelPeerServer) discoverPeers() []string {
+	seen := map[string]struct{}{s.self: {}}
 	var out []string
 	addPeer := func(hostPort string) {
 		hostPort = strings.TrimSpace(hostPort)
@@ -457,9 +492,6 @@ func (s *SpegelPeerServer) discoverPeers() ([]string, string) {
 			p = fmt.Sprintf("%d", s.peerPort)
 			hostPort = net.JoinHostPort(h, p)
 		}
-		if _, isLocal := localIPs[h]; isLocal && (s.listener != nil && strings.HasSuffix(s.listener.Addr().String(), ":"+p)) {
-			return
-		}
 		if _, ok := seen[hostPort]; !ok {
 			seen[hostPort] = struct{}{}
 			out = append(out, hostPort)
@@ -469,16 +501,11 @@ func (s *SpegelPeerServer) discoverPeers() ([]string, string) {
 	for _, p := range s.staticPeers {
 		addPeer(p)
 	}
-	self := s.Addr()
 	for _, ip := range s.dnsAddrs {
-		if _, isLocal := localIPs[ip]; isLocal {
-			self = net.JoinHostPort(ip, strconv.Itoa(s.peerPort))
-			continue
-		}
 		addPeer(net.JoinHostPort(ip, strconv.Itoa(s.peerPort)))
 	}
 	sort.Strings(out)
-	return out, self
+	return out
 }
 
 // owner returns the peer that fetches hexDigest from upstream, and whether it
@@ -488,6 +515,12 @@ func (s *SpegelPeerServer) owner(hexDigest string) (string, bool) {
 	defer s.peersMu.RUnlock()
 	o := rendezvousOwner(append([]string{s.self}, s.peers...), hexDigest)
 	return o, o == s.self
+}
+
+func (s *SpegelPeerServer) runningFetch(hexDigest string) *blobFetch {
+	s.fetchesMu.Lock()
+	defer s.fetchesMu.Unlock()
+	return s.fetches[hexDigest]
 }
 
 // rendezvousOwner returns the member with the highest hash of member and
@@ -539,43 +572,52 @@ func (f *blobFetch) finish(err error) {
 }
 
 // fetchBlob returns the running fetch of hexDigest. If none runs and the blob
-// is not in the store, it starts one with fetch.
-func (s *SpegelPeerServer) fetchBlob(hexDigest string, fetch func(context.Context) (io.ReadCloser, error)) (*blobFetch, error) {
+// is not in the store, it starts one with fetch, unless maxRunning fetches
+// already run. started reports whether it started a fetch.
+func (s *SpegelPeerServer) fetchBlob(hexDigest string, maxRunning int, fetch func(context.Context) (io.ReadCloser, error)) (f *blobFetch, started bool, err error) {
 	s.fetchesMu.Lock()
 	defer s.fetchesMu.Unlock()
 	if f := s.fetches[hexDigest]; f != nil {
-		return f, nil
+		return f, false, nil
 	}
-	f := newBlobFetch(filepath.Join(s.storeDir, "blobs", "sha256", hexDigest))
+	f = newBlobFetch(filepath.Join(s.storeDir, "blobs", "sha256", hexDigest))
 	if _, err := os.Stat(f.finalPath); err == nil {
 		f.finish(nil)
-		return f, nil
+		return f, false, nil
+	}
+	if err := s.ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	if len(s.fetches) >= maxRunning {
+		return nil, false, fmt.Errorf("%d upstream blob fetches already running", len(s.fetches))
 	}
 	file, err := os.OpenFile(f.partialPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	s.fetches[hexDigest] = f
+	s.fetchWG.Add(1)
 	go s.runFetch(f, file, hexDigest, fetch)
-	return f, nil
+	return f, true, nil
 }
 
 // awaitBlob waits until hexDigest is in the store, fetching it with fetch
-// unless a fetch already runs.
-func (s *SpegelPeerServer) awaitBlob(ctx context.Context, hexDigest string, fetch func(context.Context) (io.ReadCloser, error)) error {
-	f, err := s.fetchBlob(hexDigest, fetch)
+// unless a fetch already runs. started reports whether it started the fetch.
+func (s *SpegelPeerServer) awaitBlob(ctx context.Context, hexDigest string, fetch func(context.Context) (io.ReadCloser, error)) (started bool, err error) {
+	f, started, err := s.fetchBlob(hexDigest, math.MaxInt, fetch)
 	if err != nil {
-		return err
+		return false, err
 	}
 	select {
 	case <-f.done:
-		return f.err
+		return started, f.err
 	case <-ctx.Done():
-		return ctx.Err()
+		return started, ctx.Err()
 	}
 }
 
 func (s *SpegelPeerServer) runFetch(f *blobFetch, file *os.File, hexDigest string, fetch func(context.Context) (io.ReadCloser, error)) {
+	defer s.fetchWG.Done()
 	err := s.copyVerified(f, file, hexDigest, fetch)
 	if closeErr := file.Close(); err == nil {
 		err = closeErr
@@ -589,10 +631,11 @@ func (s *SpegelPeerServer) runFetch(f *blobFetch, file *os.File, hexDigest strin
 		_ = os.Remove(f.partialPath)
 	}
 	f.mu.Unlock()
-	f.finish(err)
+	// Delete first so callers that see the failure can start a new fetch.
 	s.fetchesMu.Lock()
 	delete(s.fetches, hexDigest)
 	s.fetchesMu.Unlock()
+	f.finish(err)
 	if err != nil {
 		slog.WarnContext(s.ctx, "Spegel upstream blob fetch failed",
 			slog.String("digest", "sha256:"+hexDigest), slog.Any("err", err))
@@ -600,16 +643,27 @@ func (s *SpegelPeerServer) runFetch(f *blobFetch, file *os.File, hexDigest strin
 }
 
 func (s *SpegelPeerServer) copyVerified(f *blobFetch, file *os.File, hexDigest string, fetch func(context.Context) (io.ReadCloser, error)) error {
-	rc, err := fetch(s.ctx)
+	ctx, cancel := context.WithCancel(s.ctx)
+	defer cancel()
+	stall := time.AfterFunc(blobFirstByteTimeout, cancel)
+	defer stall.Stop()
+	rc, err := fetch(ctx)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = rc.Close() }()
+	// Closing the body unblocks a Read stuck on a stalled connection.
+	stopClose := context.AfterFunc(ctx, func() { _ = rc.Close() })
+	defer stopClose()
 	h := sha256.New()
 	buf := make([]byte, 256<<10)
 	for {
 		n, readErr := rc.Read(buf)
+		if ctx.Err() != nil {
+			return fmt.Errorf("upstream blob fetch stalled: %w", ctx.Err())
+		}
 		if n > 0 {
+			stall.Reset(blobStallTimeout)
 			if _, err := file.Write(buf[:n]); err != nil {
 				return err
 			}
@@ -634,14 +688,16 @@ func (s *SpegelPeerServer) copyVerified(f *blobFetch, file *os.File, hexDigest s
 }
 
 // blobFetchReader reads a blobFetch's file, waiting for bytes the fetch has
-// not written yet.
+// not written yet. Read fails once ctx is done.
 type blobFetchReader struct {
-	f    *blobFetch
-	file *os.File
-	off  int64
+	f        *blobFetch
+	file     *os.File
+	off      int64
+	ctx      context.Context
+	stopWake func() bool
 }
 
-func (f *blobFetch) open() (*blobFetchReader, error) {
+func (f *blobFetch) open(ctx context.Context) (*blobFetchReader, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	path := f.partialPath
@@ -655,18 +711,26 @@ func (f *blobFetch) open() (*blobFetchReader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &blobFetchReader{f: f, file: file}, nil
+	wake := func() {
+		f.mu.Lock()
+		f.cond.Broadcast()
+		f.mu.Unlock()
+	}
+	return &blobFetchReader{f: f, file: file, ctx: ctx, stopWake: context.AfterFunc(ctx, wake)}, nil
 }
 
 func (r *blobFetchReader) Read(p []byte) (int, error) {
 	r.f.mu.Lock()
-	for r.off >= r.f.written && !r.f.finished {
+	for r.off >= r.f.written && !r.f.finished && r.ctx.Err() == nil {
 		r.f.cond.Wait()
 	}
 	written, finished, err := r.f.written, r.f.finished, r.f.err
 	r.f.mu.Unlock()
 	if err != nil {
 		return 0, err
+	}
+	if !finished && r.off >= written {
+		return 0, r.ctx.Err()
 	}
 	if !finished && int64(len(p)) > written-r.off {
 		p = p[:written-r.off]
@@ -680,17 +744,23 @@ func (r *blobFetchReader) Read(p []byte) (int, error) {
 }
 
 func (r *blobFetchReader) Close() error {
+	r.stopWake()
 	return r.file.Close()
 }
 
-// runningOrNewFetch returns the running fetch of hexDigest. If none runs and
-// r carries HeaderSpegelFetchUpstream, it starts one with this peer's
-// credentials. idx is the index of "/blobs/" in r.URL.Path.
+// runningOrNewFetch returns the running fetch of hexDigest. If none runs, r
+// carries HeaderSpegelFetchUpstream and this peer owns hexDigest, it starts
+// one with this peer's credentials. idx is the index of "/blobs/" in
+// r.URL.Path.
 func (s *SpegelPeerServer) runningOrNewFetch(r *http.Request, idx int, hexDigest string) *blobFetch {
+	if f := s.runningFetch(hexDigest); f != nil {
+		return f
+	}
 	if r.Method != http.MethodGet || !strings.EqualFold(r.Header.Get(HeaderSpegelFetchUpstream), "true") {
-		s.fetchesMu.Lock()
-		defer s.fetchesMu.Unlock()
-		return s.fetches[hexDigest]
+		return nil
+	}
+	if _, isSelf := s.owner(hexDigest); !isSelf {
+		return nil
 	}
 	repo := strings.TrimPrefix(r.URL.Path[:idx], "/v2/")
 	ns := r.URL.Query().Get("ns")
@@ -698,7 +768,7 @@ func (s *SpegelPeerServer) runningOrNewFetch(r *http.Request, idx int, hexDigest
 		return nil
 	}
 	imageRef := ns + "/" + repo + "@sha256:" + hexDigest
-	f, err := s.fetchBlob(hexDigest, func(ctx context.Context) (io.ReadCloser, error) {
+	f, _, err := s.fetchBlob(hexDigest, maxPeerFetches, func(ctx context.Context) (io.ReadCloser, error) {
 		return s.upstream(ctx, imageRef, nil, -1, "sha256:"+hexDigest)
 	})
 	if err != nil {
@@ -711,12 +781,19 @@ func (s *SpegelPeerServer) runningOrNewFetch(r *http.Request, idx int, hexDigest
 
 // serveBlobFetch streams f's file to w as it grows.
 func (s *SpegelPeerServer) serveBlobFetch(w http.ResponseWriter, r *http.Request, f *blobFetch, hexDigest string, isExternalP2P bool) {
-	rd, err := f.open()
+	rd, err := f.open(r.Context())
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	defer func() { _ = rd.Close() }()
+	// Wait for the first bytes, so a fetch that fails to start gets a 404.
+	buf := make([]byte, 256<<10)
+	n, err := rd.Read(buf)
+	if n == 0 && err != nil && !errors.Is(err, io.EOF) {
+		http.NotFound(w, r)
+		return
+	}
 	w.Header().Set("Docker-Content-Digest", "sha256:"+hexDigest)
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set(HeaderSpegelPeer, s.Addr())
@@ -725,10 +802,7 @@ func (s *SpegelPeerServer) serveBlobFetch(w http.ResponseWriter, r *http.Request
 		return
 	}
 	rc := http.NewResponseController(w)
-	_ = rc.Flush()
-	buf := make([]byte, 256<<10)
 	for {
-		n, err := rd.Read(buf)
 		if n > 0 {
 			if _, werr := w.Write(buf[:n]); werr != nil {
 				return
@@ -745,6 +819,7 @@ func (s *SpegelPeerServer) serveBlobFetch(w http.ResponseWriter, r *http.Request
 			// Abort so the client sees a truncated response.
 			panic(http.ErrAbortHandler)
 		}
+		n, err = rd.Read(buf)
 	}
 }
 
@@ -925,6 +1000,10 @@ func NewSpegel(cfg SpegelConfig) (*SpegelDriver, error) {
 	if bootstrapDNS == "" {
 		bootstrapDNS = DefaultSpegelBootstrapDNS
 	}
+	nodeIP := strings.TrimSpace(cfg.SpegelNodeIP)
+	if nodeIP == "" {
+		nodeIP = strings.TrimSpace(os.Getenv(EnvSpegelNodeIP))
+	}
 	upstreamMirror := strings.TrimSpace(cfg.SpegelUpstreamMirrorAddr)
 	if upstreamMirror == "" {
 		upstreamMirror = strings.TrimSpace(os.Getenv(EnvSpegelUpstreamMirrorAddr))
@@ -989,6 +1068,7 @@ func NewSpegel(cfg SpegelConfig) (*SpegelDriver, error) {
 			cfg.P2PListenAddr,
 			storeDir,
 			bootstrapDNS,
+			nodeIP,
 			cfg.SpegelPeerPort,
 			cfg.SpegelPeers,
 			upstreamMirror,
@@ -1244,6 +1324,7 @@ func (sd *SpegelDriver) materializeSpegelLayer(ctx context.Context, imageRef, re
 }
 
 func (sd *SpegelDriver) ensureBlobInStore(ctx context.Context, imageRef, registryHost, repoPath string, auth *imagepluginclient.AuthConfig, layerIndex int, blobHex string) (string, string, error) {
+	blobHex = strings.ToLower(blobHex)
 	blobPath := filepath.Join(sd.storeDir, "blobs", "sha256", blobHex)
 	if info, err := os.Stat(blobPath); err == nil && !info.IsDir() && info.Size() > 0 {
 		sd.counters.localStoreHits.Add(1)
@@ -1313,11 +1394,13 @@ func (sd *SpegelDriver) fetchBlobViaOwner(ctx context.Context, imageRef, registr
 			slog.Any("err", err))
 	}
 
-	upstreamErr := ps.awaitBlob(ctx, blobHex, func(fetchCtx context.Context) (io.ReadCloser, error) {
+	started, upstreamErr := ps.awaitBlob(ctx, blobHex, func(fetchCtx context.Context) (io.ReadCloser, error) {
 		return sd.upstreamBlobFetcher(fetchCtx, imageRef, auth, layerIndex, "sha256:"+blobHex)
 	})
 	if upstreamErr == nil {
-		sd.upstreamBlobMiss.Add(1)
+		if started {
+			sd.upstreamBlobMiss.Add(1)
+		}
 		return blobPath, "upstream:" + registryHost, nil
 	}
 	for _, peer := range ps.Peers() {
@@ -1331,11 +1414,12 @@ func (sd *SpegelDriver) fetchBlobViaOwner(ctx context.Context, imageRef, registr
 
 // fetchFromPeer downloads a blob from peer into blobPath and verifies its
 // digest. With fetchUpstream, a peer that lacks the blob fetches it from
-// upstream. It aborts if no bytes arrive for peerStallTimeout.
+// upstream. It aborts if the first byte takes blobFirstByteTimeout or later
+// bytes stall for blobStallTimeout.
 func (sd *SpegelDriver) fetchFromPeer(ctx context.Context, peer, registryHost, repoPath, blobHex, blobPath string, fetchUpstream bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	stall := time.AfterFunc(peerStallTimeout, cancel)
+	stall := time.AfterFunc(blobFirstByteTimeout, cancel)
 	defer stall.Stop()
 
 	peerURL := fmt.Sprintf("http://%s/v2/%s/blobs/sha256:%s?ns=%s",
@@ -1360,7 +1444,7 @@ func (sd *SpegelDriver) fetchFromPeer(ctx context.Context, peer, registryHost, r
 	return writeVerifiedBlobAtomically(body, blobPath, blobHex)
 }
 
-// stallReader resets timer to peerStallTimeout whenever r returns bytes.
+// stallReader resets timer to blobStallTimeout whenever r returns bytes.
 type stallReader struct {
 	r     io.Reader
 	timer *time.Timer
@@ -1369,7 +1453,7 @@ type stallReader struct {
 func (s stallReader) Read(p []byte) (int, error) {
 	n, err := s.r.Read(p)
 	if n > 0 {
-		s.timer.Reset(peerStallTimeout)
+		s.timer.Reset(blobStallTimeout)
 	}
 	return n, err
 }
@@ -1386,6 +1470,10 @@ func (sd *SpegelDriver) defaultUpstreamBlobFetcher(ctx context.Context, imageRef
 			layer, lErr := remote.Layer(digestRef, remoteOpts...)
 			if lErr == nil {
 				return layer.Compressed()
+			}
+			// Peer requests carry no layer index to fall back on.
+			if layerIndex < 0 {
+				return nil, fmt.Errorf("remote.Layer(%q): %w", digestRef, lErr)
 			}
 		}
 	}

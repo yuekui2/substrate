@@ -168,20 +168,43 @@ func TestNewSpegelClearStore(t *testing.T) {
 }
 
 func TestSpegelPeerServerPeers(t *testing.T) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	self := ln.Addr().String()
-	_ = ln.Close()
-	s, err := NewSpegelPeerServer(self, t.TempDir(), "", 0, []string{"10.0.0.2:5000", self, "10.0.0.1"}, "", nil, &spegelCounters{}, nil)
-	if err != nil {
-		t.Fatalf("NewSpegelPeerServer failed: %v", err)
-	}
-	defer func() { _ = s.Close() }()
-	want := []string{"10.0.0.1:5000", "10.0.0.2:5000"}
-	if got := s.Peers(); !slices.Equal(got, want) {
-		t.Fatalf("Peers() = %v, want %v", got, want)
+	for _, tc := range []struct {
+		name        string
+		nodeIP      string
+		peerPort    int
+		staticPeers []string
+		wantPeers   []string
+		wantSelf    string
+	}{
+		{
+			name:        "sorts peers and drops self",
+			nodeIP:      "10.0.0.3",
+			staticPeers: []string{"10.0.0.2:5000", "10.0.0.3:5000", "10.0.0.1"},
+			wantPeers:   []string{"10.0.0.1:5000", "10.0.0.2:5000"},
+			wantSelf:    "10.0.0.3:5000",
+		},
+		{
+			name:        "self uses the node IP and peer port",
+			nodeIP:      "10.0.0.3",
+			peerPort:    5003,
+			staticPeers: []string{"10.0.0.3:5000"},
+			wantPeers:   []string{"10.0.0.3:5000"},
+			wantSelf:    "10.0.0.3:5003",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := NewSpegelPeerServer("127.0.0.1:0", t.TempDir(), "", tc.nodeIP, tc.peerPort, tc.staticPeers, "", nil, &spegelCounters{}, nil)
+			if err != nil {
+				t.Fatalf("NewSpegelPeerServer failed: %v", err)
+			}
+			defer func() { _ = s.Close() }()
+			if got := s.Peers(); !slices.Equal(got, tc.wantPeers) {
+				t.Errorf("Peers() = %v, want %v", got, tc.wantPeers)
+			}
+			if s.self != tc.wantSelf {
+				t.Errorf("self = %q, want %q", s.self, tc.wantSelf)
+			}
+		})
 	}
 }
 
@@ -227,6 +250,7 @@ func TestSpegelCrossNodeP2PFlow(t *testing.T) {
 		DockerConfigPath:    filepath.Join(tmp, "nodeA-docker", "config.json"),
 		EnableP2PServer:     true,
 		P2PListenAddr:       "127.0.0.1:0",
+		SpegelNodeIP:        "127.0.0.1",
 		SpegelBootstrapDNS:  "nonexistent.invalid",
 		VerifySpegelReady:   true,
 		UpstreamBlobFetcher: nodeAFetcher,
@@ -265,6 +289,7 @@ func TestSpegelCrossNodeP2PFlow(t *testing.T) {
 		DockerConfigPath:   filepath.Join(tmp, "nodeB-docker", "config.json"),
 		EnableP2PServer:    true,
 		P2PListenAddr:      "127.0.0.1:0",
+		SpegelNodeIP:       "127.0.0.1",
 		SpegelBootstrapDNS: "nonexistent.invalid",
 		SpegelPeers:        []string{nodeA.PeerServer().Addr()},
 		VerifySpegelReady:  true,
@@ -511,12 +536,22 @@ const testNodeImage = "us-central1-docker.pkg.dev/p/r/app:v1"
 // newTestNode starts a Spegel node listening on addr with a one-layer image.
 func newTestNode(t *testing.T, addr string, peers []string, upstream BlobFetcherFunc, client *http.Client, diffID, blobDigest string) *SpegelDriver {
 	t.Helper()
+	_, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		t.Fatal(err)
+	}
 	dir := t.TempDir()
 	sd, err := NewSpegel(SpegelConfig{
 		StoreDir:            filepath.Join(dir, "store"),
 		DockerConfigPath:    filepath.Join(dir, "docker", "config.json"),
 		EnableP2PServer:     true,
 		P2PListenAddr:       addr,
+		SpegelNodeIP:        "127.0.0.1",
+		SpegelPeerPort:      port,
 		SpegelBootstrapDNS:  "nonexistent.invalid",
 		SpegelPeers:         peers,
 		HTTPClient:          client,

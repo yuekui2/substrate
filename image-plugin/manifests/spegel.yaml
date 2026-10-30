@@ -87,6 +87,11 @@ spec:
           value: ":5001"
         - name: SPEGEL_BOOTSTRAP_DNS
           value: "spegel-bootstrap.ate-system.svc.cluster.local"
+        # With hostNetwork, the pod IP is the node IP that peers dial.
+        - name: SPEGEL_NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         args:
         - --listen-socket=/run/ate/image-plugin.sock
         - --store-dir=/var/lib/ate/image-plugin-cache/spegel-store
