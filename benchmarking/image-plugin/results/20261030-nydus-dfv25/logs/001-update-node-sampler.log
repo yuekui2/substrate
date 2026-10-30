@@ -1,0 +1,7 @@
+# update-node-sampler
+# start: 2026-10-30T15:11:02Z
+$ kubectl -n imgbench create configmap node-sampler --from-file=benchmarking/image-plugin/node-sampler.sh --dry-run=client -o yaml | kubectl apply -f - && kubectl -n imgbench rollout restart ds/node-sampler
+
+configmap/node-sampler configured
+daemonset.apps/node-sampler restarted
+# exit: 0  end: 2026-10-30T15:11:05Z

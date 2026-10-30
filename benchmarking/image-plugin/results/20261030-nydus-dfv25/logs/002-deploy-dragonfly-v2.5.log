@@ -1,0 +1,38 @@
+# deploy-dragonfly-v2.5
+# start: 2026-10-30T15:11:20Z
+$ kubectl -n ate-system delete ds image-plugin-nydus-dragonfly image-plugin-nydus-dragonfly-seed --wait=false; kubectl -n ate-system delete pod -l app=ate-image-plugin,ate.dev/image-plugin=nydus-dragonfly --grace-period=0 --force; kubectl -n ate-system delete deploy dragonfly-manager dragonfly-scheduler dragonfly-mysql dragonfly-redis --wait=true; kubectl apply -f benchmarking/image-plugin/results/20261030-nydus-dfv25/nydus-dragonfly.applied.yaml; kubectl -n ate-system rollout status deploy/dragonfly-mysql --timeout=5m; kubectl -n ate-system rollout status deploy/dragonfly-manager --timeout=10m; kubectl -n ate-system rollout status deploy/dragonfly-scheduler --timeout=10m; kubectl -n ate-system get pods -o wide | grep -E 'dragonfly'
+
+daemonset.apps "image-plugin-nydus-dragonfly" deleted from ate-system namespace
+daemonset.apps "image-plugin-nydus-dragonfly-seed" deleted from ate-system namespace
+Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+pod "image-plugin-nydus-dragonfly-seed-ql5vj" force deleted from ate-system namespace
+deployment.apps "dragonfly-manager" deleted from ate-system namespace
+deployment.apps "dragonfly-scheduler" deleted from ate-system namespace
+deployment.apps "dragonfly-mysql" deleted from ate-system namespace
+deployment.apps "dragonfly-redis" deleted from ate-system namespace
+service/dragonfly-redis unchanged
+deployment.apps/dragonfly-redis created
+service/dragonfly-mysql unchanged
+deployment.apps/dragonfly-mysql created
+configmap/dragonfly-controlplane-config configured
+service/dragonfly-manager unchanged
+deployment.apps/dragonfly-manager created
+service/dragonfly-scheduler unchanged
+deployment.apps/dragonfly-scheduler created
+daemonset.apps/image-plugin-nydus-dragonfly created
+daemonset.apps/image-plugin-nydus-dragonfly-seed created
+networkpolicy.networking.k8s.io/dragonfly-backing-stores unchanged
+networkpolicy.networking.k8s.io/dragonfly-controlplane-and-peers configured
+deployment "dragonfly-mysql" successfully rolled out
+Waiting for deployment "dragonfly-manager" rollout to finish: 0 of 1 updated replicas are available...
+deployment "dragonfly-manager" successfully rolled out
+Waiting for deployment "dragonfly-scheduler" rollout to finish: 0 of 1 updated replicas are available...
+deployment "dragonfly-scheduler" successfully rolled out
+dragonfly-manager-596d5ffbc8-cxjh2        1/1     Running   0             42s     10.96.12.93    gke-substrate-stream-tes-bench-system-33d2e060-6n63   <none>           <none>
+dragonfly-mysql-5467bb9bb8-znp2d          1/1     Running   0             43s     10.96.12.92    gke-substrate-stream-tes-bench-system-33d2e060-6n63   <none>           <none>
+dragonfly-redis-669687bd9b-v85qd          1/1     Running   0             43s     10.96.12.91    gke-substrate-stream-tes-bench-system-33d2e060-6n63   <none>           <none>
+dragonfly-scheduler-85c47bf4c-28v52       1/1     Running   0             41s     10.96.12.94    gke-substrate-stream-tes-bench-system-33d2e060-6n63   <none>           <none>
+image-plugin-nydus-dragonfly-4kh4n        0/3     Error     2 (34s ago)   41s     10.1.0.49      gke-substrate-stream-test-bench-nydus-afdda7e3-ldtt   <none>           <none>
+image-plugin-nydus-dragonfly-dds9j        0/3     Error     2 (34s ago)   41s     10.1.0.50      gke-substrate-stream-test-bench-nydus-afdda7e3-z84d   <none>           <none>
+image-plugin-nydus-dragonfly-seed-2qjtq   0/3     Error     2 (34s ago)   41s     10.1.0.45      gke-substrate-stream-test-bench-nydus-afdda7e3-kx58   <none>           <none>
+# exit: 0  end: 2026-10-30T15:12:08Z
