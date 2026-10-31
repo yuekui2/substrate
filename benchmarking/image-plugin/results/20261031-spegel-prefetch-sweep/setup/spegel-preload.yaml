@@ -1,0 +1,278 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: spegel-bootstrap
+  namespace: ate-system
+  labels:
+    app: spegel-bootstrap
+    ate.dev/image-plugin: spegel
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: ate-image-plugin
+    ate.dev/image-plugin: spegel
+  ports:
+  - name: registry
+    port: 5000
+    targetPort: 5000
+    protocol: TCP
+  - name: router
+    port: 5001
+    targetPort: 5001
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-plugin-spegel
+  namespace: ate-system
+  labels:
+    app: ate-image-plugin
+    ate.dev/image-plugin: spegel
+spec:
+  selector:
+    matchLabels:
+      app: ate-image-plugin
+      ate.dev/image-plugin: spegel
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ate-image-plugin
+        ate.dev/image-plugin: spegel
+    spec:
+      hostPID: true
+      hostNetwork: true
+      terminationGracePeriodSeconds: 5
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: image-plugin-spegel
+        image: us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel-preload@sha256:5af5fefe6403b6a17dbd7d3f69f5f0a60742a88dc472feae62ed3447a24ae179
+        env:
+        - name: SPEGEL_MIRROR_ADDR
+          value: http://127.0.0.1:5000
+        - name: SPEGEL_ROUTER_ADDR
+          value: :5001
+        - name: SPEGEL_BOOTSTRAP_DNS
+          value: spegel-bootstrap.ate-system.svc.cluster.local
+        - name: SPEGEL_NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        args:
+        - --listen-socket=/run/ate/image-plugin.sock
+        - --store-dir=/var/lib/ate/image-plugin-cache/spegel-store
+        - --work-dir=/var/lib/ate/image-plugin-cache/spegel
+        - --docker-config=/run/ate/spegel/docker/config.json
+        - --enable-p2p-server=true
+        - --p2p-listen-addr=:5000
+        - --spegel-peer-port=5000
+        - --spegel-owner-dns=spegel-seeds.ate-system.svc.cluster.local
+        - --verify-spegel-ready=true
+        - --idle-ttl=10m
+        - --startup-timeout=2m
+        - --drain-timeout=0s
+        - --clear-cache-on-start=true
+        ports:
+        - name: registry
+          containerPort: 5000
+          protocol: TCP
+        - name: router
+          containerPort: 5001
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /ko-app/spegel-preload
+            - --probe
+            - --listen-socket=/run/ate/image-plugin.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          runAsGroup: 0
+        volumeMounts:
+        - name: kube-home
+          mountPath: /home/kubernetes
+        - name: host-ca-certs
+          mountPath: /etc/ssl/certs
+          readOnly: true
+        - name: run-ate
+          mountPath: /run/ate
+        - name: ate-base
+          mountPath: /var/lib/ate
+          mountPropagation: Bidirectional
+      volumes:
+      - name: kube-home
+        hostPath:
+          path: /home/kubernetes
+          type: Directory
+      - name: host-ca-certs
+        hostPath:
+          path: /etc/ssl/certs
+          type: Directory
+      - name: run-ate
+        hostPath:
+          path: /run/ate
+          type: DirectoryOrCreate
+      - name: ate-base
+        hostPath:
+          path: /var/lib/ate
+          type: DirectoryOrCreate
+      nodeSelector:
+        bench-arm: spegel
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spegel-seeds
+  namespace: ate-system
+  labels:
+    app: spegel-seeds
+    ate.dev/image-plugin: spegel
+spec:
+  clusterIP: None
+  selector:
+    app: ate-image-plugin
+    ate.dev/image-plugin: spegel-seed
+  ports:
+  - name: registry
+    port: 5000
+    targetPort: 5000
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-plugin-spegel-seed
+  namespace: ate-system
+  labels:
+    app: ate-image-plugin
+    ate.dev/image-plugin: spegel-seed
+spec:
+  selector:
+    matchLabels:
+      app: ate-image-plugin
+      ate.dev/image-plugin: spegel-seed
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ate-image-plugin
+        ate.dev/image-plugin: spegel-seed
+    spec:
+      hostPID: true
+      hostNetwork: true
+      terminationGracePeriodSeconds: 5
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        ate.dev/spegel-seed: 'true'
+        bench-arm: spegel-seed
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: spegel-seed
+        image: us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel-preload@sha256:5af5fefe6403b6a17dbd7d3f69f5f0a60742a88dc472feae62ed3447a24ae179
+        env:
+        - name: SPEGEL_MIRROR_ADDR
+          value: http://127.0.0.1:5000
+        - name: SPEGEL_ROUTER_ADDR
+          value: :5001
+        - name: SPEGEL_BOOTSTRAP_DNS
+          value: spegel-bootstrap.ate-system.svc.cluster.local
+        - name: SPEGEL_NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        args:
+        - --listen-socket=/run/ate/image-plugin.sock
+        - --store-dir=/var/lib/ate/image-plugin-cache/spegel-store
+        - --clear-cache-on-start=false
+        - --work-dir=/var/lib/ate/image-plugin-cache/spegel
+        - --docker-config=/run/ate/spegel/docker/config.json
+        - --enable-p2p-server=true
+        - --p2p-listen-addr=:5000
+        - --spegel-peer-port=5000
+        - --spegel-owner-dns=spegel-seeds.ate-system.svc.cluster.local
+        - --verify-spegel-ready=true
+        - --idle-ttl=10m
+        - --startup-timeout=2m
+        - --drain-timeout=0s
+        ports:
+        - name: registry
+          containerPort: 5000
+          protocol: TCP
+        - name: router
+          containerPort: 5001
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - /ko-app/spegel-preload
+            - --probe
+            - --listen-socket=/run/ate/image-plugin.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          runAsGroup: 0
+        volumeMounts:
+        - name: kube-home
+          mountPath: /home/kubernetes
+        - name: host-ca-certs
+          mountPath: /etc/ssl/certs
+          readOnly: true
+        - name: run-ate
+          mountPath: /run/ate
+        - name: ate-base
+          mountPath: /var/lib/ate
+          mountPropagation: Bidirectional
+      volumes:
+      - name: kube-home
+        hostPath:
+          path: /home/kubernetes
+          type: Directory
+      - name: host-ca-certs
+        hostPath:
+          path: /etc/ssl/certs
+          type: Directory
+      - name: run-ate
+        hostPath:
+          path: /run/ate
+          type: DirectoryOrCreate
+      - name: ate-base
+        hostPath:
+          path: /var/lib/ate
+          type: DirectoryOrCreate
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spegel-p2p
+  namespace: ate-system
+  labels:
+    ate.dev/image-plugin: spegel
+spec:
+  podSelector:
+    matchLabels:
+      app: ate-image-plugin
+      ate.dev/image-plugin: spegel
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 5000
+    - protocol: TCP
+      port: 5001

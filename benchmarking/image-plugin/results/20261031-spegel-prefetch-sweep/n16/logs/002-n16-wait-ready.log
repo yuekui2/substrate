@@ -1,0 +1,32 @@
+# n16-wait-ready
+# start: 2026-10-31T21:59:19Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/wait-ready.sh spegel
+
+Waiting for deployment "bench-spegel" rollout to finish: 42 of 48 updated replicas are available...
+Waiting for deployment "bench-spegel" rollout to finish: 43 of 48 updated replicas are available...
+Waiting for deployment "bench-spegel" rollout to finish: 45 of 48 updated replicas are available...
+Waiting for deployment "bench-spegel" rollout to finish: 46 of 48 updated replicas are available...
+Waiting for deployment "bench-spegel" rollout to finish: 47 of 48 updated replicas are available...
+deployment "bench-spegel" successfully rolled out
+daemon set "image-plugin-spegel" successfully rolled out
+daemon set "atelet" successfully rolled out
+Waiting for daemon set "node-sampler" rollout to finish: 8 of 10 updated pods are available...
+Waiting for daemon set "node-sampler" rollout to finish: 9 of 10 updated pods are available...
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       2d
+bench-pull      48        48                 gvisor-default   True       2d
+bench-riptide   48        48                 gvisor-default   True       2d
+bench-spegel    48        48         48      gvisor-default   True       2d
+NAME                                      READY   STATUS     RESTARTS   AGE     IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-bgz7m        0/3     Init:0/1   0          36s     10.1.15.247   gke-substrate-stream-test-bench-nydus-8dc0b3e9-p58s   <none>           <none>
+image-plugin-nydus-dragonfly-fb4j4        0/3     Init:0/1   0          34s     10.1.15.236   gke-substrate-stream-test-bench-nydus-8dc0b3e9-zc16   <none>           <none>
+image-plugin-nydus-dragonfly-lbkf6        0/3     Init:0/1   0          35s     10.1.15.246   gke-substrate-stream-test-bench-nydus-8dc0b3e9-zlm5   <none>           <none>
+image-plugin-nydus-dragonfly-seed-8hsvr   3/3     Running    0          3h13m   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-seed-q92k2   3/3     Running    0          3h13m   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-spegel-5dhfr                 1/1     Running    0          32s     10.1.0.7      gke-substrate-stream-tes-bench-spegel-5524e82c-l05f   <none>           <none>
+image-plugin-spegel-fm48p                 1/1     Running    0          52s     10.1.15.219   gke-substrate-stream-tes-bench-spegel-5524e82c-vxkf   <none>           <none>
+image-plugin-spegel-seed-h5tdx            1/1     Running    0          9m38s   10.1.15.238   gke-substrate-stream-bench-spegel-see-3732c5c3-pgdh   <none>           <none>
+image-plugin-spegel-seed-p7f4s            1/1     Running    0          9m38s   10.1.15.239   gke-substrate-stream-bench-spegel-see-3732c5c3-1s1f   <none>           <none>
+image-plugin-spegel-tsb2l                 1/1     Running    0          53s     10.1.15.226   gke-substrate-stream-tes-bench-spegel-5524e82c-m6m2   <none>           <none>
+# exit: 0  end: 2026-10-31T21:59:45Z

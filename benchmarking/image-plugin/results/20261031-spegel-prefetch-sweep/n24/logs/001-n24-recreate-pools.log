@@ -1,0 +1,15 @@
+# n24-recreate-pools
+# start: 2026-10-31T22:03:47Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate spegel
+
+deleted bench-spegel
+created bench-spegel
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   7h38m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   7h38m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-spegel-see-3732c5c3-1s1f   Ready    <none>   17m     v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-bench-spegel-see-3732c5c3-pgdh   Ready    <none>   17m     v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-tes-bench-spegel-ce479355-ctk7   Ready    <none>   11s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-ce479355-czvf   Ready    <none>   11s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-ce479355-z0cc   Ready    <none>   9s      v1.36.4-gke.2046003   spegel
+# exit: 0  end: 2026-10-31T22:07:07Z

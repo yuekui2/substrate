@@ -1,0 +1,11 @@
+# n16-run
+# start: 2026-10-31T21:59:45Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 spegel
+
+job.batch/imgbench-rep-1-spegel-w8 created
+pod/imgbench-rep-1-spegel-w8-4rmkp condition met
+spegel: imgbench-rep-1-spegel-w8 pod imgbench-rep-1-spegel-w8-4rmkp started 2026-10-31T22:00:04Z
+spegel: done (exit 0), 240 lines, 0
+0 errors
+wrote 50 points to benchmarking/image-plugin/results/20261031-spegel-prefetch-sweep/n16/rep-1/spegel-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-31T22:03:47Z

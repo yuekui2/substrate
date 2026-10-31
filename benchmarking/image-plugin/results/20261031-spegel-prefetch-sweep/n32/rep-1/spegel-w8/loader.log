@@ -1,0 +1,4 @@
+2026/10/31 22:16:31 INFO serving results addr=:8080 dir=/results
+2026/10/31 22:16:32 WARN skipping template without a golden template=img-077 image=psf__requests-1724
+2026/10/31 22:16:33 INFO templates ready ready=95 images=96 actors=96
+2026/10/31 22:18:59 INFO run done arm=spegel rep=1 elapsed=2m27s
