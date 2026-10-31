@@ -1,0 +1,13 @@
+# n64-recreate-pools
+# start: 2026-10-31T20:20:32Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate nydus
+
+deleted bench-nydus
+created bench-nydus
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   5h55m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   5h55m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-test-bench-nydus-d9bdb677-9cwx   Ready    <none>   11s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-d9bdb677-jq55   Ready    <none>   9s      v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-d9bdb677-p3qq   Ready    <none>   12s     v1.36.4-gke.2046003   nydus
+# exit: 0  end: 2026-10-31T20:23:42Z

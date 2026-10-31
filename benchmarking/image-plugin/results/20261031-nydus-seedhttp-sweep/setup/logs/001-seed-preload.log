@@ -1,0 +1,7 @@
+# seed-preload
+# start: 2026-10-31T19:58:32Z
+$ SAVE_DIR=/var/lib/ate/nydus-seed-blobs benchmarking/image-plugin/seed-preload.sh benchmarking/image-plugin/images-320.jsonl 192
+
+713 unique blobs in the first 192 images
+preloaded in 186 s
+# exit: 0  end: 2026-10-31T20:07:03Z
