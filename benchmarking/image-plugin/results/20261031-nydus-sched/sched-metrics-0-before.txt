@@ -1,0 +1,1348 @@
+# HELP dragonfly_scheduler_announce_host_total Counter of the number of the announce host.
+# TYPE dragonfly_scheduler_announce_host_total counter
+dragonfly_scheduler_announce_host_total{build_platform="",git_commit="024c6e9c7",git_version="1.5.10",go_version="",kernel_version="6.8.0-1062-gke",os="linux",platform="linux",platform_family="unix",platform_version="unix"} 24
+# HELP dragonfly_scheduler_announce_peer_failure_total Counter of the number of failed of the announcing peer.
+# TYPE dragonfly_scheduler_announce_peer_failure_total counter
+dragonfly_scheduler_announce_peer_failure_total 0
+# HELP dragonfly_scheduler_announce_peer_total Counter of the number of the announcing peer.
+# TYPE dragonfly_scheduler_announce_peer_total counter
+dragonfly_scheduler_announce_peer_total 202
+# HELP dragonfly_scheduler_announce_persistent_cache_peer_failure_total Counter of the number of failed of the announcing cache peer.
+# TYPE dragonfly_scheduler_announce_persistent_cache_peer_failure_total counter
+dragonfly_scheduler_announce_persistent_cache_peer_failure_total 0
+# HELP dragonfly_scheduler_announce_persistent_cache_peer_total Counter of the number of the announcing cache peer.
+# TYPE dragonfly_scheduler_announce_persistent_cache_peer_total counter
+dragonfly_scheduler_announce_persistent_cache_peer_total 0
+# HELP dragonfly_scheduler_announce_persistent_peer_failure_total Counter of the number of failed of the announcing peer.
+# TYPE dragonfly_scheduler_announce_persistent_peer_failure_total counter
+dragonfly_scheduler_announce_persistent_peer_failure_total 0
+# HELP dragonfly_scheduler_announce_persistent_peer_total Counter of the number of the announcing peer.
+# TYPE dragonfly_scheduler_announce_persistent_peer_total counter
+dragonfly_scheduler_announce_persistent_peer_total 0
+# HELP dragonfly_scheduler_concurrent_schedule_total Gauge of the number of concurrent of the scheduling.
+# TYPE dragonfly_scheduler_concurrent_schedule_total gauge
+dragonfly_scheduler_concurrent_schedule_total 0
+# HELP dragonfly_scheduler_delete_persistent_cache_peer_failure_total Counter of the number of failed of the deleting cache peer.
+# TYPE dragonfly_scheduler_delete_persistent_cache_peer_failure_total counter
+dragonfly_scheduler_delete_persistent_cache_peer_failure_total 0
+# HELP dragonfly_scheduler_delete_persistent_cache_peer_total Counter of the number of the deleting cache peer.
+# TYPE dragonfly_scheduler_delete_persistent_cache_peer_total counter
+dragonfly_scheduler_delete_persistent_cache_peer_total 0
+# HELP dragonfly_scheduler_delete_persistent_cache_task_failure_total Counter of the number of failed of the delete cache task.
+# TYPE dragonfly_scheduler_delete_persistent_cache_task_failure_total counter
+dragonfly_scheduler_delete_persistent_cache_task_failure_total 0
+# HELP dragonfly_scheduler_delete_persistent_cache_task_total Counter of the number of the delete cache task.
+# TYPE dragonfly_scheduler_delete_persistent_cache_task_total counter
+dragonfly_scheduler_delete_persistent_cache_task_total 0
+# HELP dragonfly_scheduler_delete_persistent_peer_failure_total Counter of the number of failed of the deleting peer.
+# TYPE dragonfly_scheduler_delete_persistent_peer_failure_total counter
+dragonfly_scheduler_delete_persistent_peer_failure_total 0
+# HELP dragonfly_scheduler_delete_persistent_peer_total Counter of the number of the deleting peer.
+# TYPE dragonfly_scheduler_delete_persistent_peer_total counter
+dragonfly_scheduler_delete_persistent_peer_total 0
+# HELP dragonfly_scheduler_delete_persistent_task_failure_total Counter of the number of failed of the delete task.
+# TYPE dragonfly_scheduler_delete_persistent_task_failure_total counter
+dragonfly_scheduler_delete_persistent_task_failure_total 0
+# HELP dragonfly_scheduler_delete_persistent_task_total Counter of the number of the delete task.
+# TYPE dragonfly_scheduler_delete_persistent_task_total counter
+dragonfly_scheduler_delete_persistent_task_total 0
+# HELP dragonfly_scheduler_download_peer_back_to_source_started_total Counter of the number of the download peer back-to-source started.
+# TYPE dragonfly_scheduler_download_peer_back_to_source_started_total counter
+dragonfly_scheduler_download_peer_back_to_source_started_total{host_type="super",priority="LEVEL6",task_type="STANDARD"} 202
+# HELP dragonfly_scheduler_download_peer_duration_milliseconds Summary of the time each peer downloading.
+# TYPE dragonfly_scheduler_download_peer_duration_milliseconds summary
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="1",quantile="0.5"} 173
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="1",quantile="0.9"} 370
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="1",quantile="0.95"} 437
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="1",quantile="0.99"} 628
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="1"} 7961
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="1"} 38
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="10",quantile="0.5"} 4150
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="10",quantile="0.9"} 8377
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="10",quantile="0.95"} 8377
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="10",quantile="0.99"} 8377
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="10"} 40531
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="10"} 8
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="11",quantile="0.5"} 9753
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="11",quantile="0.9"} 11696
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="11",quantile="0.95"} 11696
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="11",quantile="0.99"} 11696
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="11"} 71661
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="11"} 7
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="2",quantile="0.5"} 255
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="2",quantile="0.9"} 556
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="2",quantile="0.95"} 653
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="2",quantile="0.99"} 919
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="2"} 16139
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="2"} 52
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="3",quantile="0.5"} 413
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="3",quantile="0.9"} 610
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="3",quantile="0.95"} 610
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="3",quantile="0.99"} 610
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="3"} 2620
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="3"} 7
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="4",quantile="0.5"} 539
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="4",quantile="0.9"} 763
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="4",quantile="0.95"} 763
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="4",quantile="0.99"} 763
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="4"} 4575
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="4"} 9
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="5",quantile="0.5"} 363
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="5",quantile="0.9"} 725
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="5",quantile="0.95"} 725
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="5",quantile="0.99"} 725
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="5"} 2024
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="5"} 4
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="6",quantile="0.5"} 536
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="6",quantile="0.9"} 1639
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="6",quantile="0.95"} 1877
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="6",quantile="0.99"} 1877
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="6"} 9983
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="6"} 12
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="7",quantile="0.5"} 858
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="7",quantile="0.9"} 1417
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="7",quantile="0.95"} 1848
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="7",quantile="0.99"} 2846
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="7"} 40151
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="7"} 40
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="8",quantile="0.5"} 1999
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="8",quantile="0.9"} 4241
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="8",quantile="0.95"} 4241
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="8",quantile="0.99"} 4241
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="8"} 7870
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="8"} 3
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="9",quantile="0.5"} 2359
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="9",quantile="0.9"} 3368
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="9",quantile="0.95"} 3586
+dragonfly_scheduler_download_peer_duration_milliseconds{task_size_level="9",quantile="0.99"} 3669
+dragonfly_scheduler_download_peer_duration_milliseconds_sum{task_size_level="9"} 54948
+dragonfly_scheduler_download_peer_duration_milliseconds_count{task_size_level="9"} 22
+# HELP dragonfly_scheduler_download_peer_finished_total Counter of the number of the download peer.
+# TYPE dragonfly_scheduler_download_peer_finished_total counter
+dragonfly_scheduler_download_peer_finished_total{host_type="super",priority="LEVEL6",task_type="STANDARD"} 202
+# HELP dragonfly_scheduler_download_piece_finished_total Counter of the number of the download piece.
+# TYPE dragonfly_scheduler_download_piece_finished_total counter
+dragonfly_scheduler_download_piece_finished_total{host_type="super",task_type="STANDARD",traffic_type="BACK_TO_SOURCE"} 7482
+# HELP dragonfly_scheduler_exchange_peer_failure_total Counter of the number of failed of the exchanging peer.
+# TYPE dragonfly_scheduler_exchange_peer_failure_total counter
+dragonfly_scheduler_exchange_peer_failure_total 0
+# HELP dragonfly_scheduler_exchange_peer_total Counter of the number of the exchanging peer.
+# TYPE dragonfly_scheduler_exchange_peer_total counter
+dragonfly_scheduler_exchange_peer_total 0
+# HELP dragonfly_scheduler_leave_host_failure_total Counter of the number of failed of the leaving host.
+# TYPE dragonfly_scheduler_leave_host_failure_total counter
+dragonfly_scheduler_leave_host_failure_total 0
+# HELP dragonfly_scheduler_leave_host_total Counter of the number of the leaving host.
+# TYPE dragonfly_scheduler_leave_host_total counter
+dragonfly_scheduler_leave_host_total 2
+# HELP dragonfly_scheduler_leave_peer_failure_total Counter of the number of failed of the leaving peer.
+# TYPE dragonfly_scheduler_leave_peer_failure_total counter
+dragonfly_scheduler_leave_peer_failure_total 0
+# HELP dragonfly_scheduler_leave_peer_total Counter of the number of the leaving peer.
+# TYPE dragonfly_scheduler_leave_peer_total counter
+dragonfly_scheduler_leave_peer_total 0
+# HELP dragonfly_scheduler_leave_task_failure_total Counter of the number of failed of the leaving task.
+# TYPE dragonfly_scheduler_leave_task_failure_total counter
+dragonfly_scheduler_leave_task_failure_total 0
+# HELP dragonfly_scheduler_leave_task_total Counter of the number of the leaving task.
+# TYPE dragonfly_scheduler_leave_task_total counter
+dragonfly_scheduler_leave_task_total 0
+# HELP dragonfly_scheduler_list_hosts_failure_total Counter of the number of failed of the list hosts.
+# TYPE dragonfly_scheduler_list_hosts_failure_total counter
+dragonfly_scheduler_list_hosts_failure_total 0
+# HELP dragonfly_scheduler_list_hosts_total Counter of the number of the list hosts.
+# TYPE dragonfly_scheduler_list_hosts_total counter
+dragonfly_scheduler_list_hosts_total 0
+# HELP dragonfly_scheduler_preheat_file_failure_total Counter of the total preheat file failure.
+# TYPE dragonfly_scheduler_preheat_file_failure_total counter
+dragonfly_scheduler_preheat_file_failure_total 0
+# HELP dragonfly_scheduler_preheat_file_total Counter of the total preheat file.
+# TYPE dragonfly_scheduler_preheat_file_total counter
+dragonfly_scheduler_preheat_file_total 0
+# HELP dragonfly_scheduler_preheat_image_failure_total Counter of the number of failed of the preheating image.
+# TYPE dragonfly_scheduler_preheat_image_failure_total counter
+dragonfly_scheduler_preheat_image_failure_total 0
+# HELP dragonfly_scheduler_preheat_image_total Counter of the number of the preheating image.
+# TYPE dragonfly_scheduler_preheat_image_total counter
+dragonfly_scheduler_preheat_image_total 0
+# HELP dragonfly_scheduler_register_peer_total Counter of the number of the register peer.
+# TYPE dragonfly_scheduler_register_peer_total counter
+dragonfly_scheduler_register_peer_total{host_type="super",priority="LEVEL6",task_type="STANDARD"} 202
+# HELP dragonfly_scheduler_schedule_duration_milliseconds Summary of the time each scheduling.
+# TYPE dragonfly_scheduler_schedule_duration_milliseconds summary
+dragonfly_scheduler_schedule_duration_milliseconds{quantile="0.5"} 0
+dragonfly_scheduler_schedule_duration_milliseconds{quantile="0.9"} 0
+dragonfly_scheduler_schedule_duration_milliseconds{quantile="0.95"} 0
+dragonfly_scheduler_schedule_duration_milliseconds{quantile="0.99"} 0
+dragonfly_scheduler_schedule_duration_milliseconds_sum 0
+dragonfly_scheduler_schedule_duration_milliseconds_count 202
+# HELP dragonfly_scheduler_stat_file_failure_total Counter of the number of failed of the stating file.
+# TYPE dragonfly_scheduler_stat_file_failure_total counter
+dragonfly_scheduler_stat_file_failure_total 0
+# HELP dragonfly_scheduler_stat_file_total Counter of the number of the stating file.
+# TYPE dragonfly_scheduler_stat_file_total counter
+dragonfly_scheduler_stat_file_total 0
+# HELP dragonfly_scheduler_stat_image_failure_total Counter of the number of failed of the stating image.
+# TYPE dragonfly_scheduler_stat_image_failure_total counter
+dragonfly_scheduler_stat_image_failure_total 0
+# HELP dragonfly_scheduler_stat_image_total Counter of the number of the stating image.
+# TYPE dragonfly_scheduler_stat_image_total counter
+dragonfly_scheduler_stat_image_total 0
+# HELP dragonfly_scheduler_stat_peer_failure_total Counter of the number of failed of the stat peer.
+# TYPE dragonfly_scheduler_stat_peer_failure_total counter
+dragonfly_scheduler_stat_peer_failure_total 0
+# HELP dragonfly_scheduler_stat_peer_total Counter of the number of the stat peer.
+# TYPE dragonfly_scheduler_stat_peer_total counter
+dragonfly_scheduler_stat_peer_total 0
+# HELP dragonfly_scheduler_stat_persistent_cache_peer_failure_total Counter of the number of failed of the stat cache peer.
+# TYPE dragonfly_scheduler_stat_persistent_cache_peer_failure_total counter
+dragonfly_scheduler_stat_persistent_cache_peer_failure_total 0
+# HELP dragonfly_scheduler_stat_persistent_cache_peer_total Counter of the number of the stat cache peer.
+# TYPE dragonfly_scheduler_stat_persistent_cache_peer_total counter
+dragonfly_scheduler_stat_persistent_cache_peer_total 0
+# HELP dragonfly_scheduler_stat_persistent_cache_task_failure_total Counter of the number of failed of the stat cache task.
+# TYPE dragonfly_scheduler_stat_persistent_cache_task_failure_total counter
+dragonfly_scheduler_stat_persistent_cache_task_failure_total 0
+# HELP dragonfly_scheduler_stat_persistent_cache_task_total Counter of the number of the stat cache task.
+# TYPE dragonfly_scheduler_stat_persistent_cache_task_total counter
+dragonfly_scheduler_stat_persistent_cache_task_total 0
+# HELP dragonfly_scheduler_stat_persistent_peer_failure_total Counter of the number of failed of the stat peer.
+# TYPE dragonfly_scheduler_stat_persistent_peer_failure_total counter
+dragonfly_scheduler_stat_persistent_peer_failure_total 0
+# HELP dragonfly_scheduler_stat_persistent_peer_total Counter of the number of the stat peer.
+# TYPE dragonfly_scheduler_stat_persistent_peer_total counter
+dragonfly_scheduler_stat_persistent_peer_total 0
+# HELP dragonfly_scheduler_stat_persistent_task_failure_total Counter of the number of failed of the stat task.
+# TYPE dragonfly_scheduler_stat_persistent_task_failure_total counter
+dragonfly_scheduler_stat_persistent_task_failure_total 0
+# HELP dragonfly_scheduler_stat_persistent_task_total Counter of the number of the stat task.
+# TYPE dragonfly_scheduler_stat_persistent_task_total counter
+dragonfly_scheduler_stat_persistent_task_total 0
+# HELP dragonfly_scheduler_stat_task_failure_total Counter of the number of failed of the stat task.
+# TYPE dragonfly_scheduler_stat_task_failure_total counter
+dragonfly_scheduler_stat_task_failure_total 0
+# HELP dragonfly_scheduler_stat_task_total Counter of the number of the stat task.
+# TYPE dragonfly_scheduler_stat_task_total counter
+dragonfly_scheduler_stat_task_total 0
+# HELP dragonfly_scheduler_traffic Counter of the number of traffic.
+# TYPE dragonfly_scheduler_traffic counter
+dragonfly_scheduler_traffic{host_type="super",task_type="STANDARD",type="BACK_TO_SOURCE"} 3.0956073839e+10
+# HELP dragonfly_scheduler_upload_cache_peer_failed_failure_total Counter of the number of failed of the failed uploading cache peer.
+# TYPE dragonfly_scheduler_upload_cache_peer_failed_failure_total counter
+dragonfly_scheduler_upload_cache_peer_failed_failure_total 0
+# HELP dragonfly_scheduler_upload_peer_failed_failure_total Counter of the number of failed of the failed uploading peer.
+# TYPE dragonfly_scheduler_upload_peer_failed_failure_total counter
+dragonfly_scheduler_upload_peer_failed_failure_total 0
+# HELP dragonfly_scheduler_upload_persistent_cache_task_failed_total Counter of the number of the failed uploading cache peer.
+# TYPE dragonfly_scheduler_upload_persistent_cache_task_failed_total counter
+dragonfly_scheduler_upload_persistent_cache_task_failed_total 0
+# HELP dragonfly_scheduler_upload_persistent_cache_task_finished_failure_total Counter of the number of failed of the finished uploading cache peer.
+# TYPE dragonfly_scheduler_upload_persistent_cache_task_finished_failure_total counter
+dragonfly_scheduler_upload_persistent_cache_task_finished_failure_total 0
+# HELP dragonfly_scheduler_upload_persistent_cache_task_finished_total Counter of the number of the finished uploading cache peer.
+# TYPE dragonfly_scheduler_upload_persistent_cache_task_finished_total counter
+dragonfly_scheduler_upload_persistent_cache_task_finished_total 0
+# HELP dragonfly_scheduler_upload_persistent_cache_task_started_failure_total Counter of the number of failed of the started uploading cache peer.
+# TYPE dragonfly_scheduler_upload_persistent_cache_task_started_failure_total counter
+dragonfly_scheduler_upload_persistent_cache_task_started_failure_total 0
+# HELP dragonfly_scheduler_upload_persistent_cache_task_started_total Counter of the number of the started uploading cache peer.
+# TYPE dragonfly_scheduler_upload_persistent_cache_task_started_total counter
+dragonfly_scheduler_upload_persistent_cache_task_started_total 0
+# HELP dragonfly_scheduler_upload_persistent_task_failed_total Counter of the number of the failed uploading peer.
+# TYPE dragonfly_scheduler_upload_persistent_task_failed_total counter
+dragonfly_scheduler_upload_persistent_task_failed_total 0
+# HELP dragonfly_scheduler_upload_persistent_task_finished_failure_total Counter of the number of failed of the finished uploading peer.
+# TYPE dragonfly_scheduler_upload_persistent_task_finished_failure_total counter
+dragonfly_scheduler_upload_persistent_task_finished_failure_total 0
+# HELP dragonfly_scheduler_upload_persistent_task_finished_total Counter of the number of the finished uploading peer.
+# TYPE dragonfly_scheduler_upload_persistent_task_finished_total counter
+dragonfly_scheduler_upload_persistent_task_finished_total 0
+# HELP dragonfly_scheduler_upload_persistent_task_started_failure_total Counter of the number of failed of the started uploading peer.
+# TYPE dragonfly_scheduler_upload_persistent_task_started_failure_total counter
+dragonfly_scheduler_upload_persistent_task_started_failure_total 0
+# HELP dragonfly_scheduler_upload_persistent_task_started_total Counter of the number of the started uploading peer.
+# TYPE dragonfly_scheduler_upload_persistent_task_started_total counter
+dragonfly_scheduler_upload_persistent_task_started_total 0
+# HELP dragonfly_scheduler_version Version info of the service.
+# TYPE dragonfly_scheduler_version gauge
+dragonfly_scheduler_version{build_time="2026-10-27T07:14:03Z",git_commit="fce3dc2",git_version="v2.5.0",go_gcflags="none",go_tags="none",go_version="go1.25.5 linux/amd64",major="2",minor="5",platform="linux"} 1
+# HELP go_gc_duration_seconds A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} 0.000127876
+go_gc_duration_seconds{quantile="0.25"} 0.000282989
+go_gc_duration_seconds{quantile="0.5"} 0.000409276
+go_gc_duration_seconds{quantile="0.75"} 0.000595511
+go_gc_duration_seconds{quantile="1"} 0.00062474
+go_gc_duration_seconds_sum 0.003058516
+go_gc_duration_seconds_count 8
+# HELP go_gc_gogc_percent Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent.
+# TYPE go_gc_gogc_percent gauge
+go_gc_gogc_percent 100
+# HELP go_gc_gomemlimit_bytes Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes.
+# TYPE go_gc_gomemlimit_bytes gauge
+go_gc_gomemlimit_bytes 9.223372036854776e+18
+# HELP go_goroutines Number of goroutines that currently exist.
+# TYPE go_goroutines gauge
+go_goroutines 40
+# HELP go_info Information about the Go environment.
+# TYPE go_info gauge
+go_info{version="go1.25.5"} 1
+# HELP go_memstats_alloc_bytes Number of bytes allocated in heap and currently in use. Equals to /memory/classes/heap/objects:bytes.
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 2.1158792e+07
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated in heap until now, even if released already. Equals to /gc/heap/allocs:bytes.
+# TYPE go_memstats_alloc_bytes_total counter
+go_memstats_alloc_bytes_total 3.7156384e+07
+# HELP go_memstats_buck_hash_sys_bytes Number of bytes used by the profiling bucket hash table. Equals to /memory/classes/profiling/buckets:bytes.
+# TYPE go_memstats_buck_hash_sys_bytes gauge
+go_memstats_buck_hash_sys_bytes 1.46984e+06
+# HELP go_memstats_frees_total Total number of heap objects frees. Equals to /gc/heap/frees:objects + /gc/heap/tiny/allocs:objects.
+# TYPE go_memstats_frees_total counter
+go_memstats_frees_total 214565
+# HELP go_memstats_gc_sys_bytes Number of bytes used for garbage collection system metadata. Equals to /memory/classes/metadata/other:bytes.
+# TYPE go_memstats_gc_sys_bytes gauge
+go_memstats_gc_sys_bytes 3.851536e+06
+# HELP go_memstats_heap_alloc_bytes Number of heap bytes allocated and currently in use, same as go_memstats_alloc_bytes. Equals to /memory/classes/heap/objects:bytes.
+# TYPE go_memstats_heap_alloc_bytes gauge
+go_memstats_heap_alloc_bytes 2.1158792e+07
+# HELP go_memstats_heap_idle_bytes Number of heap bytes waiting to be used. Equals to /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.
+# TYPE go_memstats_heap_idle_bytes gauge
+go_memstats_heap_idle_bytes 5.971968e+06
+# HELP go_memstats_heap_inuse_bytes Number of heap bytes that are in use. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes
+# TYPE go_memstats_heap_inuse_bytes gauge
+go_memstats_heap_inuse_bytes 2.5747456e+07
+# HELP go_memstats_heap_objects Number of currently allocated objects. Equals to /gc/heap/objects:objects.
+# TYPE go_memstats_heap_objects gauge
+go_memstats_heap_objects 205250
+# HELP go_memstats_heap_released_bytes Number of heap bytes released to OS. Equals to /memory/classes/heap/released:bytes.
+# TYPE go_memstats_heap_released_bytes gauge
+go_memstats_heap_released_bytes 5.832704e+06
+# HELP go_memstats_heap_sys_bytes Number of heap bytes obtained from system. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes + /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.
+# TYPE go_memstats_heap_sys_bytes gauge
+go_memstats_heap_sys_bytes 3.1719424e+07
+# HELP go_memstats_last_gc_time_seconds Number of seconds since 1970 of last garbage collection.
+# TYPE go_memstats_last_gc_time_seconds gauge
+go_memstats_last_gc_time_seconds 1.7934246443355303e+09
+# HELP go_memstats_mallocs_total Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge. Equals to /gc/heap/allocs:objects + /gc/heap/tiny/allocs:objects.
+# TYPE go_memstats_mallocs_total counter
+go_memstats_mallocs_total 419815
+# HELP go_memstats_mcache_inuse_bytes Number of bytes in use by mcache structures. Equals to /memory/classes/metadata/mcache/inuse:bytes.
+# TYPE go_memstats_mcache_inuse_bytes gauge
+go_memstats_mcache_inuse_bytes 19328
+# HELP go_memstats_mcache_sys_bytes Number of bytes used for mcache structures obtained from system. Equals to /memory/classes/metadata/mcache/inuse:bytes + /memory/classes/metadata/mcache/free:bytes.
+# TYPE go_memstats_mcache_sys_bytes gauge
+go_memstats_mcache_sys_bytes 31408
+# HELP go_memstats_mspan_inuse_bytes Number of bytes in use by mspan structures. Equals to /memory/classes/metadata/mspan/inuse:bytes.
+# TYPE go_memstats_mspan_inuse_bytes gauge
+go_memstats_mspan_inuse_bytes 452960
+# HELP go_memstats_mspan_sys_bytes Number of bytes used for mspan structures obtained from system. Equals to /memory/classes/metadata/mspan/inuse:bytes + /memory/classes/metadata/mspan/free:bytes.
+# TYPE go_memstats_mspan_sys_bytes gauge
+go_memstats_mspan_sys_bytes 456960
+# HELP go_memstats_next_gc_bytes Number of heap bytes when next garbage collection will take place. Equals to /gc/heap/goal:bytes.
+# TYPE go_memstats_next_gc_bytes gauge
+go_memstats_next_gc_bytes 2.7494042e+07
+# HELP go_memstats_other_sys_bytes Number of bytes used for other system allocations. Equals to /memory/classes/other:bytes.
+# TYPE go_memstats_other_sys_bytes gauge
+go_memstats_other_sys_bytes 2.929336e+06
+# HELP go_memstats_stack_inuse_bytes Number of bytes obtained from system for stack allocator in non-CGO environments. Equals to /memory/classes/heap/stacks:bytes.
+# TYPE go_memstats_stack_inuse_bytes gauge
+go_memstats_stack_inuse_bytes 1.835008e+06
+# HELP go_memstats_stack_sys_bytes Number of bytes obtained from system for stack allocator. Equals to /memory/classes/heap/stacks:bytes + /memory/classes/os-stacks:bytes.
+# TYPE go_memstats_stack_sys_bytes gauge
+go_memstats_stack_sys_bytes 1.835008e+06
+# HELP go_memstats_sys_bytes Number of bytes obtained from system. Equals to /memory/classes/total:byte.
+# TYPE go_memstats_sys_bytes gauge
+go_memstats_sys_bytes 4.2293512e+07
+# HELP go_sched_gomaxprocs_threads The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads.
+# TYPE go_sched_gomaxprocs_threads gauge
+go_sched_gomaxprocs_threads 16
+# HELP go_threads Number of OS threads created.
+# TYPE go_threads gauge
+go_threads 20
+# HELP grpc_client_handled_total Total number of RPCs completed by the client, regardless of success or failure.
+# TYPE grpc_client_handled_total counter
+grpc_client_handled_total{grpc_code="DeadlineExceeded",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 1
+grpc_client_handled_total{grpc_code="NotFound",grpc_method="ListApplications",grpc_service="manager.v2.Manager",grpc_type="unary"} 6
+grpc_client_handled_total{grpc_code="OK",grpc_method="GetScheduler",grpc_service="manager.v2.Manager",grpc_type="unary"} 6
+grpc_client_handled_total{grpc_code="OK",grpc_method="UpdateScheduler",grpc_service="manager.v2.Manager",grpc_type="unary"} 1
+# HELP grpc_client_msg_received_total Total number of RPC stream messages received by the client.
+# TYPE grpc_client_msg_received_total counter
+grpc_client_msg_received_total{grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 1
+grpc_client_msg_received_total{grpc_method="ListApplications",grpc_service="manager.v2.Manager",grpc_type="unary"} 6
+# HELP grpc_client_msg_sent_total Total number of gRPC stream messages sent by the client.
+# TYPE grpc_client_msg_sent_total counter
+grpc_client_msg_sent_total{grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 1
+grpc_client_msg_sent_total{grpc_method="GetScheduler",grpc_service="manager.v2.Manager",grpc_type="unary"} 6
+grpc_client_msg_sent_total{grpc_method="KeepAlive",grpc_service="manager.v2.Manager",grpc_type="client_stream"} 78
+grpc_client_msg_sent_total{grpc_method="ListApplications",grpc_service="manager.v2.Manager",grpc_type="unary"} 6
+grpc_client_msg_sent_total{grpc_method="UpdateScheduler",grpc_service="manager.v2.Manager",grpc_type="unary"} 1
+# HELP grpc_client_started_total Total number of RPCs started on the client.
+# TYPE grpc_client_started_total counter
+grpc_client_started_total{grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 1
+grpc_client_started_total{grpc_method="GetScheduler",grpc_service="manager.v2.Manager",grpc_type="unary"} 6
+grpc_client_started_total{grpc_method="KeepAlive",grpc_service="manager.v2.Manager",grpc_type="client_stream"} 1
+grpc_client_started_total{grpc_method="ListApplications",grpc_service="manager.v2.Manager",grpc_type="unary"} 6
+grpc_client_started_total{grpc_method="UpdateScheduler",grpc_service="manager.v2.Manager",grpc_type="unary"} 1
+# HELP grpc_server_handled_total Total number of RPCs completed on the server, regardless of success or failure.
+# TYPE grpc_server_handled_total counter
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Aborted",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="AlreadyExists",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Canceled",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DataLoss",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="DeadlineExceeded",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="FailedPrecondition",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Internal",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="InvalidArgument",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="NotFound",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 24
+grpc_server_handled_total{grpc_code="OK",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 202
+grpc_server_handled_total{grpc_code="OK",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 32
+grpc_server_handled_total{grpc_code="OK",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 2
+grpc_server_handled_total{grpc_code="OK",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OK",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="OutOfRange",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="PermissionDenied",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="ResourceExhausted",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unauthenticated",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unavailable",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_handled_total{grpc_code="Unknown",grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+# HELP grpc_server_msg_received_total Total number of RPC stream messages received on the server.
+# TYPE grpc_server_msg_received_total counter
+grpc_server_msg_received_total{grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_msg_received_total{grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 24
+grpc_server_msg_received_total{grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 8088
+grpc_server_msg_received_total{grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_msg_received_total{grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_msg_received_total{grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 32
+grpc_server_msg_received_total{grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 2
+grpc_server_msg_received_total{grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_msg_received_total{grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_msg_received_total{grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_msg_received_total{grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_received_total{grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+# HELP grpc_server_msg_sent_total Total number of gRPC stream messages sent by the server.
+# TYPE grpc_server_msg_sent_total counter
+grpc_server_msg_sent_total{grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_msg_sent_total{grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 24
+grpc_server_msg_sent_total{grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 202
+grpc_server_msg_sent_total{grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_msg_sent_total{grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_msg_sent_total{grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 32
+grpc_server_msg_sent_total{grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 2
+grpc_server_msg_sent_total{grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_msg_sent_total{grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_msg_sent_total{grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_msg_sent_total{grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_msg_sent_total{grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+# HELP grpc_server_started_total Total number of RPCs started on the server.
+# TYPE grpc_server_started_total counter
+grpc_server_started_total{grpc_method="AnnounceCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_started_total{grpc_method="AnnounceHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="AnnounceHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 24
+grpc_server_started_total{grpc_method="AnnouncePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 202
+grpc_server_started_total{grpc_method="AnnouncePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_started_total{grpc_method="AnnouncePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_started_total{grpc_method="AnnounceTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="Check",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 32
+grpc_server_started_total{grpc_method="DeleteCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="DeleteCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="DeleteHost",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 2
+grpc_server_started_total{grpc_method="DeletePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="DeletePersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="DeletePersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="DeletePersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="DeletePersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="DeleteTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="LeaveHost",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="LeaveTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="List",grpc_service="grpc.health.v1.Health",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="ListHosts",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="PreheatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="PreheatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="RegisterPeerTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="ReportPeerResult",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="ReportPieceResult",grpc_service="scheduler.Scheduler",grpc_type="bidi_stream"} 0
+grpc_server_started_total{grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_started_total{grpc_method="ServerReflectionInfo",grpc_service="grpc.reflection.v1alpha.ServerReflection",grpc_type="bidi_stream"} 0
+grpc_server_started_total{grpc_method="StatCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatFile",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatImage",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatPersistentCachePeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatPersistentCacheTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatPersistentPeer",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatPersistentTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatTask",grpc_service="scheduler.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="StatTask",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="UploadPersistentCacheTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="UploadPersistentCacheTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="UploadPersistentCacheTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="UploadPersistentTaskFailed",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="UploadPersistentTaskFinished",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="UploadPersistentTaskStarted",grpc_service="scheduler.v2.Scheduler",grpc_type="unary"} 0
+grpc_server_started_total{grpc_method="Watch",grpc_service="grpc.health.v1.Health",grpc_type="server_stream"} 0
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 2.28
+# HELP process_max_fds Maximum number of open file descriptors.
+# TYPE process_max_fds gauge
+process_max_fds 1.048576e+06
+# HELP process_network_receive_bytes_total Number of bytes received by the process over the network.
+# TYPE process_network_receive_bytes_total counter
+process_network_receive_bytes_total 3.453595e+06
+# HELP process_network_transmit_bytes_total Number of bytes sent by the process over the network.
+# TYPE process_network_transmit_bytes_total counter
+process_network_transmit_bytes_total 457508
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 15
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 6.7108864e+07
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE process_start_time_seconds gauge
+process_start_time_seconds 1.79342426392e+09
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE process_virtual_memory_bytes gauge
+process_virtual_memory_bytes 1.323597824e+09
+# HELP process_virtual_memory_max_bytes Maximum amount of virtual memory available in bytes.
+# TYPE process_virtual_memory_max_bytes gauge
+process_virtual_memory_max_bytes 1.8446744073709552e+19
+# HELP promhttp_metric_handler_requests_in_flight Current number of scrapes being served.
+# TYPE promhttp_metric_handler_requests_in_flight gauge
+promhttp_metric_handler_requests_in_flight 1
+# HELP promhttp_metric_handler_requests_total Total number of scrapes by HTTP status code.
+# TYPE promhttp_metric_handler_requests_total counter
+promhttp_metric_handler_requests_total{code="200"} 0
+promhttp_metric_handler_requests_total{code="500"} 0
+promhttp_metric_handler_requests_total{code="503"} 0

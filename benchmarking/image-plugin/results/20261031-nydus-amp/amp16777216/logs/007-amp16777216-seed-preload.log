@@ -1,0 +1,7 @@
+# amp16777216-seed-preload
+# start: 2026-10-31T05:44:12Z
+$ benchmarking/image-plugin/seed-preload.sh benchmarking/image-plugin/images-64.jsonl 64
+
+202 unique blobs in the first 64 images
+preloaded in 18 s
+# exit: 0  end: 2026-10-31T05:46:13Z

@@ -1,0 +1,11 @@
+# amp4194304-run-64
+# start: 2026-10-31T05:56:19Z
+$ benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w8 created
+pod/imgbench-rep-1-nydus-w8-rhc8r condition met
+nydus: imgbench-rep-1-nydus-w8 pod imgbench-rep-1-nydus-w8-rhc8r started 2026-10-31T05:56:31Z
+nydus: done (exit 0), 320 lines, 0
+0 errors
+wrote 55 points to benchmarking/image-plugin/results/20261031-nydus-amp/amp4194304/rep-1/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-31T05:59:52Z

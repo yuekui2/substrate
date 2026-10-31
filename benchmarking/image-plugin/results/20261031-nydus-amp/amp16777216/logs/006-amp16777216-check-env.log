@@ -1,0 +1,5 @@
+# amp16777216-check-env
+# start: 2026-10-31T05:44:11Z
+$ kubectl -n ate-system get ds image-plugin-nydus-dragonfly -o jsonpath='{.spec.template.spec.containers[?(@.name=="nydus-snapshotter")].env}'
+
+[{"name":"KUBE_HOME","value":"/home/kubernetes"},{"name":"NYDUS_VERSION","value":"2.3.0"},{"name":"NYDUS_SNAPSHOTTER_VERSION","value":"0.15.0"},{"name":"DRAGONFLY_PROXY_ADDR","value":"http://127.0.0.1:4001"},{"name":"DRAGONFLY_HEALTH_URL","value":"http://127.0.0.1:4003/healthy"},{"name":"NYDUS_PREFETCH","value":"false"},{"name":"NYDUS_USER_IO_BATCH_SIZE","value":"16777216"}]# exit: 0  end: 2026-10-31T05:44:12Z

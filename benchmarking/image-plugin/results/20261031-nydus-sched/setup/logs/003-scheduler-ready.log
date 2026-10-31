@@ -1,0 +1,8 @@
+# scheduler-ready
+# start: 2026-10-31T05:24:22Z
+$ kubectl -n ate-system rollout status deploy/dragonfly-scheduler --timeout=5m
+
+Waiting for deployment "dragonfly-scheduler" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "dragonfly-scheduler" rollout to finish: 1 old replicas are pending termination...
+deployment "dragonfly-scheduler" successfully rolled out
+# exit: 0  end: 2026-10-31T05:24:25Z
