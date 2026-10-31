@@ -355,9 +355,10 @@ spec:
         configMap:
           name: dragonfly-controlplane-config
 ---
-# nydus-blob-seed serves the Nydus blobs that seed-preload.sh saves on each
-# seed node, with Range support. nydusd tries it before dfdaemon. A missing
-# blob returns 503 because nydusd moves to the next mirror only on 5xx.
+# nydus-blob-seed serves the Nydus blobs and manifests that seed-preload.sh
+# saves on each seed node, with Range support. nydusd tries it before
+# dfdaemon, and the plugin reads manifests and bootstrap layers from it. A
+# missing blob returns 503 because nydusd moves to the next mirror only on 5xx.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -388,6 +389,11 @@ data:
         }
         location ~ "^/v2/.+/blobs/sha256:([0-9a-f]{64})$" {
           root /blobs;
+          try_files /$1 =503;
+        }
+        location ~ "^/v2/.+/manifests/sha256:([0-9a-f]{64})$" {
+          root /blobs/manifests;
+          default_type application/vnd.oci.image.manifest.v1+json;
           try_files /$1 =503;
         }
         location / {
@@ -944,6 +950,7 @@ items:
           - --startup-timeout=2m
           - --drain-timeout=30m
           - --drain-complete-file=/run/ate/drain-complete
+          - --blob-seed-url=http://nydus-blob-seed.ate-system.svc.cluster.local:4010
           readinessProbe:
             exec:
               command:

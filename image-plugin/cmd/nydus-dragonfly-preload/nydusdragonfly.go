@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"go.ate.dev/substrate/image-plugin/internal/proto/snapshots"
 	"go.ate.dev/substrate/image-plugin/pkg/plugin"
@@ -147,6 +148,9 @@ type NydusDragonflyConfig struct {
 	WarmListDir string
 	WarmWorkers int
 	WarmTimeout time.Duration
+	// BlobSeedURL is the base URL of the blob seed servers. When set,
+	// manifests and bootstrap layers are read from there first.
+	BlobSeedURL string
 	ServerOpts  []plugin.Option
 }
 
@@ -175,6 +179,8 @@ type NydusDragonflyDriver struct {
 	warmListDir            string
 	warmWorkers            int
 	warmTimeout            time.Duration
+	blobSeedURL            string
+	seedClient             *http.Client
 
 	mu                sync.Mutex
 	cachedAnnotations map[string][]map[string]string
@@ -325,6 +331,8 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 		warmListDir:            cfg.WarmListDir,
 		warmWorkers:            cfg.WarmWorkers,
 		warmTimeout:            cfg.WarmTimeout,
+		blobSeedURL:            strings.TrimRight(cfg.BlobSeedURL, "/"),
+		seedClient:             &http.Client{Timeout: 30 * time.Second},
 		cachedAnnotations:      make(map[string][]map[string]string),
 		mountedDirs:            make(map[string][]string),
 	}
@@ -750,13 +758,20 @@ func (nd *NydusDragonflyDriver) defaultLayerAnnotations(ctx context.Context, ima
 	if err != nil {
 		return nil, fmt.Errorf("parsing image reference %q: %w", imageRef, err)
 	}
-	img, err := remote.Image(ref, plugin.RemoteOptions(ctx, nd.Driver.Keychain(), authConfig)...)
-	if err != nil {
-		return nil, fmt.Errorf("remote.Image(%q): %w", imageRef, err)
+	var manifest *v1.Manifest
+	if nd.blobSeedURL != "" {
+		if manifest, err = nd.seedManifest(ctx, ref); err != nil {
+			logSeedMiss(ctx, "manifest", imageRef, err)
+		}
 	}
-	manifest, err := img.Manifest()
-	if err != nil {
-		return nil, fmt.Errorf("reading manifest for %q: %w", imageRef, err)
+	if manifest == nil {
+		img, err := remote.Image(ref, plugin.RemoteOptions(ctx, nd.Driver.Keychain(), authConfig)...)
+		if err != nil {
+			return nil, fmt.Errorf("remote.Image(%q): %w", imageRef, err)
+		}
+		if manifest, err = img.Manifest(); err != nil {
+			return nil, fmt.Errorf("reading manifest for %q: %w", imageRef, err)
+		}
 	}
 	res := make([]map[string]string, len(manifest.Layers))
 	for i, l := range manifest.Layers {
@@ -772,8 +787,9 @@ func (nd *NydusDragonflyDriver) defaultLayerAnnotations(ctx context.Context, ima
 	return res, nil
 }
 
-// defaultLayerReader fetches the layer blob by digest through the Dragonfly
-// proxy, so peers share it and the manifest is not fetched again.
+// defaultLayerReader fetches the layer blob by digest from the blob seeds if
+// set, else through the Dragonfly proxy, so peers share it and the manifest
+// is not fetched again.
 func (nd *NydusDragonflyDriver) defaultLayerReader(ctx context.Context, imageRef string, authConfig *imagepluginclient.AuthConfig, layerIndex int, layerDigest string) (io.ReadCloser, error) {
 	ref, err := name.ParseReference(imageRef)
 	if err != nil {
@@ -781,6 +797,13 @@ func (nd *NydusDragonflyDriver) defaultLayerReader(ctx context.Context, imageRef
 	}
 	if layerDigest == "" {
 		return nil, fmt.Errorf("layer %d of %q has no digest", layerIndex, imageRef)
+	}
+	if nd.blobSeedURL != "" {
+		rc, err := nd.seedLayer(ctx, ref.Context(), layerDigest)
+		if err == nil {
+			return rc, nil
+		}
+		logSeedMiss(ctx, "layer "+layerDigest, imageRef, err)
 	}
 	opts := append(plugin.RemoteOptions(ctx, nd.Driver.Keychain(), authConfig), remote.WithTransport(nd.blobTransport))
 	layer, err := remote.Layer(ref.Context().Digest(layerDigest), opts...)

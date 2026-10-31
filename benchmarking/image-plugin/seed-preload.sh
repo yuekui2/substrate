@@ -24,7 +24,8 @@
 # schedulingPolicy: always (nydus-dragonfly-seeds*.yaml). Needs crane and jq.
 #
 # With SAVE_DIR set, every seed fetches every blob and also saves it as
-# SAVE_DIR/<hex digest> on its node, for nydus-blob-seed to serve
+# SAVE_DIR/<hex digest> on its node, and the image manifests as
+# SAVE_DIR/manifests/<hex digest>, for nydus-blob-seed to serve
 # (nydus-dragonfly-seedhttp.yaml).
 
 set -euo pipefail
@@ -36,11 +37,13 @@ SAVE_DIR="${SAVE_DIR:-}"
 REG=us-central1-docker.pkg.dev
 
 blobs="$(mktemp)"
-trap 'rm -f "${blobs}"' EXIT
+manifests="$(mktemp -d)"
+trap 'rm -rf "${blobs}" "${manifests}"' EXIT
 head -n "${n}" "${images}" | jq -r .nydus | while read -r ref; do
   repo="${ref%@*}"
   repo="${repo#"${REG}"/}"
-  crane manifest "${ref}" | jq -r --arg r "${repo}" '.layers[] | "\($r) \(.digest)"'
+  crane manifest "${ref}" >"${manifests}/${ref##*@sha256:}"
+  jq -r --arg r "${repo}" '.layers[] | "\($r) \(.digest)"' "${manifests}/${ref##*@sha256:}"
 done | sort -u -k2,2 >"${blobs}"
 echo "$(wc -l <"${blobs}") unique blobs in the first ${n} images"
 
@@ -86,5 +89,12 @@ rc=0
 for pid in "${pids[@]}"; do
   wait "${pid}" || rc=1
 done
+if [[ -n "${SAVE_DIR}" ]]; then
+  for s in "${seeds[@]}"; do
+    tar -C "${manifests}" -cf - . |
+      kubectl -n ate-system exec -i "${s}" -c nydus-snapshotter -- nsenter -t 1 -m -- \
+        sh -c "mkdir -p '${SAVE_DIR}/manifests' && tar -C '${SAVE_DIR}/manifests' -xf -" || rc=1
+  done
+fi
 echo "preloaded in $(($(date +%s) - start)) s"
 exit "${rc}"

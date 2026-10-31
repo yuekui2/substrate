@@ -54,6 +54,7 @@ func main() {
 		warmListDir            = flag.String("warm-list-dir", "", "Directory of per-image file lists (<manifest digest hex>.txt) to read in parallel after mounting, the paths after a #background line once the mount is returned; empty disables the warm-up")
 		warmWorkers            = flag.Int("warm-workers", 32, "Parallel file reads per image during the warm-up")
 		warmTimeout            = flag.Duration("warm-timeout", 30*time.Second, "Maximum duration of the warm-up per image")
+		blobSeedURL            = flag.String("blob-seed-url", "", "Base URL of the blob seed servers to read manifests and bootstrap layers from before the registry; empty disables")
 	)
 	flag.Parse()
 
@@ -94,6 +95,7 @@ func main() {
 		WarmListDir:            *warmListDir,
 		WarmWorkers:            *warmWorkers,
 		WarmTimeout:            *warmTimeout,
+		BlobSeedURL:            *blobSeedURL,
 		ServerOpts:             opts,
 	})
 	if err != nil {
