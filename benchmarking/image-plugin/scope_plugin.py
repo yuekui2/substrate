@@ -23,8 +23,8 @@
 - Clears the plugin's cache on every start, so each rep starts cold.
 - Riptide: runs gcfsd v1.37-2 and snapshotter v1.37-1 from the riptide-bins
   image, installed by an init container, as in the teammate's run.
-- Nydus: sets DRAGONFLY_PREFETCH and NYDUS_PREFETCH from the environment
-  when they are set.
+- Nydus: sets DRAGONFLY_PREFETCH, NYDUS_PREFETCH and NYDUS_USER_IO_BATCH_SIZE
+  from the environment when they are set.
 """
 
 import os
@@ -68,7 +68,11 @@ def patch(doc, arm):
         pool = "nydus-seed"
     spec.setdefault("nodeSelector", {})["bench-arm"] = pool
     for c in spec["containers"]:
-        for name, container in (("DRAGONFLY_PREFETCH", "dfdaemon"), ("NYDUS_PREFETCH", "nydus-snapshotter")):
+        for name, container in (
+            ("DRAGONFLY_PREFETCH", "dfdaemon"),
+            ("NYDUS_PREFETCH", "nydus-snapshotter"),
+            ("NYDUS_USER_IO_BATCH_SIZE", "nydus-snapshotter"),
+        ):
             if c["name"] == container and name in os.environ:
                 set_env(c, name, os.environ[name])
         if c["name"] == "riptide-provider":

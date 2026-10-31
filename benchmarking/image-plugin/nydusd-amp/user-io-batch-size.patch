@@ -1,0 +1,17 @@
+diff --git a/storage/src/factory.rs b/storage/src/factory.rs
+index e441e26..1957684 100644
+--- a/storage/src/factory.rs
++++ b/storage/src/factory.rs
+@@ -124,6 +124,12 @@ impl BlobFactory {
+             .get_rafs_config()
+             .map_or_else(|_| default_user_io_batch_size(), |v| v.user_io_batch_size)
+             as u32;
++        // Benchmark patch: fscache blob configs carry no rafs section, so allow
++        // overriding the on-demand read amplification from the environment.
++        let user_io_batch_size = std::env::var("NYDUS_USER_IO_BATCH_SIZE")
++            .ok()
++            .and_then(|v| v.parse::<u32>().ok())
++            .unwrap_or(user_io_batch_size);
+         let key = BlobCacheMgrKey {
+             config: config.clone(),
+         };

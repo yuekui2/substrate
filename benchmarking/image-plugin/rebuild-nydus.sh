@@ -31,6 +31,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_REPO="${TARGET_REPO:-us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/swebench-nydus-pf}"
 WORK_DIR="${WORK_DIR:-${TMPDIR:-/tmp}/rebuild-nydus}"
 PARALLEL="${PARALLEL:-8}"
+TAG="${TAG:-pf}"
+# Optional nydus-image chunk size, such as 0x400000.
+CHUNK_SIZE="${CHUNK_SIZE:-}"
 NYDUS_VERSION=v2.3.0
 NYDUS_SHA256=c6bed2e26151ba07236df995553f568b9f12ce4a294df7e9373a30c05381a1a1
 NYDUS="${WORK_DIR}/nydus-static"
@@ -77,16 +80,20 @@ convert_one() {
   grep -q 'metadata is valid' "${dir}/old.txt"
   python3 "${HERE}/prefetch_list.py" <"${dir}/old.txt" >"${dir}/prefetch.txt"
 
+  local chunk=()
+  if [[ -n "${CHUNK_SIZE}" ]]; then
+    chunk=(--chunk-size "${CHUNK_SIZE}")
+  fi
   start="$(date +%s)"
   "${NYDUS}/nydusify" convert \
-    --source "${oci}" --target "${target}:pf" \
+    --source "${oci}" --target "${target}:${TAG}" "${chunk[@]}" \
     --fs-version 6 --compressor zstd \
     --nydus-image "${NYDUS}/nydus-image" --work-dir "${dir}/tmp" \
     --prefetch-patterns <"${dir}/prefetch.txt" >"${dir}/convert.log" 2>&1
   secs=$(($(date +%s) - start))
   rm -rf "${dir}/tmp"
 
-  digest="$(crane digest "${target}:pf")"
+  digest="$(crane digest "${target}:${TAG}")"
   fetch_bootstrap "${target}@${digest}" "${dir}/new"
   "${NYDUS}/nydus-image" inspect -R prefetch "${dir}/new/image/image.boot" 2>/dev/null >"${dir}/prefetch-table.json"
   if [[ "$(jq length "${dir}/prefetch-table.json")" -lt 2 ]]; then
@@ -104,7 +111,7 @@ main() {
   fi
   local images="$1" n="$2" out="$3"
   install_nydus
-  export HERE TARGET_REPO WORK_DIR NYDUS BOOTSTRAP_ANNOTATION
+  export HERE TARGET_REPO WORK_DIR NYDUS BOOTSTRAP_ANNOTATION TAG CHUNK_SIZE
   head -n "${n}" "${images}" | tr '\n' '\0' |
     xargs -0 -P "${PARALLEL}" -I{} "${BASH_SOURCE[0]}" convert-one {} ||
     echo "some conversions failed, see ${WORK_DIR}/<id>/convert.log" >&2
