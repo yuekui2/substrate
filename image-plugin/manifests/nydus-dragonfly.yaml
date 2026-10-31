@@ -827,9 +827,6 @@ items:
           - --startup-timeout=2m
           - --drain-timeout=30m
           - --drain-complete-file=/run/ate/drain-complete
-          # Lists of files to read in parallel after mounting each image, one
-          # per manifest digest. Images without a list are not warmed.
-          - --warm-list-dir=/var/lib/ate/nydus-warm-lists
           readinessProbe:
             exec:
               command:

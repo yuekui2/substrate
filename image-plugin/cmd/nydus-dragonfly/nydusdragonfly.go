@@ -142,12 +142,7 @@ type NydusDragonflyConfig struct {
 	MountFS                MountFSFunc
 	UnmountFS              UnmountFSFunc
 	StatFS                 StatFSFunc
-	// WarmListDir holds per-image lists of files to read after mounting, as
-	// <manifest digest hex>.txt. Empty disables the warm-up.
-	WarmListDir string
-	WarmWorkers int
-	WarmTimeout time.Duration
-	ServerOpts  []plugin.Option
+	ServerOpts             []plugin.Option
 }
 
 // NydusDragonflyDriver wraps the shared plugin.Driver with strict Kernel EROFS
@@ -172,9 +167,6 @@ type NydusDragonflyDriver struct {
 	mountFS                MountFSFunc
 	unmountFS              UnmountFSFunc
 	statFS                 StatFSFunc
-	warmListDir            string
-	warmWorkers            int
-	warmTimeout            time.Duration
 
 	mu                sync.Mutex
 	cachedAnnotations map[string][]map[string]string
@@ -322,9 +314,6 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 		mountFS:                cfg.MountFS,
 		unmountFS:              cfg.UnmountFS,
 		statFS:                 cfg.StatFS,
-		warmListDir:            cfg.WarmListDir,
-		warmWorkers:            cfg.WarmWorkers,
-		warmTimeout:            cfg.WarmTimeout,
 		cachedAnnotations:      make(map[string][]map[string]string),
 		mountedDirs:            make(map[string][]string),
 	}
@@ -511,41 +500,7 @@ func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.Mou
 		res.MountDirs = append(res.MountDirs, mountDir)
 	}
 
-	if nd.warmListDir != "" && len(res.MountDirs) > 0 {
-		nd.warmRootfs(ctx, env.ImageRef, env.ImageDigest, res.MountDirs[len(res.MountDirs)-1])
-	}
-
 	return res, nil
-}
-
-// warmRootfs reads the files listed for the image before returning, then the
-// files after the list's background marker in a goroutine. A slow or failed
-// warm-up leaves the rest to on-demand reads.
-func (nd *NydusDragonflyDriver) warmRootfs(ctx context.Context, imageRef, imageDigest, mountDir string) {
-	fg, bg, err := readWarmList(nd.warmListDir, imageDigest)
-	if err != nil {
-		slog.ErrorContext(ctx, "Reading Nydus warm list", slog.String("image", imageRef), slog.Any("err", err))
-		return
-	}
-	log := func(ctx context.Context, part string, st warmStats, err error) {
-		slog.InfoContext(ctx, "Warmed Nydus rootfs", slog.String("image", imageRef), slog.String("part", part),
-			slog.Int("listed", st.Listed), slog.Int("read", st.Read), slog.Int("failed", st.Failed),
-			slog.Int64("bytes", st.Bytes), slog.Duration("duration", st.Dur), slog.Any("err", err))
-	}
-	if len(fg) > 0 {
-		fgCtx, cancel := context.WithTimeout(ctx, nd.warmTimeout)
-		st, err := readPaths(fgCtx, mountDir, fg, nd.warmWorkers)
-		cancel()
-		log(ctx, "foreground", st, err)
-	}
-	if len(bg) > 0 {
-		go func() {
-			bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), nd.warmTimeout)
-			defer cancel()
-			st, err := readPaths(bgCtx, mountDir, bg, warmBackgroundWorkers)
-			log(bgCtx, "background", st, err)
-		}()
-	}
 }
 
 func defaultStatFS(path string) (int64, error) {
