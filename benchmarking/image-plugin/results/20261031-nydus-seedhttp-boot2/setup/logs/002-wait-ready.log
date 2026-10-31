@@ -1,0 +1,28 @@
+# wait-ready
+# start: 2026-10-31T18:37:45Z
+$ benchmarking/image-plugin/wait-ready.sh nydus
+
+Waiting for deployment "bench-nydus" rollout to finish: 42 of 48 updated replicas are available...
+Waiting for deployment "bench-nydus" rollout to finish: 43 of 48 updated replicas are available...
+Waiting for deployment "bench-nydus" rollout to finish: 44 of 48 updated replicas are available...
+Waiting for deployment "bench-nydus" rollout to finish: 45 of 48 updated replicas are available...
+Waiting for deployment "bench-nydus" rollout to finish: 46 of 48 updated replicas are available...
+Waiting for deployment "bench-nydus" rollout to finish: 47 of 48 updated replicas are available...
+deployment "bench-nydus" successfully rolled out
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 of 3 updated pods are available...
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       45h
+bench-pull      48        48                 gvisor-default   True       45h
+bench-riptide   48        48                 gvisor-default   True       45h
+bench-spegel    48        48                 gvisor-default   True       45h
+NAME                                      READY   STATUS    RESTARTS   AGE    IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-kkv2z        3/3     Running   0          56s    10.1.15.208   gke-substrate-stream-test-bench-nydus-ea240a1f-xqgn   <none>           <none>
+image-plugin-nydus-dragonfly-nw7sg        3/3     Running   0          21m    10.1.15.205   gke-substrate-stream-test-bench-nydus-ea240a1f-k7cv   <none>           <none>
+image-plugin-nydus-dragonfly-seed-9f7nx   3/3     Running   0          148m   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-nydus-dragonfly-seed-9vd7r   3/3     Running   0          148m   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-vzpc6        3/3     Running   0          21m    10.1.15.202   gke-substrate-stream-test-bench-nydus-ea240a1f-79lp   <none>           <none>
+# exit: 0  end: 2026-10-31T18:38:36Z
