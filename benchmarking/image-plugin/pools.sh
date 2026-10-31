@@ -42,8 +42,14 @@ ALL_ARMS=(pull riptide nydus spegel)
 DRAGONFLY_SEEDS="${DRAGONFLY_SEEDS:-dedicated}"
 SEED_NODES="${SEED_NODES:-2}"
 SEED_MACHINE="${SEED_MACHINE:-c3-standard-8}"
-# KEEP_SEEDS=1 leaves bench-nydus-seed in place on delete and recreate, so
-# seeds preloaded by seed-preload.sh keep their blobs.
+# Spegel seed peers for the spegel arm (image-plugin/manifests/spegel-preload.yaml):
+#   none       no seeds
+#   dedicated  pool bench-spegel-seed of SEED_NODES x SEED_MACHINE, labeled
+#              bench-arm=spegel-seed, runs only image-plugin-spegel-seed
+SPEGEL_SEEDS="${SPEGEL_SEEDS:-none}"
+# KEEP_SEEDS=1 leaves the seed pools in place on delete and recreate, so
+# seeds preloaded by seed-preload.sh or spegel-seed-preload.sh keep their
+# blobs.
 KEEP_SEEDS="${KEEP_SEEDS:-0}"
 
 action="${1:?usage: pools.sh create|delete|recreate [arm...]}"
@@ -108,6 +114,15 @@ create_pool() {
 
 create_one() {
   local arm="$1"
+  if [[ "${arm}" == spegel && "${SPEGEL_SEEDS}" == dedicated ]]; then
+    local rc=0
+    create_pool bench-spegel "${MACHINE}" "${NODES}" "bench-arm=spegel" &
+    create_pool bench-spegel-seed "${SEED_MACHINE}" "${SEED_NODES}" \
+      "bench-arm=spegel-seed,ate.dev/spegel-seed=true" &
+    wait -n || rc=1
+    wait -n || rc=1
+    return "${rc}"
+  fi
   if [[ "${arm}" != nydus ]]; then
     create_pool "bench-${arm}" "${MACHINE}" "${NODES}" "bench-arm=${arm}"
     return
@@ -145,11 +160,11 @@ delete_pool() {
 
 delete_one() {
   local arm="$1"
-  if [[ "${arm}" == nydus ]]; then
+  if [[ "${arm}" == nydus || "${arm}" == spegel ]]; then
     if [[ "${KEEP_SEEDS}" != 1 ]]; then
-      delete_pool bench-nydus-seed &
+      delete_pool "bench-${arm}-seed" &
     fi
-    delete_pool bench-nydus
+    delete_pool "bench-${arm}"
     wait
     return
   fi

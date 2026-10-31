@@ -114,9 +114,8 @@ run_arm() {
     kubectl -n ate-system logs "${p}" -c atelet --since-time="${start}" 2>/dev/null |
       grep -E 'Restore timing breakdown|falling back|ImagePlugin|Suspended actor on draining' >"${dir}/atelet-${n}.log" || true
   done
-  if [[ "${arm}" == nydus ]]; then
-    nodes+=" $(kubectl get nodes -l bench-arm=nydus-seed -o jsonpath='{.items[*].metadata.name}')"
-  fi
+  # Seed nodes, if the arm has any.
+  nodes+=" $(kubectl get nodes -l "bench-arm=${arm}-seed" -o jsonpath='{.items[*].metadata.name}')"
   # ateworker's restore and checkpoint phase timings for this rep.
   for p in $(kubectl -n imgbench get pods -o name | grep "^pod/bench-${arm}-"); do
     kubectl -n imgbench logs "${p}" --since-time="${start}" 2>/dev/null |
