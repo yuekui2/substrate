@@ -352,6 +352,9 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 		plugin.WithWorkDirTeardownHook(nd.unmountWorkDir),
 		plugin.WithProbeHook(nd.probeDragonfly),
 	}, cfg.ServerOpts...)
+	if nd.blobSeedURL != "" {
+		opts = append(opts, plugin.WithImageResolver(nd.resolveImage))
+	}
 
 	base, err := plugin.NewDriver(ProviderNydusDragonfly, DefaultNydusSocket, "nydus", opts...)
 	if err != nil {

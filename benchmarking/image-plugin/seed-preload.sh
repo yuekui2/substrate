@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Preloads the Nydus blobs of the first N images into the Dragonfly seed
-# peers, so bench nodes read them from a seed instead of the registry.
+# Preloads the Nydus blobs and image configs of the first N images into the
+# Dragonfly seed peers, so bench nodes read them from a seed instead of the
+# registry.
 #
 #   seed-preload.sh <images.jsonl> <n>
 #
@@ -45,7 +46,7 @@ head -n "${n}" "${images}" | jq -r .nydus | while read -r ref; do
   repo="${ref%@*}"
   repo="${repo#"${REG}"/}"
   crane manifest "${ref}" >"${manifests}/${ref##*@sha256:}"
-  jq -r --arg r "${repo}" '.layers[] | "\($r) \(.digest)"' "${manifests}/${ref##*@sha256:}"
+  jq -r --arg r "${repo}" '(.config, .layers[]) | "\($r) \(.digest)"' "${manifests}/${ref##*@sha256:}"
 done | sort -u -k2,2 >"${blobs}"
 echo "$(wc -l <"${blobs}") unique blobs in the first ${n} images"
 
