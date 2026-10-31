@@ -16,8 +16,9 @@
 # Sweeps actors per node with cold caches. For each n, recreates the arms'
 # pools and runs one rep of 3*n actors, each on a distinct image, in
 # <RUN_DIR>/n<n>. Uses the templates already baked at DENSITY (default 8).
+# With the riptide-ms arm, also empties its Valkey cluster before each run.
 #
-#   RUN_DIR=... [ARMS="pull riptide spegel"] [DENSITY=8] [TURNS=5] node-sweep.sh <n...>
+#   RUN_DIR=... [ARMS="pull riptide spegel"] [DENSITY=8] [TURNS=5] [VALKEY_EP=...] node-sweep.sh <n...>
 
 set -uo pipefail
 
@@ -36,6 +37,9 @@ for n in "$@"; do
   mkdir -p "${RUN_DIR}"
   "${EV}" "n${n}-recreate-pools" "${HERE}/pools.sh recreate ${ARMS}"
   "${EV}" "n${n}-wait-ready" "${HERE}/wait-ready.sh ${ARMS}"
+  if [[ " ${ARMS} " == *" riptide-ms "* ]]; then
+    "${EV}" "n${n}-valkey-flush" "${HERE}/valkey-flush.sh" || exit 1
+  fi
   LOADER_ARGS="-actors $((NODES * n)) -turns ${TURNS} -reads 1000" \
     "${EV}" "n${n}-run" "${HERE}/run.sh rep 1 ${ARMS}"
 done

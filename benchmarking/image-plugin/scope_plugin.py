@@ -24,6 +24,8 @@
 - Clears the plugin's cache on every start, so each rep starts cold.
 - Riptide: runs gcfsd v1.37-2 and snapshotter v1.37-1 from the riptide-bins
   image, installed by an init container, as in the teammate's run.
+- riptide-ms: the same, with the Memorystore gcfsd-v2 build dev-c98764b
+  and MEMORYSTORE_ADDRESS from VALKEY_EP.
 - Nydus: sets DRAGONFLY_PREFETCH, NYDUS_PREFETCH and NYDUS_USER_IO_BATCH_SIZE
   from the environment when they are set.
 """
@@ -37,6 +39,13 @@ RIPTIDE_BINS = (
     "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/riptide-bins"
     "@sha256:e6648c4d79f258df2ad6aea531428ebfc0d7fec5010b7adca48307f3479343f5"
 )
+# gcfsd-v2 from gs://kuiyue-gke-dev-riptide/gcfsd-v2-ms and the snapshotter
+# from RIPTIDE_BINS, packed by image-plugin/cmd/riptide-bin-image.
+RIPTIDE_MS_BINS = (
+    "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/riptide-bins-ms"
+    "@sha256:338f2c9d097d2810799fe204f1765c934881d99f74f0fda08682ff9f5a980951"
+)
+BINS = {"riptide": RIPTIDE_BINS, "riptide-ms": RIPTIDE_MS_BINS}
 RIPTIDE_BIN_DIR = "/home/kubernetes/bin/ate-riptide"
 
 INSTALL = """dst=/host-bin/ate-riptide
@@ -81,13 +90,15 @@ def patch(doc, arm):
         if c["name"] == "riptide-provider":
             set_env(c, "CLEAR_CACHE_ON_START", "true")
             set_env(c, "RIPTIDE_BIN_DIR", RIPTIDE_BIN_DIR)
+            if arm == "riptide-ms":
+                set_env(c, "MEMORYSTORE_ADDRESS", os.environ["VALKEY_EP"])
         if c["name"] == "image-plugin-spegel":
             c["args"] = [a for a in c["args"] if not a.startswith("--clear-cache-on-start")]
             c["args"].append("--clear-cache-on-start=true")
-    if arm == "riptide":
+    if arm in BINS:
         spec.setdefault("initContainers", []).append({
             "name": "install-riptide-bins",
-            "image": RIPTIDE_BINS,
+            "image": BINS[arm],
             "command": ["/bin/sh", "-ec", INSTALL],
             "volumeMounts": [{"name": "kube-home-bin", "mountPath": "/host-bin"}],
         })
