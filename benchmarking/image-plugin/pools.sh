@@ -42,6 +42,9 @@ ALL_ARMS=(pull riptide nydus spegel)
 DRAGONFLY_SEEDS="${DRAGONFLY_SEEDS:-dedicated}"
 SEED_NODES="${SEED_NODES:-2}"
 SEED_MACHINE="${SEED_MACHINE:-c3-standard-8}"
+# KEEP_SEEDS=1 leaves bench-nydus-seed in place on delete and recreate, so
+# seeds preloaded by seed-preload.sh keep their blobs.
+KEEP_SEEDS="${KEEP_SEEDS:-0}"
 
 action="${1:?usage: pools.sh create|delete|recreate [arm...]}"
 shift
@@ -143,9 +146,11 @@ delete_pool() {
 delete_one() {
   local arm="$1"
   if [[ "${arm}" == nydus ]]; then
-    delete_pool bench-nydus-seed &
+    if [[ "${KEEP_SEEDS}" != 1 ]]; then
+      delete_pool bench-nydus-seed &
+    fi
     delete_pool bench-nydus
-    wait $!
+    wait
     return
   fi
   delete_pool "bench-${arm}"
