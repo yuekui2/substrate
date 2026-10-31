@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"go.ate.dev/substrate/image-plugin/pkg/plugin"
 )
@@ -50,6 +51,9 @@ func main() {
 		drainTimeout           = flag.Duration("drain-timeout", plugin.DefaultDrainTimeout, "Maximum duration to wait in lame-duck mode after SIGTERM for active image leases to reach 0")
 		drainCompleteFile      = flag.String("drain-complete-file", plugin.DefaultDrainCompleteFile, "Path to the drain-complete marker file written once lame-duck draining finishes")
 		probe                  = flag.Bool("probe", false, "Probe the running ImagePlugin socket for readiness and exit")
+		warmListDir            = flag.String("warm-list-dir", "", "Directory of per-image file lists (<manifest digest hex>.txt) to read in parallel after mounting; empty disables the warm-up")
+		warmWorkers            = flag.Int("warm-workers", 32, "Parallel file reads per image during the warm-up")
+		warmTimeout            = flag.Duration("warm-timeout", 30*time.Second, "Maximum duration of the warm-up per image")
 	)
 	flag.Parse()
 
@@ -87,6 +91,9 @@ func main() {
 		VerifyDragonflyPing:    *verifyDragonflyPing,
 		ProcFilesystemsPath:    *procFilesystems,
 		CachefilesDevPath:      *cachefilesDev,
+		WarmListDir:            *warmListDir,
+		WarmWorkers:            *warmWorkers,
+		WarmTimeout:            *warmTimeout,
 		ServerOpts:             opts,
 	})
 	if err != nil {

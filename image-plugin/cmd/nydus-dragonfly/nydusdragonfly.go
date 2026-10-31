@@ -142,7 +142,12 @@ type NydusDragonflyConfig struct {
 	MountFS                MountFSFunc
 	UnmountFS              UnmountFSFunc
 	StatFS                 StatFSFunc
-	ServerOpts             []plugin.Option
+	// WarmListDir holds per-image lists of files to read after mounting, as
+	// <manifest digest hex>.txt. Empty disables the warm-up.
+	WarmListDir string
+	WarmWorkers int
+	WarmTimeout time.Duration
+	ServerOpts  []plugin.Option
 }
 
 // NydusDragonflyDriver wraps the shared plugin.Driver with strict Kernel EROFS
@@ -167,6 +172,9 @@ type NydusDragonflyDriver struct {
 	mountFS                MountFSFunc
 	unmountFS              UnmountFSFunc
 	statFS                 StatFSFunc
+	warmListDir            string
+	warmWorkers            int
+	warmTimeout            time.Duration
 
 	mu                sync.Mutex
 	cachedAnnotations map[string][]map[string]string
@@ -314,6 +322,9 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 		mountFS:                cfg.MountFS,
 		unmountFS:              cfg.UnmountFS,
 		statFS:                 cfg.StatFS,
+		warmListDir:            cfg.WarmListDir,
+		warmWorkers:            cfg.WarmWorkers,
+		warmTimeout:            cfg.WarmTimeout,
 		cachedAnnotations:      make(map[string][]map[string]string),
 		mountedDirs:            make(map[string][]string),
 	}
@@ -498,6 +509,16 @@ func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.Mou
 			return res, fmt.Errorf("resolving mount for layer %d (%s): %w", i, c.ChainID, err)
 		}
 		res.MountDirs = append(res.MountDirs, mountDir)
+	}
+
+	if nd.warmListDir != "" && len(res.MountDirs) > 0 {
+		warmCtx, cancel := context.WithTimeout(ctx, nd.warmTimeout)
+		st, err := warmRootfs(warmCtx, nd.warmListDir, env.ImageDigest, res.MountDirs[len(res.MountDirs)-1], nd.warmWorkers)
+		cancel()
+		// A slow or failed warm-up leaves the rest to on-demand reads.
+		slog.InfoContext(ctx, "Warmed Nydus rootfs", slog.String("image", env.ImageRef),
+			slog.Int("listed", st.Listed), slog.Int("read", st.Read), slog.Int("failed", st.Failed),
+			slog.Int64("bytes", st.Bytes), slog.Duration("duration", st.Dur), slog.Any("err", err))
 	}
 
 	return res, nil
