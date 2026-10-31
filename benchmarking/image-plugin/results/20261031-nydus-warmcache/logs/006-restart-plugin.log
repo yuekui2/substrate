@@ -1,0 +1,11 @@
+# restart-plugin
+# start: 2026-10-31T01:53:10Z
+$ kubectl -n ate-system delete pods -l app=ate-image-plugin,ate.dev/image-plugin=nydus-dragonfly --grace-period=0 --force
+
+Warning: Immediate deletion does not wait for confirmation that the running resource has been terminated. The resource may continue to run on the cluster indefinitely.
+pod "image-plugin-nydus-dragonfly-lch98" force deleted from ate-system namespace
+pod "image-plugin-nydus-dragonfly-seed-5lrsm" force deleted from ate-system namespace
+pod "image-plugin-nydus-dragonfly-seed-dgr9j" force deleted from ate-system namespace
+pod "image-plugin-nydus-dragonfly-t8csn" force deleted from ate-system namespace
+pod "image-plugin-nydus-dragonfly-wzlf4" force deleted from ate-system namespace
+# exit: 0  end: 2026-10-31T01:53:11Z

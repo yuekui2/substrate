@@ -1,0 +1,24 @@
+# wait-ready-2
+# start: 2026-10-31T01:53:11Z
+$ benchmarking/image-plugin/wait-ready.sh nydus
+
+deployment "bench-nydus" successfully rolled out
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 0 of 3 updated pods are available...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 1 of 3 updated pods are available...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 of 3 updated pods are available...
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       28h
+bench-pull      48        48                 gvisor-default   True       28h
+bench-riptide   48        48                 gvisor-default   True       28h
+bench-spegel    48        48                 gvisor-default   True       28h
+NAME                                      READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-69cmq        3/3     Running   0          15s   10.1.15.233   gke-substrate-stream-test-bench-nydus-e7fa29ec-51mg   <none>           <none>
+image-plugin-nydus-dragonfly-7z8bh        3/3     Running   0          16s   10.1.15.230   gke-substrate-stream-test-bench-nydus-e7fa29ec-6gbn   <none>           <none>
+image-plugin-nydus-dragonfly-bkcw4        3/3     Running   0          15s   10.1.0.30     gke-substrate-stream-test-bench-nydus-e7fa29ec-wzrk   <none>           <none>
+image-plugin-nydus-dragonfly-seed-dvn5c   3/3     Running   0          15s   10.1.0.26     gke-substrate-stream-bench-nydus-seed-0fabddbb-wbf8   <none>           <none>
+image-plugin-nydus-dragonfly-seed-dwhmn   3/3     Running   0          15s   10.1.0.27     gke-substrate-stream-bench-nydus-seed-0fabddbb-xf5g   <none>           <none>
+# exit: 0  end: 2026-10-31T01:53:27Z
