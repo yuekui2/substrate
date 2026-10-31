@@ -1,0 +1,7 @@
+# restart-blob-seed
+# start: 2026-10-31T16:10:14Z
+$ kubectl -n ate-system delete pods -l app=nydus-blob-seed --wait=false
+
+pod "nydus-blob-seed-dmqzp" deleted from ate-system namespace
+pod "nydus-blob-seed-fhj8m" deleted from ate-system namespace
+# exit: 0  end: 2026-10-31T16:10:15Z

@@ -1,0 +1,6 @@
+# blob-seed-ready
+# start: 2026-10-31T18:02:35Z
+$ kubectl -n ate-system rollout status ds/nydus-blob-seed --timeout=5m
+
+daemon set "nydus-blob-seed" successfully rolled out
+# exit: 0  end: 2026-10-31T18:02:36Z

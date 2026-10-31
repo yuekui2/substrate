@@ -1,0 +1,21 @@
+# wait-ready
+# start: 2026-10-31T18:02:36Z
+$ benchmarking/image-plugin/wait-ready.sh nydus
+
+deployment "bench-nydus" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       44h
+bench-pull      48        48                 gvisor-default   True       44h
+bench-riptide   48        48                 gvisor-default   True       44h
+bench-spegel    48        48                 gvisor-default   True       44h
+NAME                                      READY   STATUS    RESTARTS   AGE    IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-g85cs        3/3     Running   0          109m   10.1.0.4      gke-substrate-stream-test-bench-nydus-78a21a56-snq9   <none>           <none>
+image-plugin-nydus-dragonfly-l9thc        3/3     Running   0          109m   10.1.15.200   gke-substrate-stream-test-bench-nydus-78a21a56-rwgm   <none>           <none>
+image-plugin-nydus-dragonfly-pc54k        3/3     Running   0          109m   10.1.0.62     gke-substrate-stream-test-bench-nydus-78a21a56-8vkc   <none>           <none>
+image-plugin-nydus-dragonfly-seed-9f7nx   3/3     Running   0          112m   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-nydus-dragonfly-seed-9vd7r   3/3     Running   0          112m   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+# exit: 0  end: 2026-10-31T18:02:42Z

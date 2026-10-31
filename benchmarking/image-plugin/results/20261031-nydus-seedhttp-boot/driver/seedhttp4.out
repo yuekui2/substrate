@@ -1,0 +1,62 @@
+# blob-seed-ready
+# start: 2026-10-31T18:02:35Z
+$ kubectl -n ate-system rollout status ds/nydus-blob-seed --timeout=5m
+
+daemon set "nydus-blob-seed" successfully rolled out
+# exit: 0  end: 2026-10-31T18:02:36Z
+# start: 2026-10-31T18:02:36Z
+$ benchmarking/image-plugin/wait-ready.sh nydus
+
+deployment "bench-nydus" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       44h
+bench-pull      48        48                 gvisor-default   True       44h
+bench-riptide   48        48                 gvisor-default   True       44h
+bench-spegel    48        48                 gvisor-default   True       44h
+NAME                                      READY   STATUS    RESTARTS   AGE    IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-g85cs        3/3     Running   0          109m   10.1.0.4      gke-substrate-stream-test-bench-nydus-78a21a56-snq9   <none>           <none>
+image-plugin-nydus-dragonfly-l9thc        3/3     Running   0          109m   10.1.15.200   gke-substrate-stream-test-bench-nydus-78a21a56-rwgm   <none>           <none>
+image-plugin-nydus-dragonfly-pc54k        3/3     Running   0          109m   10.1.0.62     gke-substrate-stream-test-bench-nydus-78a21a56-8vkc   <none>           <none>
+image-plugin-nydus-dragonfly-seed-9f7nx   3/3     Running   0          112m   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-nydus-dragonfly-seed-9vd7r   3/3     Running   0          112m   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+# exit: 0  end: 2026-10-31T18:02:42Z
+# seed-preload
+# start: 2026-10-31T18:02:42Z
+$ SAVE_DIR=/var/lib/ate/nydus-seed-blobs benchmarking/image-plugin/seed-preload.sh benchmarking/image-plugin/images-64.jsonl 64
+
+202 unique blobs in the first 64 images
+preloaded in 78 s
+# exit: 0  end: 2026-10-31T18:05:48Z
+# check-manifest
+# start: 2026-10-31T18:05:50Z
+$ kubectl -n ate-system exec image-plugin-nydus-dragonfly-g85cs -c nydus-snapshotter -- nsenter -t 1 -m -n -- curl -s -o /dev/null -w '%{http_code} %{size_download} %{time_total}\n' http://34.118.228.23:4010/v2/kuiyue-gke-dev/kuiyue-gke-dev-repo/swebench-nydus/sweb.eval.x86_64.sphinx-doc_1776_sphinx-9591/manifests/sha256:fe55f16a9153ad44268fdfe5c2113ef83e8aff757fb44f316c353b4e1381de14
+
+503 197 0.001084
+# exit: 0  end: 2026-10-31T18:05:51Z
+# run-1
+# start: 2026-10-31T18:05:51Z
+$ benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w8 created
+pod/imgbench-rep-1-nydus-w8-ggv5k condition met
+nydus: imgbench-rep-1-nydus-w8 pod imgbench-rep-1-nydus-w8-ggv5k started 2026-10-31T18:06:09Z
+nydus: done (exit 0), 5 lines, 0
+0 errors
+wrote 40 points to benchmarking/image-plugin/results/20261031-nydus-seedhttp-boot/n1/rep-1/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-31T18:09:32Z
+# run-64
+# start: 2026-10-31T18:09:32Z
+$ benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w8 created
+pod/imgbench-rep-1-nydus-w8-clv9m condition met
+nydus: imgbench-rep-1-nydus-w8 pod imgbench-rep-1-nydus-w8-clv9m started 2026-10-31T18:09:45Z
+nydus: done (exit 0), 320 lines, 0
+0 errors
+wrote 60 points to benchmarking/image-plugin/results/20261031-nydus-seedhttp-boot/n64/rep-1/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-31T18:13:11Z
+SEEDHTTP4-DONE

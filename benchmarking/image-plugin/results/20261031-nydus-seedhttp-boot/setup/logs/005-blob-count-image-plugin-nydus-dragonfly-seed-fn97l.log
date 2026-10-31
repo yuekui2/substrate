@@ -1,0 +1,7 @@
+# blob-count-image-plugin-nydus-dragonfly-seed-fn97l
+# start: 2026-10-31T16:10:18Z
+$ kubectl -n ate-system exec image-plugin-nydus-dragonfly-seed-fn97l -c nydus-snapshotter -- nsenter -t 1 -m -- sh -c 'ls /var/lib/ate/nydus-seed-blobs | grep -vc tmp; du -sh /var/lib/ate/nydus-seed-blobs'
+
+202
+29G	/var/lib/ate/nydus-seed-blobs
+# exit: 0  end: 2026-10-31T16:10:19Z

@@ -1,0 +1,10 @@
+# apply
+# start: 2026-10-31T16:11:45Z
+$ kubectl apply -f benchmarking/image-plugin/results/20261031-nydus-seedhttp-boot/setup/nydus-dragonfly.applied.yaml
+
+service/dragonfly-redis unchanged
+deployment.apps/dragonfly-redis unchanged
+service/dragonfly-mysql unchanged
+deployment.apps/dragonfly-mysql unchanged
+configmap/dragonfly-controlplane-config unchanged
+service/dragonfly-manager unchanged

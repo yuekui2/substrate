@@ -1,0 +1,6 @@
+# check-manifest
+# start: 2026-10-31T18:05:50Z
+$ kubectl -n ate-system exec image-plugin-nydus-dragonfly-g85cs -c nydus-snapshotter -- nsenter -t 1 -m -n -- curl -s -o /dev/null -w '%{http_code} %{size_download} %{time_total}\n' http://34.118.228.23:4010/v2/kuiyue-gke-dev/kuiyue-gke-dev-repo/swebench-nydus/sweb.eval.x86_64.sphinx-doc_1776_sphinx-9591/manifests/sha256:fe55f16a9153ad44268fdfe5c2113ef83e8aff757fb44f316c353b4e1381de14
+
+503 197 0.001084
+# exit: 0  end: 2026-10-31T18:05:51Z

@@ -38,6 +38,8 @@ REG=us-central1-docker.pkg.dev
 
 blobs="$(mktemp)"
 manifests="$(mktemp -d)"
+# nginx runs as an unprivileged user and must read the copies on the seeds.
+chmod 755 "${manifests}"
 trap 'rm -rf "${blobs}" "${manifests}"' EXIT
 head -n "${n}" "${images}" | jq -r .nydus | while read -r ref; do
   repo="${ref%@*}"
@@ -93,7 +95,7 @@ if [[ -n "${SAVE_DIR}" ]]; then
   for s in "${seeds[@]}"; do
     tar -C "${manifests}" -cf - . |
       kubectl -n ate-system exec -i "${s}" -c nydus-snapshotter -- nsenter -t 1 -m -- \
-        sh -c "mkdir -p '${SAVE_DIR}/manifests' && tar -C '${SAVE_DIR}/manifests' -xf -" || rc=1
+        sh -c "mkdir -p '${SAVE_DIR}/manifests' && tar -C '${SAVE_DIR}/manifests' --no-same-owner -xf -" || rc=1
   done
 fi
 echo "preloaded in $(($(date +%s) - start)) s"
