@@ -39,6 +39,7 @@ func main() {
 		spegelRouterAddr   = flag.String("spegel-router-addr", "", "Spegel P2P router/DHT listen address (default :5001 or $SPEGEL_ROUTER_ADDR)")
 		spegelBootstrapDNS = flag.String("spegel-bootstrap-dns", "", "Headless Service DNS domain for discovering cluster Spegel peers (or $SPEGEL_BOOTSTRAP_DNS)")
 		spegelPeerPort     = flag.Int("spegel-peer-port", DefaultSpegelPeerPort, "Port used to query discovered cluster Spegel peers")
+		spegelOwnerDNS     = flag.String("spegel-owner-dns", "", "DNS name of the only peers that fetch blobs from upstream, e.g. seed nodes. Empty means all peers")
 		spegelPeers        = flag.String("spegel-peers", "", "Comma-separated static Spegel peer host:port endpoints")
 		upstreamMirrorAddr = flag.String("spegel-upstream-mirror-addr", "", "Optional secondary local Spegel daemon endpoint (e.g. http://127.0.0.1:5003)")
 		enableP2PServer    = flag.Bool("enable-p2p-server", false, "Start built-in Spegel-compatible P2P OCI registry mirror HTTP server on --p2p-listen-addr")
@@ -82,6 +83,7 @@ func main() {
 		SpegelRouterAddr:         *spegelRouterAddr,
 		SpegelBootstrapDNS:       *spegelBootstrapDNS,
 		SpegelPeerPort:           *spegelPeerPort,
+		SpegelOwnerDNS:           *spegelOwnerDNS,
 		SpegelPeers:              staticPeers,
 		SpegelUpstreamMirrorAddr: *upstreamMirrorAddr,
 		EnableP2PServer:          *enableP2PServer,

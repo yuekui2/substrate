@@ -136,6 +136,9 @@ type SpegelConfig struct {
 	SpegelRouterAddr   string
 	SpegelBootstrapDNS string
 	SpegelPeerPort     int
+	// SpegelOwnerDNS is a DNS name that resolves to the peers that own
+	// blobs, e.g. dedicated seed nodes. Empty means every peer owns some.
+	SpegelOwnerDNS string
 	// SpegelNodeIP is this node's IP as peers see it. Defaults to
 	// $SPEGEL_NODE_IP. Required with EnableP2PServer.
 	SpegelNodeIP             string
@@ -194,6 +197,7 @@ func (c countingReader) Read(p []byte) (int, error) {
 type SpegelPeerServer struct {
 	storeDir           string
 	bootstrapDNS       string
+	ownerDNS           string
 	peerPort           int
 	staticPeers        []string
 	upstreamMirrorAddr string
@@ -213,6 +217,9 @@ type SpegelPeerServer struct {
 	peersMu sync.RWMutex
 	// peers is the sorted list of other peers' host:port addresses.
 	peers []string
+	// owners is the sorted list of owner host:port addresses from the last
+	// successful ownerDNS answer.
+	owners []string
 	// self is this peer's address as the other peers list it.
 	self string
 
@@ -232,8 +239,9 @@ type SpegelPeerServer struct {
 
 // NewSpegelPeerServer creates and starts a Spegel-compatible P2P OCI registry
 // mirror server on listenAddr. Peers reach it at nodeIP:peerPort. upstream
-// fetches blobs on behalf of peers.
-func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS, nodeIP string, peerPort int, staticPeers []string, upstreamMirrorAddr string, httpClient *http.Client, counters *spegelCounters, upstream BlobFetcherFunc) (*SpegelPeerServer, error) {
+// fetches blobs on behalf of peers. If ownerDNS is set, only the peers it
+// resolves to own blobs.
+func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS, ownerDNS, nodeIP string, peerPort int, staticPeers []string, upstreamMirrorAddr string, httpClient *http.Client, counters *spegelCounters, upstream BlobFetcherFunc) (*SpegelPeerServer, error) {
 	if listenAddr == "" {
 		listenAddr = ":5000"
 	}
@@ -267,6 +275,7 @@ func NewSpegelPeerServer(listenAddr, storeDir, bootstrapDNS, nodeIP string, peer
 	s := &SpegelPeerServer{
 		storeDir:           storeDir,
 		bootstrapDNS:       strings.TrimSpace(bootstrapDNS),
+		ownerDNS:           strings.TrimSpace(ownerDNS),
 		peerPort:           peerPort,
 		staticPeers:        append([]string(nil), staticPeers...),
 		upstreamMirrorAddr: strings.TrimRight(strings.TrimSpace(upstreamMirrorAddr), "/"),
@@ -455,8 +464,8 @@ func (s *SpegelPeerServer) refreshPeersLoop(ctx context.Context) {
 	}
 }
 
-// refreshPeers resolves the static and headless-DNS peers. If the DNS lookup
-// fails, it keeps the previous DNS answer.
+// refreshPeers resolves the static and headless-DNS peers, and the owners.
+// If a DNS lookup fails, it keeps the previous answer.
 func (s *SpegelPeerServer) refreshPeers(ctx context.Context) {
 	if s.bootstrapDNS != "" {
 		lookupCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
@@ -469,9 +478,26 @@ func (s *SpegelPeerServer) refreshPeers(ctx context.Context) {
 			s.dnsAddrs = addrs
 		}
 	}
+	var owners []string
+	if s.ownerDNS != "" {
+		lookupCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+		addrs, err := net.DefaultResolver.LookupHost(lookupCtx, s.ownerDNS)
+		cancel()
+		if err != nil {
+			slog.WarnContext(ctx, "Spegel owner DNS lookup failed",
+				slog.String("ownerDNS", s.ownerDNS), slog.Any("err", err))
+		}
+		for _, ip := range addrs {
+			owners = append(owners, net.JoinHostPort(ip, strconv.Itoa(s.peerPort)))
+		}
+		sort.Strings(owners)
+	}
 	peers := s.discoverPeers()
 	s.peersMu.Lock()
 	s.peers = peers
+	if len(owners) > 0 {
+		s.owners = owners
+	}
 	s.peersMu.Unlock()
 }
 
@@ -509,11 +535,16 @@ func (s *SpegelPeerServer) discoverPeers() []string {
 }
 
 // owner returns the peer that fetches hexDigest from upstream, and whether it
-// is this peer.
+// is this peer. With ownerDNS set, it picks among the owners, and returns ""
+// until the first owner DNS answer.
 func (s *SpegelPeerServer) owner(hexDigest string) (string, bool) {
 	s.peersMu.RLock()
 	defer s.peersMu.RUnlock()
-	o := rendezvousOwner(append([]string{s.self}, s.peers...), hexDigest)
+	members := s.owners
+	if s.ownerDNS == "" {
+		members = append([]string{s.self}, s.peers...)
+	}
+	o := rendezvousOwner(members, hexDigest)
 	return o, o == s.self
 }
 
@@ -1068,6 +1099,7 @@ func NewSpegel(cfg SpegelConfig) (*SpegelDriver, error) {
 			cfg.P2PListenAddr,
 			storeDir,
 			bootstrapDNS,
+			cfg.SpegelOwnerDNS,
 			nodeIP,
 			cfg.SpegelPeerPort,
 			cfg.SpegelPeers,

@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -168,13 +169,18 @@ func TestNewSpegelClearStore(t *testing.T) {
 }
 
 func TestSpegelPeerServerPeers(t *testing.T) {
+	digest := strings.Repeat("ab", 32)
 	for _, tc := range []struct {
 		name        string
 		nodeIP      string
 		peerPort    int
 		staticPeers []string
-		wantPeers   []string
-		wantSelf    string
+		// ownerDNS is an IP literal, which resolves to itself.
+		ownerDNS      string
+		wantPeers     []string
+		wantSelf      string
+		wantOwner     string
+		wantOwnerSelf bool
 	}{
 		{
 			name:        "sorts peers and drops self",
@@ -191,9 +197,28 @@ func TestSpegelPeerServerPeers(t *testing.T) {
 			wantPeers:   []string{"10.0.0.3:5000"},
 			wantSelf:    "10.0.0.3:5003",
 		},
+		{
+			name:        "owner DNS restricts owners",
+			nodeIP:      "10.0.0.3",
+			staticPeers: []string{"10.0.0.1", "10.0.0.2"},
+			ownerDNS:    "10.0.0.4",
+			wantPeers:   []string{"10.0.0.1:5000", "10.0.0.2:5000"},
+			wantSelf:    "10.0.0.3:5000",
+			wantOwner:   "10.0.0.4:5000",
+		},
+		{
+			name:          "owner DNS resolves to self",
+			nodeIP:        "10.0.0.3",
+			staticPeers:   []string{"10.0.0.1"},
+			ownerDNS:      "10.0.0.3",
+			wantPeers:     []string{"10.0.0.1:5000"},
+			wantSelf:      "10.0.0.3:5000",
+			wantOwner:     "10.0.0.3:5000",
+			wantOwnerSelf: true,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s, err := NewSpegelPeerServer("127.0.0.1:0", t.TempDir(), "", tc.nodeIP, tc.peerPort, tc.staticPeers, "", nil, &spegelCounters{}, nil)
+			s, err := NewSpegelPeerServer("127.0.0.1:0", t.TempDir(), "", tc.ownerDNS, tc.nodeIP, tc.peerPort, tc.staticPeers, "", nil, &spegelCounters{}, nil)
 			if err != nil {
 				t.Fatalf("NewSpegelPeerServer failed: %v", err)
 			}
@@ -203,6 +228,11 @@ func TestSpegelPeerServerPeers(t *testing.T) {
 			}
 			if s.self != tc.wantSelf {
 				t.Errorf("self = %q, want %q", s.self, tc.wantSelf)
+			}
+			if tc.wantOwner != "" {
+				if got, isSelf := s.owner(digest); got != tc.wantOwner || isSelf != tc.wantOwnerSelf {
+					t.Errorf("owner() = %q, %v, want %q, %v", got, isSelf, tc.wantOwner, tc.wantOwnerSelf)
+				}
 			}
 		})
 	}
