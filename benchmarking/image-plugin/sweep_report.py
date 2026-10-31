@@ -17,9 +17,9 @@
 
   sweep_report.py <run-dir> > sweep.md
 
-Reads <run-dir>/rep-*/<arm>-w<n>/turns.jsonl and diskstats.jsonl, plain or
-gzipped. TTFI includes the time an actor waited for a slot.
-Session time is an actor's create to the end of its last turn.
+Reads <run-dir>/rep-*/<arm>-w<n>/turns.jsonl and diskstats.jsonl (the
+node-sampler log, with disk and CPU samples), plain or gzipped. TTFI
+includes the time an actor waited for a slot. Session time is an actor's create to the end of its last turn.
 """
 
 import glob
@@ -88,6 +88,36 @@ def disk_rates(path):
     return wmb, rmb, iops
 
 
+def cpu_rates(path):
+    """Per-node CPU busy and iowait percent over 5 s samples, and the mean
+    cores per node of each process name over the run."""
+    by_node = defaultdict(list)
+    for r in load(path):
+        if r.get("kind") == "cpustat":
+            by_node[r["node"]].append((ts(r["ts"]), r))
+    busy, iowait = [], []
+    proc_ticks = defaultdict(float)
+    span = 0.0
+    for samples in by_node.values():
+        samples.sort(key=lambda x: x[0])
+        for (t0, a), (t1, b) in zip(samples, samples[1:]):
+            dt = (t1 - t0).total_seconds()
+            total = sum(b["cpu"].values()) - sum(a["cpu"].values())
+            if dt <= 0 or total <= 0:
+                continue
+            idle = b["cpu"]["idle"] - a["cpu"]["idle"]
+            io = b["cpu"]["iowait"] - a["cpu"]["iowait"]
+            busy.append(100 * (total - idle - io) / total)
+            iowait.append(100 * io / total)
+            for k, v in b["procs"].items():
+                # A name's total drops when one of its processes exits.
+                proc_ticks[k] += max(0, v - a["procs"].get(k, v))
+            span += dt
+    # Ticks are USER_HZ (100 per second).
+    cores = {k: v / 100 / span for k, v in proc_ticks.items()} if span else {}
+    return busy, iowait, cores
+
+
 def main():
     run = sys.argv[1]
     rows = []
@@ -123,6 +153,7 @@ def main():
         sessions = [b - a for a, b in sess.values() if a is not None]
         wall = (max(b for _, b in sess.values()) - min(a for a, _ in sess.values())) if sess else float("nan")
         wmb, rmb, iops = disk_rates(os.path.join(d, "diskstats.jsonl")) if present(os.path.join(d, "diskstats.jsonl")) else ([], [], [])
+        busy, iowait, cores = cpu_rates(os.path.join(d, "diskstats.jsonl")) if present(os.path.join(d, "diskstats.jsonl")) else ([], [], {})
         rows.append({
             "arm": arm, "w": dens, "slots": 48 * dens, "n": len(turns),
             "failed": len(turns) - len(ok),
@@ -140,6 +171,8 @@ def main():
             "wall": wall,
             "turns_per_s": len(ok) / wall if wall == wall and wall > 0 else float("nan"),
             "disk": (max(wmb, default=float("nan")), max(rmb, default=float("nan")), max(iops, default=float("nan"))),
+            "cpu": (pct(busy, 50), pct(busy, 95), max(busy, default=float("nan")), pct(iowait, 50), max(iowait, default=float("nan"))),
+            "cores": cores,
         })
     rows.sort(key=lambda r: (ARMS.index(r["arm"]) if r["arm"] in ARMS else 9, r["w"]))
 
@@ -175,6 +208,15 @@ def main():
     for r in rows:
         w, rd, io = r["disk"]
         print(f"| {r['arm']} | {r['w']} | {fmt(w, 0)} | {fmt(rd, 0)} | {fmt(io, 0)} |")
+
+    print("\n### CPU per node (5 s samples, % of all cores)\n")
+    print("| arm | actors/worker | busy p50 / p95 / max | iowait p50 / max | top processes, mean cores per node |")
+    print("|---|---|---|---|---|")
+    for r in rows:
+        top = sorted(r["cores"].items(), key=lambda x: -x[1])[:6]
+        print(f"| {r['arm']} | {r['w']} | " + " / ".join(fmt(x, 0) for x in r["cpu"][:3]) + " | "
+              + " / ".join(fmt(x, 1) for x in r["cpu"][3:]) + " | "
+              + ", ".join(f"{k} {v:.2f}" for k, v in top) + " |")
 
 
 if __name__ == "__main__":

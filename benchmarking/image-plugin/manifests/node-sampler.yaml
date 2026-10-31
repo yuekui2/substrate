@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Samples disk counters on every bench node into the pod log, and serves
+# Samples disk and CPU counters on every bench node into the pod log, and serves
 # node-sampler.sh snapshot through kubectl exec. deploy.sh creates the
 # node-sampler ConfigMap from node-sampler.sh.
 apiVersion: apps/v1
@@ -33,6 +33,8 @@ spec:
     spec:
       # Host network so snapshot can reach the Spegel plugin on 127.0.0.1:5000.
       hostNetwork: true
+      # Host PID namespace so the sampler sees every process's CPU time.
+      hostPID: true
       dnsPolicy: ClusterFirstWithHostNet
       terminationGracePeriodSeconds: 1
       affinity:

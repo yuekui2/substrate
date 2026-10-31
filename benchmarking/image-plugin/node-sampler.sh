@@ -16,7 +16,8 @@
 # Runs in the node-sampler DaemonSet on every bench node.
 #
 #   node-sampler.sh sample     print /proc/diskstats counters of whole disks
-#                              as one JSON line every SAMPLE_INTERVAL seconds
+#                              and CPU counters (see cpustat) as JSON lines
+#                              every SAMPLE_INTERVAL seconds
 #   node-sampler.sh snapshot   print one JSON line with the size of each
 #                              image cache under /var/lib/ate and the Spegel
 #                              /stats, if a Spegel plugin listens on :5000
@@ -31,6 +32,8 @@ INTERVAL="${SAMPLE_INTERVAL:-5}"
 ATE=/host/var/lib/ate
 
 sample() {
+  local ncpu
+  ncpu="$(grep -c '^cpu[0-9]' /proc/stat)"
   while :; do
     local ts disks="" sep=""
     ts="$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
@@ -42,8 +45,33 @@ sample() {
       sep=","
     done </proc/diskstats
     echo "{\"kind\":\"diskstats\",\"ts\":\"${ts}\",\"node\":\"${NODE}\",\"disks\":[${disks}]}"
+    cpustat "${ts}" "${ncpu}"
     sleep "${INTERVAL}"
   done
+}
+
+# cpustat prints the node's CPU counters from /proc/stat and the CPU ticks
+# (utime + stime) of live host processes summed by command name. Counters
+# are in clock ticks (USER_HZ, 100 per second). Needs hostPID.
+cpustat() {
+  local user nice system idle iowait irq softirq steal procs
+  read -r _ user nice system idle iowait irq softirq steal _ </proc/stat
+  # comm is in parentheses and may hold spaces. utime and stime are the
+  # 12th and 13th fields after it.
+  procs="$(cat /proc/[0-9]*/stat 2>/dev/null | awk '
+    match($0, /\(.*\)/) {
+      comm = substr($0, RSTART + 1, RLENGTH - 2)
+      gsub(/["\\]/, "", comm)
+      # Kernel threads like kworker/3:1-events count as kworker.
+      sub(/\/.*/, "", comm)
+      split(substr($0, RSTART + RLENGTH + 1), f, " ")
+      t[comm] += f[12] + f[13]
+    }
+    END {
+      sep = ""
+      for (k in t) if (t[k] > 0) { printf "%s\"%s\":%d", sep, k, t[k]; sep = "," }
+    }')"
+  echo "{\"kind\":\"cpustat\",\"ts\":\"$1\",\"node\":\"${NODE}\",\"ncpu\":$2,\"cpu\":{\"user\":${user},\"nice\":${nice},\"system\":${system},\"idle\":${idle},\"iowait\":${iowait},\"irq\":${irq},\"softirq\":${softirq},\"steal\":${steal}},\"procs\":{${procs}}}"
 }
 
 # du_bytes prints the apparent size of a directory in bytes, or 0 if absent.
