@@ -207,17 +207,26 @@ def testbed_files(tree, root, limit):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--reads", type=int, default=1000)
+    ap.add_argument("--mark-background", action="store_true",
+                    help="print a #background line between the runtime files and the testbed files")
     args = ap.parse_args()
     tree = Tree(sys.stdin)
     if tree.resolve(ENV + "/bin/python") is None:
         sys.exit("no %s/bin/python" % ENV)
     seen = set()
-    for path in runtime_files(tree) + testbed_files(tree, "/testbed", args.reads):
-        real = tree.resolve(path)
-        if real is None or tree.kind.get(real) != "file" or real in seen:
-            continue
-        seen.add(real)
-        print(real)
+
+    def emit(paths):
+        for path in paths:
+            real = tree.resolve(path)
+            if real is None or tree.kind.get(real) != "file" or real in seen:
+                continue
+            seen.add(real)
+            print(real)
+
+    emit(runtime_files(tree))
+    if args.mark_background:
+        print("#background")
+    emit(testbed_files(tree, "/testbed", args.reads))
 
 
 if __name__ == "__main__":

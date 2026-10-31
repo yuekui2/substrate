@@ -28,7 +28,15 @@ import (
 	"time"
 )
 
-// warmStats reports what warmRootfs read.
+// warmBackgroundMarker separates the files read before the mount is returned
+// from the files read after it, in a warm list.
+const warmBackgroundMarker = "#background"
+
+// warmBackgroundWorkers bounds the parallel reads of the background part, so
+// they leave nydusd threads for the restored guest's own reads.
+const warmBackgroundWorkers = 8
+
+// warmStats reports what readPaths read.
 type warmStats struct {
 	Listed int
 	Read   int
@@ -39,41 +47,44 @@ type warmStats struct {
 
 // warmListPath is the file in listDir naming the files to warm for the image
 // with manifest digest "sha256:<hex>": <listDir>/<hex>.txt, one absolute
-// image path per line.
+// image path per line. Paths after a "#background" line are read after the
+// mount is returned.
 func warmListPath(listDir, imageDigest string) string {
 	return filepath.Join(listDir, strings.TrimPrefix(imageDigest, "sha256:")+".txt")
 }
 
-// warmRootfs reads every file listed for imageDigest under mountDir with the
-// given number of workers, so that nydusd fetches their chunks in parallel
-// before the actor's restore reads them one after another. A missing list
-// means nothing to warm. Files that can't be read are counted in Failed. It
-// stops at ctx's deadline and returns ctx's error with the stats so far.
-func warmRootfs(ctx context.Context, listDir, imageDigest, mountDir string, workers int) (warmStats, error) {
-	start := time.Now()
-	var st warmStats
+// readWarmList returns the paths listed for imageDigest before and after the
+// background marker. A missing list returns no paths.
+func readWarmList(listDir, imageDigest string) (fg, bg []string, err error) {
 	f, err := os.Open(warmListPath(listDir, imageDigest))
 	if errors.Is(err, fs.ErrNotExist) {
-		return st, nil
+		return nil, nil, nil
 	}
 	if err != nil {
-		return st, err
+		return nil, nil, err
 	}
-	var paths []string
+	defer f.Close()
 	sc := bufio.NewScanner(f)
+	dst := &fg
 	for sc.Scan() {
-		if p := strings.TrimSpace(sc.Text()); p != "" {
-			paths = append(paths, p)
+		switch p := strings.TrimSpace(sc.Text()); p {
+		case "":
+		case warmBackgroundMarker:
+			dst = &bg
+		default:
+			*dst = append(*dst, p)
 		}
 	}
-	_ = f.Close()
-	if err := sc.Err(); err != nil {
-		return st, err
-	}
-	st.Listed = len(paths)
+	return fg, bg, sc.Err()
+}
 
-	var read, failed atomic.Int64
-	var bytes atomic.Int64
+// readPaths reads every path under mountDir with the given number of
+// workers, so that nydusd fetches their chunks in parallel. Files that can't
+// be read are counted in Failed. It stops at ctx's deadline and returns ctx's
+// error with the stats so far.
+func readPaths(ctx context.Context, mountDir string, paths []string, workers int) (warmStats, error) {
+	start := time.Now()
+	var read, failed, bytes atomic.Int64
 	work := make(chan string)
 	var wg sync.WaitGroup
 	for range max(workers, 1) {
@@ -106,9 +117,13 @@ func warmRootfs(ctx context.Context, listDir, imageDigest, mountDir string, work
 	if ctxErr == nil {
 		ctxErr = ctx.Err()
 	}
-	st.Read, st.Failed, st.Bytes = int(read.Load()), int(failed.Load()), bytes.Load()
-	st.Dur = time.Since(start)
-	return st, ctxErr
+	return warmStats{
+		Listed: len(paths),
+		Read:   int(read.Load()),
+		Failed: int(failed.Load()),
+		Bytes:  bytes.Load(),
+		Dur:    time.Since(start),
+	}, ctxErr
 }
 
 func readAll(path string) (int64, error) {

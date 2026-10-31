@@ -36,7 +36,7 @@ list_one() {
   dir="$(mktemp -d)"
   fetch_bootstrap "${ref}" "${dir}"
   "${NYDUS}/nydus-image" check -v "${dir}/image/image.boot" 2>/dev/null |
-    python3 "${HERE}/prefetch_list.py" >"${out}/${ref##*@sha256:}.txt"
+    python3 "${HERE}/prefetch_list.py" --mark-background >"${out}/${ref##*@sha256:}.txt"
   rm -rf "${dir}"
 }
 
@@ -45,11 +45,12 @@ case "${1:-}" in
     images="$2" out="$3"
     mkdir -p "${out}"
     install_nydus
-    export -f list_one fetch_bootstrap bootstrap_digest
-    export HERE NYDUS BOOTSTRAP_ANNOTATION
     tr '\n' '\0' <"${images}" |
-      xargs -0 -P "${PARALLEL}" -I{} bash -c 'list_one "$1" "$2"' _ {} "${out}"
+      xargs -0 -P "${PARALLEL}" -I{} "${BASH_SOURCE[0]}" list-one {} "${out}"
     echo "$(find "${out}" -name '*.txt' | wc -l) lists in ${out}"
+    ;;
+  list-one)
+    list_one "$2" "$3"
     ;;
   push)
     out="$2"
