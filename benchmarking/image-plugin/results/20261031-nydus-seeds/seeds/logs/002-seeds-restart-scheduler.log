@@ -1,0 +1,6 @@
+# seeds-restart-scheduler
+# start: 2026-10-31T04:12:52Z
+$ kubectl -n ate-system rollout restart deploy/dragonfly-scheduler
+
+deployment.apps/dragonfly-scheduler restarted
+# exit: 0  end: 2026-10-31T04:12:53Z

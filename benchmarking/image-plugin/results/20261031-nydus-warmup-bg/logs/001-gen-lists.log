@@ -1,0 +1,7 @@
+# gen-lists
+# start: 2026-10-31T03:27:59Z
+$ benchmarking/image-plugin/warm-lists.sh gen benchmarking/image-plugin/images-320.jsonl /tmp/warm-lists2
+
+2026/10/31 03:29:04 [FATAL] ECP Proxy failed: failed to start proxy server: listen tcp :46621: bind: address already in use
+no stdlib under /opt/miniconda3/envs/testbed/lib
+# exit: 123  end: 2026-10-31T03:33:11Z

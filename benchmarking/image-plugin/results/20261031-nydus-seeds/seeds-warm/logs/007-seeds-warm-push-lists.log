@@ -1,0 +1,8 @@
+# seeds-warm-push-lists
+# start: 2026-10-31T04:30:00Z
+$ benchmarking/image-plugin/warm-lists.sh push /tmp/warm-lists2
+
+pushed to pod/image-plugin-nydus-dragonfly-5cxzw
+pushed to pod/image-plugin-nydus-dragonfly-hnk5x
+pushed to pod/image-plugin-nydus-dragonfly-jpsm6
+# exit: 0  end: 2026-10-31T04:30:05Z

@@ -1,0 +1,7 @@
+# seeds-warm-seed-preload
+# start: 2026-10-31T04:27:52Z
+$ benchmarking/image-plugin/seed-preload.sh benchmarking/image-plugin/images-64.jsonl 64
+
+202 unique blobs in the first 64 images
+preloaded in 19 s
+# exit: 0  end: 2026-10-31T04:30:00Z
