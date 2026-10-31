@@ -57,8 +57,9 @@ cpustat() {
   local user nice system idle iowait irq softirq steal procs
   read -r _ user nice system idle iowait irq softirq steal _ </proc/stat
   # comm is in parentheses and may hold spaces. utime and stime are the
-  # 12th and 13th fields after it.
-  procs="$(cat /proc/[0-9]*/stat 2>/dev/null | awk '
+  # 12th and 13th fields after it. cat fails on processes that exit after
+  # the glob expands.
+  procs="$({ cat /proc/[0-9]*/stat 2>/dev/null || true; } | awk '
     match($0, /\(.*\)/) {
       comm = substr($0, RSTART + 1, RLENGTH - 2)
       gsub(/["\\]/, "", comm)
