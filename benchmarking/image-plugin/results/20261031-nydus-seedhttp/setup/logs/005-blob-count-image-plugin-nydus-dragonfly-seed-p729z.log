@@ -1,0 +1,6 @@
+# blob-count-image-plugin-nydus-dragonfly-seed-p729z
+# start: 2026-10-31T14:53:19Z
+$ kubectl -n ate-system exec image-plugin-nydus-dragonfly-seed-p729z -c nydus-snapshotter -- nsenter -t 1 -m -- sh -c 'ls /var/lib/ate/nydus-seed-blobs | grep -vc tmp; du -sh /var/lib/ate/nydus-seed-blobs'
+
+Error from server (NotFound): pods "image-plugin-nydus-dragonfly-seed-p729z" not found
+# exit: 1  end: 2026-10-31T14:53:20Z

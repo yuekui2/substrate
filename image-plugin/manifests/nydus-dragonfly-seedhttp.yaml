@@ -386,7 +386,7 @@ data:
         location = /v2/ {
           return 200;
         }
-        location ~ ^/v2/.+/blobs/sha256:([0-9a-f]{64})$ {
+        location ~ "^/v2/.+/blobs/sha256:([0-9a-f]{64})$" {
           root /blobs;
           try_files /$1 =503;
         }

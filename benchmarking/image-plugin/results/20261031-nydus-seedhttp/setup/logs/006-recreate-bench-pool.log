@@ -1,0 +1,13 @@
+# recreate-bench-pool
+# start: 2026-10-31T14:53:20Z
+$ KEEP_SEEDS=1 benchmarking/image-plugin/pools.sh recreate nydus
+
+deleted bench-nydus
+created bench-nydus
+NAME                                                  STATUS   ROLES    AGE   VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   28m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   28m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-test-bench-nydus-6b73b92f-16dw   Ready    <none>   10s   v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-6b73b92f-mwqz   Ready    <none>   9s    v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-6b73b92f-rd8q   Ready    <none>   9s    v1.36.4-gke.2046003   nydus
+# exit: 0  end: 2026-10-31T14:56:26Z
