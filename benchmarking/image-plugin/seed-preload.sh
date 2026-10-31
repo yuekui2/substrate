@@ -22,12 +22,17 @@
 # over the seeds. The task ID is the blob digest, the same task nydusd's
 # range reads use. Bench nodes find the seed through the scheduler only with
 # schedulingPolicy: always (nydus-dragonfly-seeds*.yaml). Needs crane and jq.
+#
+# With SAVE_DIR set, every seed fetches every blob and also saves it as
+# SAVE_DIR/<hex digest> on its node, for nydus-blob-seed to serve
+# (nydus-dragonfly-seedhttp.yaml).
 
 set -euo pipefail
 
 images="${1:?usage: seed-preload.sh <images.jsonl> <n>}"
 n="${2:?usage: seed-preload.sh <images.jsonl> <n>}"
 PARALLEL="${PARALLEL:-16}"
+SAVE_DIR="${SAVE_DIR:-}"
 REG=us-central1-docker.pkg.dev
 
 blobs="$(mktemp)"
@@ -47,13 +52,33 @@ mapfile -t seeds < <(kubectl -n ate-system get pods -l app=ate-image-plugin,ate.
 read -r -d '' fetch <<EOF || true
 tok="\$(curl -s -H Metadata-Flavor:Google http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token | sed 's/.*"access_token":"\([^"]*\)".*/\1/')"
 export AUTH="Authorization: Basic \$(printf 'oauth2accesstoken:%s' "\${tok}" | base64 -w0)"
-xargs -P ${PARALLEL} -L 1 sh -c 'curl -sf -o /dev/null -H "\${AUTH}" -H "X-Dragonfly-Registry: https://${REG}" "http://127.0.0.1:4001/v2/\$0/blobs/\$1" || echo "failed \$1"'
+export SAVE_DIR="${SAVE_DIR}"
+if [ -n "\${SAVE_DIR}" ]; then
+  mkdir -p "\${SAVE_DIR}"
+fi
+xargs -P ${PARALLEL} -L 1 sh -c '
+  out=/dev/null
+  if [ -n "\${SAVE_DIR}" ]; then
+    out="\${SAVE_DIR}/.\${1#sha256:}.tmp"
+  fi
+  if curl -sf -o "\${out}" -H "\${AUTH}" -H "X-Dragonfly-Registry: https://${REG}" "http://127.0.0.1:4001/v2/\$0/blobs/\$1"; then
+    if [ -n "\${SAVE_DIR}" ]; then
+      mv "\${out}" "\${SAVE_DIR}/\${1#sha256:}"
+    fi
+  else
+    echo "failed \$1"
+  fi'
 EOF
 
 start="$(date +%s)"
 pids=()
 for i in "${!seeds[@]}"; do
-  awk -v i="${i}" -v k="${#seeds[@]}" 'NR % k == i' "${blobs}" |
+  # Round robin over the seeds, or every blob to every seed with SAVE_DIR.
+  j="${i}" k="${#seeds[@]}"
+  if [[ -n "${SAVE_DIR}" ]]; then
+    j=0 k=1
+  fi
+  awk -v i="${j}" -v k="${k}" 'NR % k == i' "${blobs}" |
     kubectl -n ate-system exec -i "${seeds[$i]}" -c nydus-snapshotter -- nsenter -t 1 -m -n -- bash -c "${fetch}" &
   pids+=($!)
 done

@@ -19,7 +19,7 @@
 
 - Scopes every DaemonSet to the arm's pool (nodeSelector bench-arm=<arm>).
   With DRAGONFLY_SEEDS=dedicated (the default, as in pools.sh), the Nydus
-  seed DaemonSet goes to the seed pool, bench-arm=nydus-seed.
+  seed DaemonSets go to the seed pool, bench-arm=nydus-seed.
 - Clears the plugin's cache on every start, so each rep starts cold.
 - Riptide: runs gcfsd v1.37-2 and snapshotter v1.37-1 from the riptide-bins
   image, installed by an init container, as in the teammate's run.
@@ -63,7 +63,7 @@ def patch(doc, arm):
         return
     spec = doc["spec"]["template"]["spec"]
     pool = arm
-    if (doc["metadata"]["name"] == "image-plugin-nydus-dragonfly-seed"
+    if (doc["metadata"]["name"] in ("image-plugin-nydus-dragonfly-seed", "nydus-blob-seed")
             and os.environ.get("DRAGONFLY_SEEDS", "dedicated") == "dedicated"):
         pool = "nydus-seed"
     spec.setdefault("nodeSelector", {})["bench-arm"] = pool
