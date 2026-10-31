@@ -1,0 +1,7 @@
+F1031 21:40:57.965142  584511 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+error: You must provide one or more resources by argument or filename.
+Example resource specifications include:
+   '-f rsrc.yaml'
+   '--filename=rsrc.json'
+   '<resource> <name>'
+   '<resource>'

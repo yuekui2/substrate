@@ -1,0 +1,11 @@
+# n24-run
+# start: 2026-10-31T21:36:25Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w8 created
+pod/imgbench-rep-1-nydus-w8-vnjgp condition met
+nydus: imgbench-rep-1-nydus-w8 pod imgbench-rep-1-nydus-w8-vnjgp started 2026-10-31T21:36:40Z
+nydus: done (exit 0), 360 lines, 0
+0 errors
+wrote 60 points to benchmarking/image-plugin/results/20261031-nydus-seedhttp-sweep2/n24/rep-1/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-31T21:40:08Z

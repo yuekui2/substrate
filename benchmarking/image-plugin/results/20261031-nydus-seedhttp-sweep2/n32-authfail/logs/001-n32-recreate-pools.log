@@ -1,0 +1,47 @@
+# n32-recreate-pools
+# start: 2026-10-31T21:40:08Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate nydus
+
+Deleting node pool bench-nydus...
+..................................................................................................................................failed.
+ERROR: (gcloud.container.node-pools.delete) There was a problem refreshing your current auth tokens: Reauthentication failed. cannot prompt during non-interactive execution.
+Please run:
+
+  $ gcloud auth login
+
+to obtain new credentials.
+
+If you have already logged in with a different account, run:
+
+  $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+deleted bench-nydus
+ERROR: (gcloud.container.node-pools.create) There was a problem refreshing your current auth tokens: Reauthentication failed. cannot prompt during non-interactive execution.
+Please run:
+
+  $ gcloud auth login
+
+to obtain new credentials.
+
+If you have already logged in with a different account, run:
+
+  $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+ERROR: (gcloud.container.node-pools.create) There was a problem refreshing your current auth tokens: Reauthentication failed. cannot prompt during non-interactive execution.
+Please run:
+
+  $ gcloud auth login
+
+to obtain new credentials.
+
+If you have already logged in with a different account, run:
+
+  $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+F1031 21:40:43.093852  583827 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:40:43.731289  583852 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+# exit: 1  end: 2026-10-31T21:40:43Z

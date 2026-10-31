@@ -1,0 +1,138 @@
+# n16-recreate-pools
+# start: 2026-10-31T21:24:03Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate nydus
+
+deleted bench-nydus
+created bench-nydus
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   6h59m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   6h59m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-test-bench-nydus-60d91177-7gzk   Ready    <none>   8s      v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-60d91177-ltp3   Ready    <none>   9s      v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-60d91177-qr7h   Ready    <none>   9s      v1.36.4-gke.2046003   nydus
+# exit: 0  end: 2026-10-31T21:27:12Z
+deployment "bench-nydus" successfully rolled out
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 0 of 3 updated pods are available...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 1 of 3 updated pods are available...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 of 3 updated pods are available...
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       2d
+bench-pull      48        48                 gvisor-default   True       2d
+bench-riptide   48        48                 gvisor-default   True       2d
+bench-spegel    48        48                 gvisor-default   True       2d
+NAME                                      READY   STATUS    RESTARTS   AGE    IP          NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-2z7ct        3/3     Running   0          62s    10.1.0.44   gke-substrate-stream-test-bench-nydus-60d91177-qr7h   <none>           <none>
+image-plugin-nydus-dragonfly-gzfw8        3/3     Running   0          61s    10.1.0.46   gke-substrate-stream-test-bench-nydus-60d91177-ltp3   <none>           <none>
+image-plugin-nydus-dragonfly-r7zmx        3/3     Running   0          61s    10.1.0.59   gke-substrate-stream-test-bench-nydus-60d91177-7gzk   <none>           <none>
+image-plugin-nydus-dragonfly-seed-8hsvr   3/3     Running   0          161m   10.1.0.2    gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-seed-q92k2   3/3     Running   0          161m   10.1.0.61   gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+# exit: 0  end: 2026-10-31T21:28:10Z
+# n16-run
+# start: 2026-10-31T21:28:10Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w8 created
+pod/imgbench-rep-1-nydus-w8-w95zb condition met
+nydus: imgbench-rep-1-nydus-w8 pod imgbench-rep-1-nydus-w8-w95zb started 2026-10-31T21:28:39Z
+nydus: done (exit 0), 240 lines, 0
+0 errors
+wrote 35 points to benchmarking/image-plugin/results/20261031-nydus-seedhttp-sweep2/n16/rep-1/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-31T21:32:23Z
+# n24-recreate-pools
+# start: 2026-10-31T21:32:23Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate nydus
+
+deleted bench-nydus
+created bench-nydus
+NAME                                                  STATUS   ROLES    AGE    VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   7h7m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   7h7m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-test-bench-nydus-d84701b8-3986   Ready    <none>   12s    v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-d84701b8-81rx   Ready    <none>   9s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-d84701b8-8mws   Ready    <none>   12s    v1.36.4-gke.2046003   nydus
+# exit: 0  end: 2026-10-31T21:35:31Z
+deployment "bench-nydus" successfully rolled out
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 0 of 3 updated pods are available...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 1 of 3 updated pods are available...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 of 3 updated pods are available...
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       2d
+bench-pull      48        48                 gvisor-default   True       2d
+bench-riptide   48        48                 gvisor-default   True       2d
+bench-spegel    48        48                 gvisor-default   True       2d
+NAME                                      READY   STATUS    RESTARTS   AGE    IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-p8m9c        3/3     Running   0          60s    10.1.0.42     gke-substrate-stream-test-bench-nydus-d84701b8-8mws   <none>           <none>
+image-plugin-nydus-dragonfly-seed-8hsvr   3/3     Running   0          169m   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-seed-q92k2   3/3     Running   0          170m   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-nydus-dragonfly-wkwdr        3/3     Running   0          61s    10.1.15.237   gke-substrate-stream-test-bench-nydus-d84701b8-3986   <none>           <none>
+image-plugin-nydus-dragonfly-xc7jx        3/3     Running   0          58s    10.1.0.43     gke-substrate-stream-test-bench-nydus-d84701b8-81rx   <none>           <none>
+# exit: 0  end: 2026-10-31T21:36:25Z
+# n24-run
+# start: 2026-10-31T21:36:25Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w8 created
+pod/imgbench-rep-1-nydus-w8-vnjgp condition met
+nydus: imgbench-rep-1-nydus-w8 pod imgbench-rep-1-nydus-w8-vnjgp started 2026-10-31T21:36:40Z
+nydus: done (exit 0), 360 lines, 0
+0 errors
+wrote 60 points to benchmarking/image-plugin/results/20261031-nydus-seedhttp-sweep2/n24/rep-1/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-31T21:40:08Z
+
+  $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+ERROR: (gcloud.container.node-pools.create) There was a problem refreshing your current auth tokens: Reauthentication failed. cannot prompt during non-interactive execution.
+Please run:
+
+  $ gcloud auth login
+
+to obtain new credentials.
+
+If you have already logged in with a different account, run:
+
+  $ gcloud config set account ACCOUNT
+
+to select an already authenticated account to use.
+F1031 21:40:43.093852  583827 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:40:43.731289  583852 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+# exit: 1  end: 2026-10-31T21:40:43Z
+# n32-wait-ready
+# start: 2026-10-31T21:40:43Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/wait-ready.sh nydus
+
+F1031 21:40:44.531754  583884 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:40:45.173016  583904 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+# exit: 1  end: 2026-10-31T21:40:45Z
+    main()
+    ~~~~^^
+  File "/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/monitoring.py", line 43, in main
+    tok = subprocess.check_output(
+          ~~~~~~~~~~~~~~~~~~~~~~~^
+        ["gcloud", "auth", "application-default", "print-access-token"], text=True).strip()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 472, in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+               **kwargs).stdout
+               ^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['gcloud', 'auth', 'application-default', 'print-access-token']' returned non-zero exit status 1.
+F1031 21:41:04.951767  584844 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:41:05.560121  584869 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+# exit: 1  end: 2026-10-31T21:41:05Z
+NODE-SWEEP-DONE
+NYDUS-SWEEP2-DONE

@@ -1,0 +1,64 @@
+# n32-run
+# start: 2026-10-31T21:40:45Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 nydus
+
+F1031 21:40:47.594963  584049 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:40:48.191176  584073 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+F1031 21:40:50.988285  584284 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+error: no objects passed to apply
+F1031 21:40:51.688014  584322 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:40:52.273103  584361 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+F1031 21:40:52.895954  584384 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:40:53.521576  584408 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+error executing jsonpath "{.items[0].metadata.name}": Error executing template: array index out of bounds: index 0, length 0. Printing more information for debugging the template:
+	template was:
+		{.items[0].metadata.name}
+	object given to jsonpath engine was:
+		map[string]interface {}{"apiVersion":"v1", "items":[]interface {}{}, "kind":"List", "metadata":map[string]interface {}{"resourceVersion":""}}
+
+
+
+nydus: imgbench-rep-1-nydus-w8 pod  started 2026-10-31T21:40:50Z
+nydus: pod  is gone
+/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261031-nydus-seedhttp-sweep2/n32/rep-1/nydus-w8/turns.jsonl: No such file or directory
+nydus: done (exit ), 0 lines, 0 errors
+F1031 21:40:58.666049  584545 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:40:59.259620  584564 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+F1031 21:40:59.965436  584595 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:41:00.527806  584619 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+F1031 21:41:01.205624  584648 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:41:01.807179  584675 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+ERROR: (gcloud.auth.application-default.print-access-token) There was a problem refreshing your current auth tokens: Reauthentication failed. cannot prompt during non-interactive execution.
+Please run:
+
+  $ gcloud auth application-default login
+
+to obtain new credentials.
+Traceback (most recent call last):
+  File "/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/monitoring.py", line 86, in <module>
+    main()
+    ~~~~^^
+  File "/usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/monitoring.py", line 43, in main
+    tok = subprocess.check_output(
+          ~~~~~~~~~~~~~~~~~~~~~~~^
+        ["gcloud", "auth", "application-default", "print-access-token"], text=True).strip()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 472, in check_output
+    return run(*popenargs, stdout=PIPE, timeout=timeout, check=True,
+           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+               **kwargs).stdout
+               ^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['gcloud', 'auth', 'application-default', 'print-access-token']' returned non-zero exit status 1.
+F1031 21:41:04.951767  584844 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:41:05.560121  584869 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+# exit: 1  end: 2026-10-31T21:41:05Z

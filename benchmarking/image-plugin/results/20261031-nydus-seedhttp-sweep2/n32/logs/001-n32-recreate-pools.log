@@ -1,0 +1,17 @@
+# n32-recreate-pools
+# start: 2026-10-31T21:48:37Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate nydus
+
+created bench-nydus
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   7h21m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   7h21m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-spegel-see-3732c5c3-1s1f   Ready    <none>   17s     v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-bench-spegel-see-3732c5c3-pgdh   Ready    <none>   16s     v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-tes-bench-spegel-44ee9bff-81hh   Ready    <none>   17s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-44ee9bff-nvdx   Ready    <none>   15s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-44ee9bff-xnl9   Ready    <none>   18s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-test-bench-nydus-ebe10668-537w   Ready    <none>   12s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-ebe10668-p5zc   Ready    <none>   12s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-ebe10668-q0p9   Ready    <none>   11s     v1.36.4-gke.2046003   nydus
+# exit: 0  end: 2026-10-31T21:49:51Z

@@ -1,0 +1,8 @@
+# n32-wait-ready
+# start: 2026-10-31T21:40:43Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/wait-ready.sh nydus
+
+F1031 21:40:44.531754  583884 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+F1031 21:40:45.173016  583904 cred.go:166] print credential failed with error: failed to retrieve access token: getting google default token failed after multiple retries: cannot retrieve default token from google default token source: oauth2: "invalid_grant" "reauth related error (invalid_rapt)" "https://support.google.com/a/answer/9368756"
+Unable to connect to the server: getting credentials: exec: executable gke-gcloud-auth-plugin failed with exit code 1
+# exit: 1  end: 2026-10-31T21:40:45Z

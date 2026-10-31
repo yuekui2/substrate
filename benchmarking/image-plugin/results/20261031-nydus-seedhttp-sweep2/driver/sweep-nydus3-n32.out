@@ -1,0 +1,50 @@
+# n32-recreate-pools
+# start: 2026-10-31T21:48:37Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate nydus
+
+created bench-nydus
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   7h21m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   7h21m   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-spegel-see-3732c5c3-1s1f   Ready    <none>   17s     v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-bench-spegel-see-3732c5c3-pgdh   Ready    <none>   16s     v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-tes-bench-spegel-44ee9bff-81hh   Ready    <none>   17s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-44ee9bff-nvdx   Ready    <none>   15s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-44ee9bff-xnl9   Ready    <none>   18s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-test-bench-nydus-ebe10668-537w   Ready    <none>   12s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-ebe10668-p5zc   Ready    <none>   12s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-ebe10668-q0p9   Ready    <none>   11s     v1.36.4-gke.2046003   nydus
+# exit: 0  end: 2026-10-31T21:49:51Z
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME            DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus     48        48         48      gvisor-default   True       2d
+bench-pull      48        48                 gvisor-default   True       2d
+bench-riptide   48        48                 gvisor-default   True       2d
+bench-spegel    48        48         48      gvisor-default   True       2d
+NAME                                      READY   STATUS    RESTARTS   AGE    IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-4dr6p        3/3     Running   0          75s    10.1.15.245   gke-substrate-stream-test-bench-nydus-ebe10668-p5zc   <none>           <none>
+image-plugin-nydus-dragonfly-fn72l        3/3     Running   0          75s    10.1.15.241   gke-substrate-stream-test-bench-nydus-ebe10668-537w   <none>           <none>
+image-plugin-nydus-dragonfly-seed-8hsvr   3/3     Running   0          3h4m   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-seed-q92k2   3/3     Running   0          3h4m   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-nydus-dragonfly-zm2gj        3/3     Running   0          73s    10.1.15.240   gke-substrate-stream-test-bench-nydus-ebe10668-q0p9   <none>           <none>
+image-plugin-spegel-5rvb4                 1/1     Running   0          53s    10.1.15.228   gke-substrate-stream-tes-bench-spegel-44ee9bff-xnl9   <none>           <none>
+image-plugin-spegel-gtg42                 1/1     Running   0          45s    10.1.15.207   gke-substrate-stream-tes-bench-spegel-44ee9bff-81hh   <none>           <none>
+image-plugin-spegel-seed-h5tdx            1/1     Running   0          53s    10.1.15.238   gke-substrate-stream-bench-spegel-see-3732c5c3-pgdh   <none>           <none>
+image-plugin-spegel-seed-p7f4s            1/1     Running   0          53s    10.1.15.239   gke-substrate-stream-bench-spegel-see-3732c5c3-1s1f   <none>           <none>
+image-plugin-spegel-vdgwp                 1/1     Running   0          49s    10.1.15.204   gke-substrate-stream-tes-bench-spegel-44ee9bff-nvdx   <none>           <none>
+# exit: 0  end: 2026-10-31T21:51:00Z
+# n32-run
+# start: 2026-10-31T21:51:00Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w8 created
+pod/imgbench-rep-1-nydus-w8-r4q82 condition met
+nydus: imgbench-rep-1-nydus-w8 pod imgbench-rep-1-nydus-w8-r4q82 started 2026-10-31T21:51:24Z
+nydus: done (exit 0), 480 lines, 0
+0 errors
+wrote 60 points to benchmarking/image-plugin/results/20261031-nydus-seedhttp-sweep2/n32/rep-1/nydus-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-31T21:55:03Z
+NODE-SWEEP-DONE
+NYDUS-SWEEP2-N32-DONE
