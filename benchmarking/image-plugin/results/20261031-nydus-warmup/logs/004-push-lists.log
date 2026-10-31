@@ -1,0 +1,8 @@
+# push-lists
+# start: 2026-10-31T02:26:13Z
+$ benchmarking/image-plugin/warm-lists.sh push /tmp/warm-lists
+
+pushed to pod/image-plugin-nydus-dragonfly-d9bmx
+pushed to pod/image-plugin-nydus-dragonfly-n5sdr
+pushed to pod/image-plugin-nydus-dragonfly-qnc2r
+# exit: 0  end: 2026-10-31T02:26:18Z
