@@ -193,13 +193,12 @@ data:
       algorithm: default
       # A peer may go to the registry while at most backToSourceCount peers
       # of the task have. The rest download pieces from them. A peer waits
-      # about retryBackToSourceLimit x retryInterval for parents before it
-      # goes to the registry. nydusd blocks on each read, so a piece no peer
-      # has should go to the registry after one lookup.
-      backToSourceCount: 3
-      retryBackToSourceLimit: 1
+      # about retryBackToSourceLimit x retryInterval for parents, such as
+      # the seed peer, before it goes to the registry.
+      backToSourceCount: 1
+      retryBackToSourceLimit: 10
       retryLimit: 20
-      retryInterval: 100ms
+      retryInterval: 500ms
       gc:
         pieceDownloadTimeout: 30m
         peerGCInterval: 10m
@@ -582,11 +581,7 @@ items:
                 # failed read, so keep the limit out of reach.
                 requestRateLimit: 100000
               rules:
-              # nydusd reads ranges of at most a few chunks. With the default
-              # auto policy, dfdaemon fetches ranges up to 4 MiB straight from
-              # the registry and never asks peers.
               - regex: 'blobs/sha256.*'
-                schedulingPolicy: always
               registryMirror:
                 addr: https://us-central1-docker.pkg.dev
                 enableTaskIDBasedBlobDigest: true
