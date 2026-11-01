@@ -1132,6 +1132,8 @@ func TestRestoreWithoutUsableLocalCopy(t *testing.T) {
 			// The object store is empty: nothing was ever uploaded.
 			s := newPluginHerder(t, &recordingObjectStorage{})
 			s.systemInfoVolumes = newSystemInfoVolumeRefresher(nil, nil)
+			// Asset staging runs alongside the manifest fetch.
+			s.anonGCSClient = fakeObjectStorage{data: release.tarball}
 			advertiseRuntime(t, s, rec)
 			_, err := s.Restore(t.Context(), &ateletpb.RestoreRequest{
 				Atespace: "team-a", ActorName: "actor-1", ActorUid: actorUID,
