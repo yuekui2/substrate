@@ -433,16 +433,34 @@ func (nd *NydusDragonflyDriver) onWarmHit(ctx context.Context, _ string, req *im
 }
 
 func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.MountEnv) (*plugin.MountedLayers, error) {
+	var pingDur, syncDur, labelsDur, lockDur, materializeDur, mountDur, warmDur time.Duration
+	start := time.Now()
+	defer func() {
+		slog.InfoContext(ctx, "Nydus mountLayers timing",
+			slog.String("image", env.ImageRef),
+			slog.Float64("ping_ms", ms(pingDur)),
+			slog.Float64("sync_ms", ms(syncDur)),
+			slog.Float64("labels_ms", ms(labelsDur)),
+			slog.Float64("lock_wait_ms", ms(lockDur)),
+			slog.Float64("materialize_ms", ms(materializeDur)),
+			slog.Float64("erofs_mount_ms", ms(mountDur)),
+			slog.Float64("warm_ms", ms(warmDur)),
+			slog.Float64("total_ms", ms(time.Since(start))))
+	}()
 	if nd.verifyDragonflyPing {
+		t := time.Now()
 		pingCtx, cancel := context.WithTimeout(ctx, plugin.DefaultProbeTimeout)
 		err := nd.PingDragonflyProxy(pingCtx)
 		cancel()
+		pingDur = time.Since(t)
 		if err != nil {
 			return nil, fmt.Errorf("dragonfly P2P proxy unavailable (scheduler=%s): %w", nd.dragonflySchedulerAddr, err)
 		}
 	}
 
+	t := time.Now()
 	nd.dockerSyncer.Sync(ctx, nd.Driver.Keychain(), env.ImageRef, env.AuthConfig, true)
+	syncDur = time.Since(t)
 
 	imgKey := plugin.SanitizePathKey(env.ImageRef)
 	runID := fmt.Sprintf("%x", time.Now().UnixNano())
@@ -458,7 +476,9 @@ func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.Mou
 			layerDigest = env.LayerDigests[i]
 		}
 		labels := plugin.StandardCRILayerLabels(env.CanonicalRef, env.ImageDigest, env.LayerDigests, i, c.ChainID)
+		t := time.Now()
 		extraLabels, err := nd.layerLabelsForIndex(ctx, env.ImageRef, env.AuthConfig, i, layerDigest, c)
+		labelsDur += time.Since(t)
 		if err != nil {
 			return res, fmt.Errorf("layer %d (%s) labels: %w", i, c.ChainID, err)
 		}
@@ -467,7 +487,9 @@ func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.Mou
 		}
 
 		lk := env.Driver.AcquireChainLock(c.ChainID)
+		t = time.Now()
 		lk.Lock()
+		lockDur += time.Since(t)
 		statStart := time.Now()
 		committed, err := plugin.HasSnapshot(nsCtx, env.Client, env.Snapshotter, c.ChainID)
 		res.StatDur += time.Since(statStart)
@@ -491,7 +513,10 @@ func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.Mou
 					err = errors.New("prepare returned AlreadyExists but the chain ID snapshot does not exist")
 				}
 			case codes.OK:
-				if matErr := nd.materializeNydusLayer(ctx, env.Client, env.Snapshotter, env.ImageRef, env.AuthConfig, i, layerDigest, c, prepKey, labels, prepResp.GetMounts()); matErr != nil {
+				t := time.Now()
+				matErr := nd.materializeNydusLayer(ctx, env.Client, env.Snapshotter, env.ImageRef, env.AuthConfig, i, layerDigest, c, prepKey, labels, prepResp.GetMounts())
+				materializeDur += time.Since(t)
+				if matErr != nil {
 					plugin.RemoveSnapshot(nsCtx, env.Client, env.Snapshotter, prepKey)
 					err = matErr
 				} else {
@@ -522,7 +547,9 @@ func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.Mou
 		}
 		res.SnapshotKeys = append(res.SnapshotKeys, viewKey)
 
+		t = time.Now()
 		mountDir, err := nd.resolveEROFSMount(ctx, env.ImageWorkDir, len(res.MountDirs), mounts)
+		mountDur += time.Since(t)
 		if err != nil {
 			return res, fmt.Errorf("resolving mount for layer %d (%s): %w", i, c.ChainID, err)
 		}
@@ -530,11 +557,15 @@ func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.Mou
 	}
 
 	if nd.warmListDir != "" && len(res.MountDirs) > 0 {
+		t := time.Now()
 		nd.warmRootfs(ctx, env.ImageRef, env.ImageDigest, res.MountDirs[len(res.MountDirs)-1])
+		warmDur = time.Since(t)
 	}
 
 	return res, nil
 }
+
+func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
 
 // warmRootfs reads the files listed for the image before returning, then the
 // files after the list's background marker in a goroutine. A slow or failed
@@ -766,16 +797,18 @@ func (nd *NydusDragonflyDriver) materializeNydusLayer(ctx context.Context, clien
 		return fmt.Errorf("creating nydus bootstrap mount directory %s: %w", targetDir, err)
 	}
 
+	tFetch := time.Now()
 	rc, err := nd.layerReader(ctx, imageRef, auth, layerIndex, layerDigest)
 	if err != nil {
 		return fmt.Errorf("fetching nydus EROFS bootstrap layer %d (%s): %w", layerIndex, layerDigest, err)
 	}
 	defer func() { _ = rc.Close() }()
-
 	if err := plugin.UnpackLayerTarToDir(ctx, rc, targetDir); err != nil {
 		return fmt.Errorf("unpacking nydus EROFS bootstrap layer %d (%s) into %s: %w", layerIndex, layerDigest, targetDir, err)
 	}
+	fetchDur := time.Since(tFetch)
 
+	tCommit := time.Now()
 	labels["containerd.io/snapshot.ref"] = c.ChainID
 	_, err = client.Commit(nd.Driver.WithNamespaceContext(ctx), &snapshots.CommitSnapshotRequest{
 		Snapshotter: snapshotter,
@@ -791,10 +824,8 @@ func (nd *NydusDragonflyDriver) materializeNydusLayer(ctx context.Context, clien
 		slog.Int("layerIndex", layerIndex),
 		slog.String("layerDigest", layerDigest),
 		slog.String("chainID", c.ChainID),
-		slog.String("targetDir", targetDir),
-		slog.String("dragonflyProxy", nd.dragonflyProxyAddr),
-		slog.String("dragonflyScheduler", nd.dragonflySchedulerAddr),
-		slog.String("dragonflyManager", nd.dragonflyManagerAddr))
+		slog.Float64("fetch_ms", ms(fetchDur)),
+		slog.Float64("commit_ms", ms(time.Since(tCommit))))
 	return nil
 }
 
