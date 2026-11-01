@@ -1,0 +1,11 @@
+# n32-run
+# start: 2026-11-01T06:13:06Z
+$ benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-pf-w2 created
+pod/imgbench-rep-1-nydus-pf-w2-b4r75 condition met
+nydus: imgbench-rep-1-nydus-pf-w2 pod imgbench-rep-1-nydus-pf-w2-b4r75 started 2026-11-01T06:13:29Z
+nydus: done (exit 0), 480 lines, 0
+0 errors
+wrote 80 points to benchmarking/image-plugin/results/20261101-nydus-seedhttp-prefetch/n32/rep-1/nydus-pf-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-01T06:18:39Z

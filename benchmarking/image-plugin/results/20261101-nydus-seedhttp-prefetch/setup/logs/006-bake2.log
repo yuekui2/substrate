@@ -1,0 +1,11 @@
+# bake2
+# start: 2026-11-01T06:02:35Z
+$ benchmarking/image-plugin/run.sh bake nydus
+
+job.batch/imgbench-bake-0-nydus-pf-w2 created
+pod/imgbench-bake-0-nydus-pf-w2-d2zn4 condition met
+nydus: imgbench-bake-0-nydus-pf-w2 pod imgbench-bake-0-nydus-pf-w2-d2zn4 started 2026-11-01T06:03:06Z
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261101-nydus-seedhttp-prefetch/setup/bake-0/nydus-pf-w2/turns.jsonl: No such file or directory
+nydus: done (exit 1), 0 lines, 0 errors
+wrote 120 points to benchmarking/image-plugin/results/20261101-nydus-seedhttp-prefetch/setup/bake-0/nydus-pf-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-01T06:09:03Z

@@ -1,0 +1,5 @@
+# n24-recreate
+# start: 2026-11-01T06:18:39Z
+$ KEEP_SEEDS=1 benchmarking/image-plugin/pools.sh recreate nydus
+
+deleted bench-nydus

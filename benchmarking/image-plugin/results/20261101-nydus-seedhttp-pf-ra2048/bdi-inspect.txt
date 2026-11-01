@@ -1,0 +1,2 @@
+erofs mounts: 42
+     42 2048

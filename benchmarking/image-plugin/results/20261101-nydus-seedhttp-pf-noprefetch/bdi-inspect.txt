@@ -1,0 +1,12 @@
+erofs mounts: 42
+564 6093 0:352 / /host/var/lib/ate/image-plugin-cache/nydus-snapshotter/snapshots/97/mnt rw,relatime master:256 - erofs erofs ro,user_xattr,acl,cache_strategy=readaround,fsid=2fed702d902bbaa11dd14a91e102246fd2ee103b47907bcbbd9bed4856e020d5
+847 6093 0:822 / /host/var/lib/ate/image-plugin-cache/nydus-snapshotter/snapshots/101/mnt rw,relatime master:263 - erofs erofs ro,user_xattr,acl,cache_strategy=readaround,fsid=04a3f92f802bf543a2a1f725ed4407e26cdb4af87a8b61fd7c223ca9089792dc
+1148 6093 0:353 / /host/var/lib/ate/image-plugin-cache/nydus-snapshotter/snapshots/105/mnt rw,relatime master:270 - erofs erofs ro,user_xattr,acl,cache_strategy=readaround,fsid=576639acfdee7e89b2dfa8b35249eca0602e11b7851145787d04d98aac9dba5c
+      1 259:
+      8 7:
+     42 erofs-
+erofs-1 128
+erofs-10 128
+erofs-11 128
+erofs-12 128
+erofs-13 128
