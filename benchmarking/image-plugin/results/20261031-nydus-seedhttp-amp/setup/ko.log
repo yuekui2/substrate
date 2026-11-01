@@ -1,0 +1,15 @@
+2026/11/01 01:28:54 Using base gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99 for go.ate.dev/substrate/image-plugin/cmd/nydus-dragonfly-preload
+2026/11/01 01:28:55 git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+?? benchmarking/image-plugin/make-shared-images.sh
+?? benchmarking/image-plugin/results/20261031-nydus-seedhttp-amp/
+?? benchmarking/image-plugin/results/20261031-nydus-seedhttp-tmpfs/
+?? image-plugin/manifests/nydus-dragonfly-seedhttp-amp.yaml
+?? image-plugin/manifests/nydus-dragonfly-seedhttp-tmpfs.yaml
+
+2026/11/01 01:28:55 Building go.ate.dev/substrate/image-plugin/cmd/nydus-dragonfly-preload for linux/amd64
+2026/11/01 01:28:58 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload:latest
+2026/11/01 01:28:59 existing manifest: latest@sha256:534cef409e249e763e5f9ca7f7d4bd3efc37fd97f179aab8a4685a519ba11019
+2026/11/01 01:29:00 existing manifest: sha256-534cef409e249e763e5f9ca7f7d4bd3efc37fd97f179aab8a4685a519ba11019.sbom@sha256:5e7f37c1fef417ab71503149ea72243418309f315f60169154de2d01a7517825
+2026/11/01 01:29:00 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload:sha256-534cef409e249e763e5f9ca7f7d4bd3efc37fd97f179aab8a4685a519ba11019.sbom
+2026/11/01 01:29:00 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload@sha256:534cef409e249e763e5f9ca7f7d4bd3efc37fd97f179aab8a4685a519ba11019

@@ -1,0 +1,134 @@
+# start: 2026-11-01T01:18:34Z
+$ kubectl apply -f benchmarking/image-plugin/results/20261031-nydus-seedhttp-tmpfs/setup/nydus-dragonfly.applied.yaml
+
+service/dragonfly-redis unchanged
+deployment.apps/dragonfly-redis unchanged
+service/dragonfly-mysql unchanged
+deployment.apps/dragonfly-mysql unchanged
+configmap/dragonfly-controlplane-config unchanged
+service/dragonfly-manager unchanged
+deployment.apps/dragonfly-manager unchanged
+service/dragonfly-scheduler unchanged
+deployment.apps/dragonfly-scheduler unchanged
+configmap/nydus-blob-seed unchanged
+service/nydus-blob-seed unchanged
+daemonset.apps/nydus-blob-seed unchanged
+daemonset.apps/image-plugin-nydus-dragonfly configured
+daemonset.apps/image-plugin-nydus-dragonfly-seed configured
+networkpolicy.networking.k8s.io/dragonfly-backing-stores unchanged
+networkpolicy.networking.k8s.io/dragonfly-controlplane-and-peers unchanged
+# exit: 0  end: 2026-11-01T01:18:38Z
+# recreate-bench-pool
+# start: 2026-11-01T01:18:38Z
+$ KEEP_SEEDS=1 benchmarking/image-plugin/pools.sh recreate nydus
+
+deleted bench-nydus
+created bench-nydus
+NAME                                                  STATUS   ROLES    AGE    VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   10h    v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   10h    v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-riptide-ms-9a13f8b8-7vjs   Ready    <none>   112m   v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-bench-riptide-ms-9a13f8b8-k4x8   Ready    <none>   112m   v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-bench-riptide-ms-9a13f8b8-wmmc   Ready    <none>   112m   v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-test-bench-nydus-f676fe9f-9sc4   Ready    <none>   8s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-f676fe9f-q1f8   Ready    <none>   9s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-f676fe9f-wg4b   Ready    <none>   10s    v1.36.4-gke.2046003   nydus
+# exit: 0  end: 2026-11-01T01:22:02Z
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME               DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus        48        48         48      gvisor-default   True       2d4h
+bench-pull         48        48                 gvisor-default   True       2d4h
+bench-riptide      48        48                 gvisor-default   True       2d4h
+bench-riptide-ms   48        48         48      gvisor-default   True       3h
+bench-spegel       48        48                 gvisor-default   True       2d4h
+NAME                                      READY   STATUS    RESTARTS   AGE     IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-94f59        3/3     Running   0          3m13s   10.1.0.63     gke-substrate-stream-test-bench-nydus-f676fe9f-q1f8   <none>           <none>
+image-plugin-nydus-dragonfly-mxqgc        3/3     Running   0          3m13s   10.1.0.55     gke-substrate-stream-test-bench-nydus-f676fe9f-wg4b   <none>           <none>
+image-plugin-nydus-dragonfly-seed-2h7xp   3/3     Running   0          6m26s   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-seed-p44vw   3/3     Running   0          6m33s   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-nydus-dragonfly-vnl4g        3/3     Running   0          3m12s   10.1.0.49     gke-substrate-stream-test-bench-nydus-f676fe9f-9sc4   <none>           <none>
+image-plugin-riptide-ms-2qqhc             2/2     Running   0          115m    10.1.15.214   gke-substrate-stream-bench-riptide-ms-9a13f8b8-7vjs   <none>           <none>
+image-plugin-riptide-ms-jh2f9             2/2     Running   0          115m    10.1.0.38     gke-substrate-stream-bench-riptide-ms-9a13f8b8-k4x8   <none>           <none>
+image-plugin-riptide-ms-l8twj             2/2     Running   0          115m    10.1.15.215   gke-substrate-stream-bench-riptide-ms-9a13f8b8-wmmc   <none>           <none>
+# exit: 0  end: 2026-11-01T01:25:11Z
+# run-24
+# start: 2026-11-01T01:25:11Z
+$ benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w2 created
+pod/imgbench-rep-1-nydus-w2-wp27g condition met
+nydus: imgbench-rep-1-nydus-w2 pod imgbench-rep-1-nydus-w2-wp27g started 2026-11-01T01:25:29Z
+nydus: done (exit 0), 360 lines, 360 errors
+wrote 55 points to benchmarking/image-plugin/results/20261031-nydus-seedhttp-tmpfs/n24/rep-1/nydus-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-01T01:28:52Z
+# start: 2026-11-01T01:29:00Z
+$ kubectl apply -f benchmarking/image-plugin/results/20261031-nydus-seedhttp-amp/setup/nydus-dragonfly.applied.yaml
+
+service/dragonfly-redis unchanged
+deployment.apps/dragonfly-redis unchanged
+service/dragonfly-mysql unchanged
+deployment.apps/dragonfly-mysql unchanged
+configmap/dragonfly-controlplane-config unchanged
+service/dragonfly-manager unchanged
+deployment.apps/dragonfly-manager unchanged
+service/dragonfly-scheduler unchanged
+deployment.apps/dragonfly-scheduler unchanged
+configmap/nydus-blob-seed unchanged
+service/nydus-blob-seed unchanged
+daemonset.apps/nydus-blob-seed unchanged
+daemonset.apps/image-plugin-nydus-dragonfly configured
+daemonset.apps/image-plugin-nydus-dragonfly-seed configured
+networkpolicy.networking.k8s.io/dragonfly-backing-stores unchanged
+networkpolicy.networking.k8s.io/dragonfly-controlplane-and-peers unchanged
+# exit: 0  end: 2026-11-01T01:29:03Z
+# recreate-bench-pool
+# start: 2026-11-01T01:29:03Z
+$ KEEP_SEEDS=1 benchmarking/image-plugin/pools.sh recreate nydus
+
+deleted bench-nydus
+created bench-nydus
+NAME                                                  STATUS   ROLES    AGE    VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   11h    v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   11h    v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-riptide-ms-9a13f8b8-7vjs   Ready    <none>   122m   v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-bench-riptide-ms-9a13f8b8-k4x8   Ready    <none>   122m   v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-bench-riptide-ms-9a13f8b8-wmmc   Ready    <none>   122m   v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-test-bench-nydus-6c481ac7-h18p   Ready    <none>   11s    v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-6c481ac7-pgbt   Ready    <none>   10s    v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-6c481ac7-z8x0   Ready    <none>   9s     v1.36.4-gke.2046003   nydus
+# exit: 0  end: 2026-11-01T01:32:14Z
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME               DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus        48        48         48      gvisor-default   True       2d4h
+bench-pull         48        48                 gvisor-default   True       2d4h
+bench-riptide      48        48                 gvisor-default   True       2d4h
+bench-riptide-ms   48        48         48      gvisor-default   True       3h8m
+bench-spegel       48        48                 gvisor-default   True       2d4h
+NAME                                      READY   STATUS    RESTARTS   AGE     IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-5cg76        3/3     Running   0          63s     10.1.0.39     gke-substrate-stream-test-bench-nydus-6c481ac7-h18p   <none>           <none>
+image-plugin-nydus-dragonfly-664wd        3/3     Running   0          61s     10.1.0.52     gke-substrate-stream-test-bench-nydus-6c481ac7-z8x0   <none>           <none>
+image-plugin-nydus-dragonfly-seed-ds5l8   3/3     Running   0          3m59s   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-nydus-dragonfly-seed-qfggx   3/3     Running   0          4m8s    10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-zhtgg        3/3     Running   0          62s     10.1.0.53     gke-substrate-stream-test-bench-nydus-6c481ac7-pgbt   <none>           <none>
+image-plugin-riptide-ms-2qqhc             2/2     Running   0          123m    10.1.15.214   gke-substrate-stream-bench-riptide-ms-9a13f8b8-7vjs   <none>           <none>
+image-plugin-riptide-ms-jh2f9             2/2     Running   0          123m    10.1.0.38     gke-substrate-stream-bench-riptide-ms-9a13f8b8-k4x8   <none>           <none>
+image-plugin-riptide-ms-l8twj             2/2     Running   0          123m    10.1.15.215   gke-substrate-stream-bench-riptide-ms-9a13f8b8-wmmc   <none>           <none>
+# exit: 0  end: 2026-11-01T01:33:11Z
+# run-24
+# start: 2026-11-01T01:33:11Z
+$ benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-w2 created
+pod/imgbench-rep-1-nydus-w2-t2mc9 condition met
+nydus: imgbench-rep-1-nydus-w2 pod imgbench-rep-1-nydus-w2-t2mc9 started 2026-11-01T01:33:25Z
+nydus: done (exit 0), 360 lines, 0
+0 errors
+wrote 65 points to benchmarking/image-plugin/results/20261031-nydus-seedhttp-amp/n24/rep-1/nydus-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-01T01:37:23Z
+VARIANTS2-DONE
