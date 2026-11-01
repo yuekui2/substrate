@@ -1,0 +1,1 @@
+us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/atelet@sha256:0252ff76aad72a3c3ab2a24f17a0e53c1aa37d98a4a8da038513d5a439039f1e

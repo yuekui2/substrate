@@ -1,0 +1,7 @@
+# seed-nginx
+# start: 2026-11-01T21:10:19Z
+$ kubectl -n ate-system rollout restart ds/nydus-blob-seed && kubectl -n ate-system rollout status ds/nydus-blob-seed --timeout=5m
+
+daemonset.apps/nydus-blob-seed restarted
+daemon set "nydus-blob-seed" successfully rolled out
+# exit: 0  end: 2026-11-01T21:10:27Z
