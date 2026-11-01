@@ -1,0 +1,19 @@
+# n32-valkey-flush
+# start: 2026-10-31T23:30:38Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/valkey-flush.sh
+
+>>> Calling FLUSHALL SYNC
+10.1.0.6:6379: OK
+warning: couldn't attach to pod/valkey-cli-1793489438190387592, falling back to streaming logs: unable to upgrade connection: container valkey-cli-1793489438190387592 not found in pod valkey-cli-1793489438190387592_imgbench
+>>> Calling FLUSHALL SYNC
+10.1.0.6:6379: OK
+warning: couldn't attach to pod/valkey-cli-1793489441914132735, falling back to streaming logs: unable to upgrade connection: container valkey-cli-1793489441914132735 not found in pod valkey-cli-1793489441914132735_imgbench
+>>> Calling DBSIZE
+10.1.0.6:6379: 0
+10.1.0.5:11004: 0
+10.1.0.5:11003: 0
+>>> Calling DBSIZE
+10.1.0.6:6379: 0
+10.1.0.5:11004: 0
+10.1.0.5:11003: 0
+# exit: 0  end: 2026-10-31T23:30:45Z

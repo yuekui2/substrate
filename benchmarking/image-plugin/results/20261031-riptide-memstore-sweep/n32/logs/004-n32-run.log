@@ -1,0 +1,11 @@
+# n32-run
+# start: 2026-10-31T23:30:45Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 riptide-ms
+
+job.batch/imgbench-rep-1-riptide-ms-w8 created
+pod/imgbench-rep-1-riptide-ms-w8-ppltp condition met
+riptide-ms: imgbench-rep-1-riptide-ms-w8 pod imgbench-rep-1-riptide-ms-w8-ppltp started 2026-10-31T23:30:59Z
+riptide-ms: done (exit 0), 480 lines, 0
+0 errors
+wrote 39 points to /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/results/20261031-riptide-memstore-sweep/n32/rep-1/riptide-ms-w8/monitoring.jsonl
+# exit: 0  end: 2026-10-31T23:35:26Z

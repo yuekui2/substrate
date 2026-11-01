@@ -1,0 +1,13 @@
+# n24-recreate-pools
+# start: 2026-10-31T23:19:52Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate riptide-ms
+
+deleted bench-riptide-ms
+created bench-riptide-ms
+NAME                                                  STATUS   ROLES    AGE   VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   8h    v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   8h    v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-riptide-ms-00ee05c1-2wgp   Ready    <none>   10s   v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-bench-riptide-ms-00ee05c1-gnwz   Ready    <none>   9s    v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-bench-riptide-ms-00ee05c1-lmks   Ready    <none>   8s    v1.36.4-gke.2046003   riptide-ms
+# exit: 0  end: 2026-10-31T23:22:54Z
