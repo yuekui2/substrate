@@ -1,0 +1,5 @@
+6.8.0-1062-gke
+500 4801 0:711 / /host/var/lib/ate/image-plugin-cache/nydus-snapshotter/snapshots/44/mnt rw,relatime master:264 - erofs erofs ro,user_xattr,acl,cache_strategy=readaround,fsid=f1a01d1580cd791565b1fdfb39ecc4a53c2bd88a71e58cfb90524c91852801ed,domain_id=ate-shared
+680 4801 0:412 / /host/var/lib/ate/image-plugin-cache/nydus-snapshotter/snapshots/42/mnt rw,relatime master:271 - erofs erofs ro,user_xattr,acl,cache_strategy=readaround,fsid=98a7b6d18b8c7d20e5aee73a90f391719fe95784b42a2eaeb6d7698484a1e76a,domain_id=ate-shared
+875 4801 0:735 / /host/var/lib/ate/image-plugin-cache/nydus-snapshotter/snapshots/43/mnt rw,relatime master:278 - erofs erofs ro,user_xattr,acl,cache_strategy=readaround,fsid=8dd0e5f35143e3265f11c48ca3ee0ea35ec115a2bbf51916b9e10885dc2fbe73,domain_id=ate-shared
+command terminated with exit code 1

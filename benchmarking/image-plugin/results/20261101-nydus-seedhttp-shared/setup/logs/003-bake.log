@@ -1,0 +1,13 @@
+# bake
+# start: 2026-11-01T07:06:21Z
+$ benchmarking/image-plugin/run.sh bake nydus
+
+NAME                       AGE
+imgbench-nydus-shared-w2   0s
+job.batch/imgbench-bake-0-nydus-shared-w2 created
+pod/imgbench-bake-0-nydus-shared-w2-jwm6f condition met
+nydus: imgbench-bake-0-nydus-shared-w2 pod imgbench-bake-0-nydus-shared-w2-jwm6f started 2026-11-01T07:06:37Z
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261101-nydus-seedhttp-shared/setup/bake-0/nydus-shared-w2/turns.jsonl: No such file or directory
+nydus: done (exit 0), 0 lines, 0 errors
+wrote 60 points to benchmarking/image-plugin/results/20261101-nydus-seedhttp-shared/setup/bake-0/nydus-shared-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-01T07:10:01Z

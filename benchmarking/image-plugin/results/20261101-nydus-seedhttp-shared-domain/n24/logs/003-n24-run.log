@@ -1,0 +1,11 @@
+# n24-run
+# start: 2026-11-01T07:55:51Z
+$ benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-shared-w2 created
+pod/imgbench-rep-1-nydus-shared-w2-4qrzc condition met
+nydus: imgbench-rep-1-nydus-shared-w2 pod imgbench-rep-1-nydus-shared-w2-4qrzc started 2026-11-01T07:56:07Z
+nydus: done (exit 0), 360 lines, 0
+0 errors
+wrote 40 points to benchmarking/image-plugin/results/20261101-nydus-seedhttp-shared-domain/n24/rep-1/nydus-shared-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-01T07:59:32Z
