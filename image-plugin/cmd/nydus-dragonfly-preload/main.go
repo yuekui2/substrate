@@ -55,6 +55,7 @@ func main() {
 		warmWorkers            = flag.Int("warm-workers", 32, "Parallel file reads per image during the warm-up")
 		warmTimeout            = flag.Duration("warm-timeout", 30*time.Second, "Maximum duration of the warm-up per image")
 		blobSeedURL            = flag.String("blob-seed-url", "", "Base URL of the blob seed servers to read manifests and bootstrap layers from before the registry; empty disables")
+		readAheadKB            = flag.Int("erofs-read-ahead-kb", 0, "read_ahead_kb to set on EROFS bdis after each mount; 0 leaves the kernel default")
 	)
 	flag.Parse()
 
@@ -96,6 +97,7 @@ func main() {
 		WarmWorkers:            *warmWorkers,
 		WarmTimeout:            *warmTimeout,
 		BlobSeedURL:            *blobSeedURL,
+		ReadAheadKB:            *readAheadKB,
 		ServerOpts:             opts,
 	})
 	if err != nil {

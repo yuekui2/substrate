@@ -19,12 +19,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -151,6 +153,9 @@ type NydusDragonflyConfig struct {
 	// BlobSeedURL is the base URL of the blob seed servers. When set,
 	// manifests and bootstrap layers are read from there first.
 	BlobSeedURL string
+	// ReadAheadKB, when positive, is written to read_ahead_kb of every EROFS
+	// bdi after a mount resolves. Each EROFS mount has its own erofs-N bdi.
+	ReadAheadKB int
 	ServerOpts  []plugin.Option
 }
 
@@ -181,6 +186,7 @@ type NydusDragonflyDriver struct {
 	warmTimeout            time.Duration
 	blobSeedURL            string
 	seedClient             *http.Client
+	readAheadKB            int
 
 	mu                sync.Mutex
 	cachedAnnotations map[string][]map[string]string
@@ -333,6 +339,7 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 		warmTimeout:            cfg.WarmTimeout,
 		blobSeedURL:            strings.TrimRight(cfg.BlobSeedURL, "/"),
 		seedClient:             &http.Client{Timeout: 30 * time.Second},
+		readAheadKB:            cfg.ReadAheadKB,
 		cachedAnnotations:      make(map[string][]map[string]string),
 		mountedDirs:            make(map[string][]string),
 	}
@@ -618,6 +625,9 @@ func (nd *NydusDragonflyDriver) resolveEROFSMount(_ context.Context, imageWorkDi
 			nd.mu.Lock()
 			nd.mountedDirs[imageWorkDir] = append(nd.mountedDirs[imageWorkDir], targetDir)
 			nd.mu.Unlock()
+			if err := nd.setEROFSReadAhead(); err != nil {
+				return "", err
+			}
 			return targetDir, nil
 		}
 	}
@@ -629,7 +639,39 @@ func (nd *NydusDragonflyDriver) resolveEROFSMount(_ context.Context, imageWorkDi
 	if err := nd.verifyMountIsEROFS(mountDir); err != nil {
 		return "", err
 	}
+	if err := nd.setEROFSReadAhead(); err != nil {
+		return "", err
+	}
 	return mountDir, nil
+}
+
+// setEROFSReadAhead writes nd.readAheadKB to every erofs-N bdi that differs.
+// A bdi can vanish when another image unmounts, so ENOENT is ignored.
+func (nd *NydusDragonflyDriver) setEROFSReadAhead() error {
+	if nd.readAheadKB <= 0 {
+		return nil
+	}
+	paths, err := filepath.Glob("/sys/class/bdi/erofs-*/read_ahead_kb")
+	if err != nil {
+		return err
+	}
+	want := strconv.Itoa(nd.readAheadKB)
+	for _, p := range paths {
+		cur, err := os.ReadFile(p)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", p, err)
+		}
+		if strings.TrimSpace(string(cur)) == want {
+			continue
+		}
+		if err := os.WriteFile(p, []byte(want), 0o644); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("setting %s: %w", p, err)
+		}
+	}
+	return nil
 }
 
 func (nd *NydusDragonflyDriver) unmountWorkDir(workDir string) {
