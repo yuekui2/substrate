@@ -843,6 +843,7 @@ items:
             cat > "${nydus_root}/nydusd-config.json" <<EOF
             {
               "type": "bootstrap",
+              "domain_id": "ate-shared",
               "config": {
                 "backend_type": "registry",
                 "backend_config": {
