@@ -1,0 +1,6 @@
+# tracer-ready
+# start: 2026-10-31T22:57:42Z
+$ kubectl -n imgbench rollout status ds/fstrace --timeout=5m
+
+daemon set "fstrace" successfully rolled out
+# exit: 0  end: 2026-10-31T22:57:44Z

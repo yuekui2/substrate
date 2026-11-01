@@ -1,0 +1,32 @@
+// Traces kernel fscache on-demand reads in nydusd. Per second: requests
+// picked up, replies, and how many distinct nydusd threads picked up
+// requests. At exit: requests per picking thread.
+tracepoint:cachefiles:cachefiles_ondemand_read
+{
+  @picked = count();
+  @sec_tids[tid] = 1;
+  @tids[tid] = count();
+}
+
+tracepoint:cachefiles:cachefiles_ondemand_cread
+{
+  @replied = count();
+}
+
+interval:s:1
+{
+  time("%H:%M:%S ");
+  print(@picked); print(@replied);
+  printf("@threads: %d\n", len(@sec_tids));
+  clear(@picked); clear(@replied); clear(@sec_tids);
+}
+
+interval:s:600
+{
+  exit();
+}
+
+END
+{
+  print(@tids);
+}

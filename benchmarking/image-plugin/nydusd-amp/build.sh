@@ -13,13 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Builds nydusd v2.3.0 with user-io-batch-size.patch and pushes an image
-# holding it at /nydusd. Prints the pushed reference with its digest.
+# Builds nydusd v2.3.0 with the patches in this directory and pushes an
+# image holding it at /nydusd. Prints the pushed reference with its digest.
 #
 #   build.sh <repo>
 #
-# The patch lets NYDUS_USER_IO_BATCH_SIZE set how far nydusd extends each
-# on-demand fscache read. Stock nydusd fixes it at 1 MiB in fscache mode.
+# user-io-batch-size.patch lets NYDUS_USER_IO_BATCH_SIZE set how far nydusd
+# extends each on-demand fscache read. Stock nydusd fixes it at 1 MiB in
+# fscache mode. fscache-dispatch.patch hands each fscache request to a pool
+# of worker threads instead of handling it on the thread that read it.
 # Needs docker, git and crane.
 
 set -euo pipefail
@@ -34,7 +36,9 @@ BUSYBOX=busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b
 mkdir -p "${WORK_DIR}/cargo-registry"
 if [[ ! -d "${WORK_DIR}/nydus" ]]; then
   git clone -q --depth 1 --branch "${NYDUS_VERSION}" https://github.com/dragonflyoss/nydus.git "${WORK_DIR}/nydus"
-  git -C "${WORK_DIR}/nydus" apply "${HERE}/user-io-batch-size.patch"
+  for p in "${HERE}"/*.patch; do
+    git -C "${WORK_DIR}/nydus" apply "${p}"
+  done
 fi
 
 docker run --rm -v "${WORK_DIR}/nydus:/nydus-rs" -v "${WORK_DIR}/cargo-registry:/root/.cargo/registry" \
@@ -47,7 +51,7 @@ rm -rf "${ctx}"
 mkdir -p "${ctx}"
 cp "${WORK_DIR}/nydus/target/x86_64-unknown-linux-musl/release/nydusd" "${ctx}/nydusd"
 printf 'FROM %s\nCOPY nydusd /nydusd\n' "${BUSYBOX}" >"${ctx}/Dockerfile"
-tag="${REPO}:${NYDUS_VERSION}-amp"
+tag="${REPO}:${NYDUS_VERSION}-amp-$(cat "${HERE}"/*.patch | sha256sum | cut -c1-8)"
 docker build -q -t "${tag}" "${ctx}" >/dev/null
 docker push -q "${tag}" >/dev/null
 echo "${REPO}@$(crane digest "${tag}")"

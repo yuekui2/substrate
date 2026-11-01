@@ -1,0 +1,82 @@
+diff --git a/service/src/fs_cache.rs b/service/src/fs_cache.rs
+index 680e120..c6d5374 100644
+--- a/service/src/fs_cache.rs
++++ b/service/src/fs_cache.rs
+@@ -256,6 +256,11 @@ pub struct FsCacheHandler {
+     poller: Mutex<Poll>,
+     waker: Arc<Waker>,
+     cache_dir: PathBuf,
++    // Benchmark patch: run_loop threads only read requests from the fscache
++    // fd and queue them; worker_loop threads handle them, so slow blob
++    // fetches don't stall the requests queued behind them.
++    req_tx: Mutex<std::sync::mpsc::Sender<Vec<u8>>>,
++    req_rx: Mutex<std::sync::mpsc::Receiver<Vec<u8>>>,
+ }
+ 
+ impl FsCacheHandler {
+@@ -322,6 +327,7 @@ impl FsCacheHandler {
+             blob_cache_mgr,
+         };
+         let cache_dir = PathBuf::new().join(dir).join("cache");
++        let (req_tx, req_rx) = std::sync::mpsc::channel();
+ 
+         Ok(FsCacheHandler {
+             active: AtomicBool::new(true),
+@@ -332,6 +338,8 @@ impl FsCacheHandler {
+             poller: Mutex::new(poller),
+             waker: Arc::new(waker),
+             cache_dir,
++            req_tx: Mutex::new(req_tx),
++            req_rx: Mutex::new(req_rx),
+         })
+     }
+ 
+@@ -407,7 +415,12 @@ impl FsCacheHandler {
+                 // A special behavior of old cachefile driver which returns zero if there's no
+                 // pending requests instead of `ErrorKind::WouldBlock`.
+                 0 => return Ok(()),
+-                _i if _i > 0 => self.handle_one_request(&buf[0..ret as usize])?,
++                _i if _i > 0 => {
++                    let msg = buf[0..ret as usize].to_vec();
++                    if self.req_tx.lock().unwrap().send(msg).is_err() {
++                        return Err(eother!("fscache: request queue closed"));
++                    }
++                }
+                 _ => {
+                     let err = Error::last_os_error();
+                     match err.kind() {
+@@ -420,6 +433,19 @@ impl FsCacheHandler {
+         }
+     }
+ 
++    /// Handle queued requests until the queue closes.
++    pub fn worker_loop(&self) {
++        loop {
++            let msg = match self.req_rx.lock().unwrap().recv() {
++                Ok(m) => m,
++                Err(_) => return,
++            };
++            if let Err(e) = self.handle_one_request(&msg) {
++                warn!("fscache: failed to handle request, {}", e);
++            }
++        }
++    }
++
+     fn handle_one_request(&self, buf: &[u8]) -> Result<()> {
+         let hdr = FsCacheMsgHeader::try_from(buf)?;
+         let buf = &buf[MSG_HEADER_SIZE..];
+diff --git a/service/src/singleton.rs b/service/src/singleton.rs
+index 6546c93..ab4cdee 100644
+--- a/service/src/singleton.rs
++++ b/service/src/singleton.rs
+@@ -53,6 +53,10 @@ impl ServiceController {
+         #[cfg(target_os = "linux")]
+         if self.fscache_enabled.load(Ordering::Acquire) {
+             if let Some(fscache) = self.fscache.lock().unwrap().clone() {
++                for _ in 0..fscache.working_threads() {
++                    let fscache2 = fscache.clone();
++                    std::thread::spawn(move || fscache2.worker_loop());
++                }
+                 for _ in 0..fscache.working_threads() {
+                     let fscache2 = fscache.clone();
+                     let waker = self.waker.clone();

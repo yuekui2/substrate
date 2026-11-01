@@ -1,0 +1,9 @@
+# tracer-ready
+# start: 2026-10-31T22:39:59Z
+$ kubectl -n imgbench rollout status ds/fstrace --timeout=5m
+
+Waiting for daemon set "fstrace" rollout to finish: 0 of 3 updated pods are available...
+Waiting for daemon set "fstrace" rollout to finish: 1 of 3 updated pods are available...
+Waiting for daemon set "fstrace" rollout to finish: 2 of 3 updated pods are available...
+daemon set "fstrace" successfully rolled out
+# exit: 0  end: 2026-10-31T22:40:00Z

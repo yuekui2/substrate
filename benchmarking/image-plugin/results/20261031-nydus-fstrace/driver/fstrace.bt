@@ -1,0 +1,36 @@
+// Traces kernel fscache on-demand reads: when nydusd picks up a request
+// (cachefiles_ondemand_read) and when it replies (cachefiles_ondemand_cread).
+// Prints per second: requests picked up, replies, max requests in service at
+// once, and the service time histogram (pickup to reply, microseconds).
+tracepoint:cachefiles:cachefiles_ondemand_read
+{
+  @start[args->msg_id] = nsecs;
+  @picked = count();
+  @inflight++;
+  if (@inflight > @maxinflight) { @maxinflight = @inflight; }
+  @bytes = sum(args->len);
+}
+
+tracepoint:cachefiles:cachefiles_ondemand_cread
+/@start[args->msg_id]/
+{
+  @svc_us = hist((nsecs - @start[args->msg_id]) / 1000);
+  @svc_total_us = sum((nsecs - @start[args->msg_id]) / 1000);
+  delete(@start[args->msg_id]);
+  @replied = count();
+  @inflight--;
+}
+
+interval:s:1
+{
+  time("%H:%M:%S ");
+  print(@picked); print(@replied); print(@maxinflight); print(@bytes); print(@svc_total_us);
+  clear(@picked); clear(@replied); clear(@bytes); clear(@svc_total_us);
+  @maxinflight = @inflight;
+}
+
+END
+{
+  print(@svc_us);
+  clear(@start);
+}
