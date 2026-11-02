@@ -1,0 +1,8 @@
+# rep1-push-lists
+# start: 2026-11-02T21:13:41Z
+$ benchmarking/image-plugin/warm-lists.sh push /usr/local/google/home/kuiyue/.gemini/jetski/brain/d307c843-d9dd-4a26-8249-2733d9f2ff6a/scratch/warm-lists-mapped
+
+pushed to pod/image-plugin-nydus-dragonfly-d8tw6
+pushed to pod/image-plugin-nydus-dragonfly-ttbcc
+pushed to pod/image-plugin-nydus-dragonfly-wkbtc
+# exit: 0  end: 2026-11-02T21:13:46Z

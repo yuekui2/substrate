@@ -1,0 +1,32 @@
+2026/11/02 21:09:04 Using base gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99 for go.ate.dev/substrate/image-plugin/cmd/nydus-dragonfly-preload
+2026/11/02 21:09:05 git is in a dirty state
+Please check in your pipeline what can be changing the following files:
+ M image-plugin/cmd/nydus-dragonfly-preload/warm.go
+ M image-plugin/cmd/nydus-dragonfly-preload/warm_test.go
+?? benchmarking/image-plugin/results/20261102-nydus-readset/
+?? benchmarking/image-plugin/results/20261102-nydus-warm-mapped/
+
+2026/11/02 21:09:05 Building go.ate.dev/substrate/image-plugin/cmd/nydus-dragonfly-preload for linux/amd64
+2026/11/02 21:09:09 Publishing us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload:latest
+2026/11/02 21:09:11 existing blob: sha256:52630fc75a18675c530ed9eba5f55eca09b03e91bd5bc15307918bbc1a7e7296
+2026/11/02 21:09:11 existing blob: sha256:4a2796d8ea5ef7ae1a64ba20ba56759987f49f2ea2091ddce6bade81c0ad1fa6
+2026/11/02 21:09:11 existing blob: sha256:a99dd1dd5eaf3e2099256f1a75c8e4c02a1d3a81b8e2bfd1735b1dd166b68a12
+2026/11/02 21:09:11 existing blob: sha256:2cc7ee286bf3a9e6af5f71756d7fc8e22e23ce65fec9047d774511ffcef79fa8
+2026/11/02 21:09:11 existing blob: sha256:7c12895b777bcaa8ccae0605b4de635b68fc32d60fa08f421dc3818bf55ee212
+2026/11/02 21:09:11 existing blob: sha256:b839dfae01f66e15c6a8b63520557ed315bdfe036342fa7a0c537259f10d7a9a
+2026/11/02 21:09:11 existing blob: sha256:ec1b04bf2eb2122e86781f791b03ea0cf6588694e0f4a88245250224c186cdf0
+2026/11/02 21:09:11 existing blob: sha256:2780920e5dbfbe103d03a583ed75345306e572ec5a48cb10361f046767d9f29a
+2026/11/02 21:09:11 existing blob: sha256:ebddc55facdc6b1f7e0f30816a5fc7cc62f38abdf76c0a8b0a0ce52085754795
+2026/11/02 21:09:11 existing blob: sha256:dd64bf2dd177757451a98fcdc999a339c35dee5d9872d8f4dc69c8f3c4dd0112
+2026/11/02 21:09:11 existing blob: sha256:c172f21841dff4c8cf45cde46589c1c2616cefe7e819965e92e6d3475c428aa0
+2026/11/02 21:09:11 existing blob: sha256:617b009a71d625ef77982b400cb9939dd5ed9809ebf50681a0520b7c08c0ca89
+2026/11/02 21:09:11 existing blob: sha256:d6b1b89eccacc15c2420b2776d72c1dae334a00805ed9af54bf2f71e4d536f28
+2026/11/02 21:09:11 existing blob: sha256:3214acf345c0cc6bbdb56b698a41ccdefc624a09d6beb0d38b5de0b2303ecaf4
+2026/11/02 21:09:12 pushed blob: sha256:af96385839e70b26e56a9f0d3082bfd98fb79171debc25092486f625ddff9aa9
+2026/11/02 21:09:12 pushed blob: sha256:188802c4fe4889a9f26ed1316646de1bd902f9618e808d9527fc8ee372b62693
+2026/11/02 21:09:12 pushed blob: sha256:109f1e460072224e0100b32a86e8d502fc5b443e44c0632169b53695b0a73da9
+2026/11/02 21:09:12 pushed blob: sha256:450541640d8193cf82e0be756d50100c8150fc8e1b8dfa19e669d88db71d5c56
+2026/11/02 21:09:12 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload:sha256-73fced4a755c9be6d7c218fe230305966d554a2fb1e93743034a888900bcb8b4.sbom: digest: sha256:e29bdd4b62616101b550f679191eb3b3664544b337a4159ea4d00585dd515eaa size: 374
+2026/11/02 21:09:12 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload:sha256-73fced4a755c9be6d7c218fe230305966d554a2fb1e93743034a888900bcb8b4.sbom
+2026/11/02 21:09:12 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload:latest: digest: sha256:73fced4a755c9be6d7c218fe230305966d554a2fb1e93743034a888900bcb8b4 size: 2938
+2026/11/02 21:09:12 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload@sha256:73fced4a755c9be6d7c218fe230305966d554a2fb1e93743034a888900bcb8b4
