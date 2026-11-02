@@ -1,0 +1,3 @@
+image-plugin-nydus-dragonfly-gmdgl fill-failures 0
+image-plugin-nydus-dragonfly-mm4wf fill-failures 1
+image-plugin-nydus-dragonfly-wqmft fill-failures 1

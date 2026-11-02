@@ -1,0 +1,3 @@
+image-plugin-nydus-dragonfly-5wns2 fill-failures 2
+image-plugin-nydus-dragonfly-pgxch fill-failures 1
+image-plugin-nydus-dragonfly-pt4tj fill-failures 1
