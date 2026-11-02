@@ -156,7 +156,11 @@ type NydusDragonflyConfig struct {
 	// ReadAheadKB, when positive, is written to read_ahead_kb of every EROFS
 	// bdi after a mount resolves. Each EROFS mount has its own erofs-N bdi.
 	ReadAheadKB int
-	ServerOpts  []plugin.Option
+	// Layered, when set, mounts the parent chain and the top layer as two
+	// EROFS mounts bound with nydusd directly. Images whose parent chain
+	// bootstrap is not on the seeds go through the snapshotter.
+	Layered    *LayeredConfig
+	ServerOpts []plugin.Option
 }
 
 // NydusDragonflyDriver wraps the shared plugin.Driver with strict Kernel EROFS
@@ -187,6 +191,7 @@ type NydusDragonflyDriver struct {
 	blobSeedURL            string
 	seedClient             *http.Client
 	readAheadKB            int
+	layered                *layeredMounter
 
 	mu                sync.Mutex
 	cachedAnnotations map[string][]map[string]string
@@ -374,6 +379,12 @@ func NewNydusDragonfly(cfg NydusDragonflyConfig) (*NydusDragonflyDriver, error) 
 	if nd.layerAnnotations == nil {
 		nd.layerAnnotations = nd.defaultLayerAnnotations
 	}
+	if cfg.Layered != nil {
+		if nd.blobSeedURL == "" {
+			return nil, errors.New("layered mounts read bootstraps from the blob seeds; set the blob seed URL")
+		}
+		nd.layered = newLayeredMounter(*cfg.Layered, nd.blobSeedURL, base.Keychain(), nd.mountFS, nd.unmountFS, nd.verifyMountIsEROFS)
+	}
 	return nd, nil
 }
 
@@ -461,6 +472,26 @@ func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.Mou
 	t := time.Now()
 	nd.dockerSyncer.Sync(ctx, nd.Driver.Keychain(), env.ImageRef, env.AuthConfig, true)
 	syncDur = time.Since(t)
+
+	if nd.layered != nil {
+		anns, err := nd.getLayerAnnotations(ctx, env.ImageRef, env.AuthConfig)
+		if err != nil {
+			return nil, err
+		}
+		data, err := layeredDataDigests(env.LayerDigests, anns)
+		if err != nil {
+			return nil, err
+		}
+		dirs, err := nd.layered.mount(ctx, env.ImageRef, env.ImageWorkDir, data)
+		if err == nil {
+			return &plugin.MountedLayers{MountDirs: dirs}, nil
+		}
+		if !errors.Is(err, errNoParentBootstrap) {
+			return nil, fmt.Errorf("layered mount: %w", err)
+		}
+		slog.InfoContext(ctx, "No parent bootstrap on the seeds, mounting through the snapshotter",
+			slog.String("image", env.ImageRef))
+	}
 
 	imgKey := plugin.SanitizePathKey(env.ImageRef)
 	runID := fmt.Sprintf("%x", time.Now().UnixNano())
@@ -712,6 +743,9 @@ func (nd *NydusDragonflyDriver) unmountWorkDir(workDir string) {
 	nd.mu.Unlock()
 	for i := len(dirs) - 1; i >= 0; i-- {
 		_ = nd.unmountFS(dirs[i], syscall.MNT_DETACH)
+	}
+	if nd.layered != nil {
+		nd.layered.release(workDir)
 	}
 }
 

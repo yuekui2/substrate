@@ -396,6 +396,10 @@ data:
           default_type application/vnd.oci.image.manifest.v1+json;
           try_files /$1 =503;
         }
+        location ~ "^/parentboots/sha256:([0-9a-f]{64})$" {
+          root /blobs/parentboots;
+          try_files /$1 =404;
+        }
         location / {
           return 503;
         }
@@ -972,6 +976,9 @@ items:
             mountPropagation: Bidirectional
           - name: run-nydus
             mountPath: /run/containerd-nydus
+          - name: kube-home
+            mountPath: /home/kubernetes
+            readOnly: true
         volumes:
         - name: kube-home
           hostPath:
