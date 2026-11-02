@@ -1,0 +1,3 @@
+2026/11/02 00:30:21 INFO serving results addr=:8080 dir=/results
+2026/11/02 00:30:22 INFO templates ready ready=96 images=96 actors=96
+2026/11/02 00:31:34 INFO run done arm=nydus rep=1 elapsed=1m12s
