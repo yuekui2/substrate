@@ -1,0 +1,842 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dragonfly-redis
+  namespace: ate-system
+  labels:
+    app: dragonfly-redis
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  ports:
+  - name: redis
+    port: 6379
+    targetPort: 6379
+  selector:
+    app: dragonfly-redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dragonfly-redis
+  namespace: ate-system
+  labels:
+    app: dragonfly-redis
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dragonfly-redis
+  template:
+    metadata:
+      labels:
+        app: dragonfly-redis
+        ate.dev/image-plugin: nydus-dragonfly
+    spec:
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: redis
+        image: redis:7-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
+        args:
+        - redis-server
+        - --requirepass
+        - dragonfly
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dragonfly-mysql
+  namespace: ate-system
+  labels:
+    app: dragonfly-mysql
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+  selector:
+    app: dragonfly-mysql
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dragonfly-mysql
+  namespace: ate-system
+  labels:
+    app: dragonfly-mysql
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dragonfly-mysql
+  template:
+    metadata:
+      labels:
+        app: dragonfly-mysql
+        ate.dev/image-plugin: nydus-dragonfly
+    spec:
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: mysql
+        image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: dragonfly
+        - name: MYSQL_DATABASE
+          value: manager
+        ports:
+        - containerPort: 3306
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dragonfly-controlplane-config
+  namespace: ate-system
+  labels:
+    ate.dev/image-plugin: nydus-dragonfly
+data:
+  manager.yaml: "server:\n  rest:\n    addr: :8080\n  grpc:\n    listenIP: 0.0.0.0\n\
+    \    port:\n      start: 65003\n      end: 65003\nauth:\n  jwt:\n    realm: Dragonfly\n\
+    \    key: ZHJhZ29uZmx5Cg==\n    timeout: 48h\n    maxRefresh: 48h\ndatabase:\n\
+    \  type: mysql\n  mysql:\n    user: root\n    password: dragonfly\n    host: dragonfly-mysql.ate-system.svc.cluster.local\n\
+    \    port: 3306\n    dbname: manager\n    migrate: true\n  redis:\n    addrs:\n\
+    \    - dragonfly-redis.ate-system.svc.cluster.local:6379\n    password: dragonfly\n\
+    \    db: 0\n    brokerDB: 1\n    backendDB: 2\ncache:\n  redis:\n    ttl: 30s\n\
+    \  local:\n    size: 10000\n    ttl: 30s\nmetrics:\n  enable: false\nconsole:\
+    \ true\n"
+  scheduler.yaml: "server:\n  listenIP: 0.0.0.0\n  port: 8002\n  advertisePort: 8002\n\
+    scheduler:\n  algorithm: default\n  # A peer may go to the registry while at most\
+    \ backToSourceCount peers\n  # of the task have. The rest download pieces from\
+    \ them. Seeds are\n  # preloaded, so a piece with no parent is rare: go to the\
+    \ registry\n  # after one lookup instead of waiting for one.\n  backToSourceCount:\
+    \ 3\n  retryBackToSourceLimit: 1\n  retryLimit: 20\n  retryInterval: 100ms\n \
+    \ gc:\n    pieceDownloadTimeout: 30m\n    peerGCInterval: 10m\n    peerTTL: 24h\n\
+    \    taskGCInterval: 10m\n    hostGCInterval: 30m\n    hostTTL: 48h\nmanager:\n\
+    \  addr: dragonfly-manager.ate-system.svc.cluster.local:65003\n  schedulerClusterID:\
+    \ 1\n  keepAlive:\n    interval: 5s\ndynConfig:\n  refreshInterval: 10s\nhost:\n\
+    \  idc: gke\n  location: us-central1-a\njob:\n  enable: false\nmetrics:\n  enable:\
+    \ true\n  addr: :8000\nconsole: true\n"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dragonfly-manager
+  namespace: ate-system
+  labels:
+    app: dragonfly-manager
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  ports:
+  - name: rest
+    port: 8080
+    targetPort: 8080
+  - name: grpc
+    port: 65003
+    targetPort: 65003
+  selector:
+    app: dragonfly-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dragonfly-manager
+  namespace: ate-system
+  labels:
+    app: dragonfly-manager
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dragonfly-manager
+  template:
+    metadata:
+      labels:
+        app: dragonfly-manager
+        ate.dev/image-plugin: nydus-dragonfly
+    spec:
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      initContainers:
+      - name: wait-for-db
+        image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+        command:
+        - /bin/sh
+        - -ec
+        - "until nc -z dragonfly-redis.ate-system.svc.cluster.local 6379 && nc -z\
+          \ dragonfly-mysql.ate-system.svc.cluster.local 3306; do\n  echo \"Waiting\
+          \ for dragonfly-redis and dragonfly-mysql...\"\n  sleep 2\ndone\n"
+      containers:
+      - name: manager
+        image: dragonflyoss/manager:v2.5.3@sha256:c329042d7b79f59ca92a38bd57512f6e56c8a8a0354c855515849f38d67be227
+        ports:
+        - containerPort: 8080
+        - containerPort: 65003
+        volumeMounts:
+        - name: config
+          mountPath: /etc/dragonfly
+      volumes:
+      - name: config
+        configMap:
+          name: dragonfly-controlplane-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dragonfly-scheduler
+  namespace: ate-system
+  labels:
+    app: dragonfly-scheduler
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  ports:
+  - name: grpc
+    port: 8002
+    targetPort: 8002
+  selector:
+    app: dragonfly-scheduler
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dragonfly-scheduler
+  namespace: ate-system
+  labels:
+    app: dragonfly-scheduler
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dragonfly-scheduler
+  template:
+    metadata:
+      labels:
+        app: dragonfly-scheduler
+        ate.dev/image-plugin: nydus-dragonfly
+    spec:
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      initContainers:
+      - name: wait-for-manager
+        image: busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+        command:
+        - /bin/sh
+        - -ec
+        - "until nc -z dragonfly-manager.ate-system.svc.cluster.local 65003; do\n\
+          \  echo \"Waiting for dragonfly-manager:65003...\"\n  sleep 2\ndone\n"
+      containers:
+      - name: scheduler
+        image: dragonflyoss/scheduler:v2.5.3@sha256:8f5ef78dab479650723bb5f1937a92bfbac12e9e552fb2ee07979368320cc2e6
+        ports:
+        - containerPort: 8002
+        - name: metrics
+          containerPort: 8000
+        volumeMounts:
+        - name: config
+          mountPath: /etc/dragonfly
+      volumes:
+      - name: config
+        configMap:
+          name: dragonfly-controlplane-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nydus-blob-seed
+  namespace: ate-system
+data:
+  nginx.conf: "worker_processes auto;\nevents {\n  worker_connections 8192;\n}\nhttp\
+    \ {\n  access_log off;\n  sendfile on;\n  tcp_nopush on;\n  tcp_nodelay on;\n\
+    \  keepalive_timeout 300s;\n  keepalive_requests 1000000;\n  open_file_cache max=20000\
+    \ inactive=10m;\n  default_type application/octet-stream;\n  server {\n    listen\
+    \ 4010 reuseport;\n    location = /v2 {\n      return 200;\n    }\n    location\
+    \ = /v2/ {\n      return 200;\n    }\n    location ~ \"^/v2/.+/blobs/sha256:([0-9a-f]{64})$\"\
+    \ {\n      root /blobs;\n      try_files /$1 =503;\n    }\n    location ~ \"^/v2/.+/manifests/sha256:([0-9a-f]{64})$\"\
+    \ {\n      root /blobs/manifests;\n      default_type application/vnd.oci.image.manifest.v1+json;\n\
+    \      try_files /$1 =503;\n    }\n    location / {\n      return 503;\n    }\n\
+    \  }\n}\n"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nydus-blob-seed
+  namespace: ate-system
+spec:
+  selector:
+    app: nydus-blob-seed
+  ports:
+  - name: http
+    port: 4010
+    targetPort: 4010
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nydus-blob-seed
+  namespace: ate-system
+  labels:
+    app: nydus-blob-seed
+spec:
+  selector:
+    matchLabels:
+      app: nydus-blob-seed
+  template:
+    metadata:
+      labels:
+        app: nydus-blob-seed
+    spec:
+      hostNetwork: true
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: ate.dev/dragonfly-seed
+                operator: In
+                values:
+                - 'true'
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: nginx
+        image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+        ports:
+        - containerPort: 4010
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: blobs
+          mountPath: /blobs
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: nydus-blob-seed
+      - name: blobs
+        hostPath:
+          path: /var/lib/ate/nydus-seed-blobs
+          type: DirectoryOrCreate
+      nodeSelector:
+        bench-arm: nydus-seed
+---
+apiVersion: v1
+kind: List
+items:
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    name: image-plugin-nydus-dragonfly
+    namespace: ate-system
+    labels:
+      app: ate-image-plugin
+      ate.dev/image-plugin: nydus-dragonfly
+  spec:
+    selector:
+      matchLabels:
+        app: ate-image-plugin
+        ate.dev/image-plugin: nydus-dragonfly
+        ate.dev/dragonfly-seed: 'false'
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 10%
+    template:
+      metadata:
+        labels:
+          app: ate-image-plugin
+          ate.dev/image-plugin: nydus-dragonfly
+          ate.dev/dragonfly-seed: 'false'
+      spec:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: ate.dev/dragonfly-seed
+                  operator: NotIn
+                  values:
+                  - 'true'
+        hostPID: true
+        hostNetwork: true
+        terminationGracePeriodSeconds: 3600
+        dnsPolicy: ClusterFirstWithHostNet
+        tolerations: &id001
+        - key: ate.dev/sandboxClass
+          operator: Exists
+          effect: NoSchedule
+        initContainers:
+        - &id002
+          name: install-nydusd-bootfill
+          image: us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/nydusd@sha256:02dc458b79a3bf1c4c4c40b003043ac7a85bd250e05ba0a54dacec526b4052d4
+          command:
+          - /bin/sh
+          - -ec
+          - mkdir -p /home/kubernetes/bin && cp /nydusd /home/kubernetes/bin/nydusd-bootfill.tmp
+            && mv /home/kubernetes/bin/nydusd-bootfill.tmp /home/kubernetes/bin/nydusd-bootfill
+          volumeMounts:
+          - name: kube-home
+            mountPath: /home/kubernetes
+        - &id003
+          name: build-erofs-modules
+          image: ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
+          env:
+          - name: KUBE_HOME
+            value: /home/kubernetes
+          command:
+          - /bin/bash
+          - -euo
+          - pipefail
+          - -c
+          - "kver=\"$(uname -r)\"\nconfig=\"/boot/config-${kver}\"\nout=\"${KUBE_HOME}/bin/modules/${kver}\"\
+            \nif grep -qx CONFIG_EROFS_FS_ONDEMAND=y \"${config}\" && grep -qx CONFIG_CACHEFILES_ONDEMAND=y\
+            \ \"${config}\"; then\n  echo \"${kver} has on-demand EROFS and cachefiles;\
+            \ nothing to build.\"\n  exit 0\nfi\nif [[ -f \"${out}/erofs.ko\" && -f\
+            \ \"${out}/cachefiles.ko\" ]]; then\n  echo \"Using existing modules in\
+            \ ${out}.\"\n  exit 0\nfi\n\n# /proc/version_signature looks like \"Ubuntu\
+            \ 6.8.0-1062.70-gke 6.8.12\".\nread -r _ sig _ < /proc/version_signature\n\
+            version=\"${sig%-*}\"\nsrc=\"linux-${sig##*-}\"\nlaunchpad=\"https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/${src}/${version}\"\
+            \npool=\"http://archive.ubuntu.com/ubuntu/pool/main/l/${src}\"\necho \"\
+            Building on-demand erofs and cachefiles for ${kver} from ${src} ${version}.\"\
+            \n\napt-get update -qq\nDEBIAN_FRONTEND=noninteractive apt-get install\
+            \ -y -qq --no-install-recommends \\\n  build-essential ca-certificates\
+            \ curl kmod libelf1t64 patchutils >/dev/null\n\n# The archive pool is\
+            \ fast but drops old diffs. Launchpad keeps\n# every version. The .dsc\
+            \ checksums cover both. Some archive\n# servers stall and Launchpad sometimes\
+            \ returns 502, so drop a\n# connection slower than 1 MB/s for 20s and\
+            \ try again. Each attempt\n# is a new curl, so it resolves the name again\
+            \ and may reach a\n# different server. -C - keeps what earlier attempts\
+            \ downloaded.\nfetch() {\n  local name=\"$1\" i base\n  shift\n  for i\
+            \ in {1..10}; do\n    for base in \"$@\"; do\n      curl -fsSL -C - --speed-limit\
+            \ 1000000 --speed-time 20 -o \"${name}\" \"${base}/${name}\" && return\
+            \ 0\n    done\n    sleep 5\n  done\n  echo \"FATAL: could not download\
+            \ ${name}.\" >&2\n  return 1\n}\ncd /build\nfetch \"${src}_${version}.dsc\"\
+            \ \"${launchpad}\"\nawk '/^Checksums-Sha256:/ {f=1; next} /^[^ ]/ {f=0}\
+            \ f {print $1 \"  \" $3}' \"${src}_${version}.dsc\" > SHA256SUMS\nwhile\
+            \ read -r _ name; do\n  fetch \"${name}\" \"${pool}\" \"${launchpad}\"\
+            \ndone < SHA256SUMS\nsha256sum -c SHA256SUMS\n\n# Extract only the two\
+            \ module directories, then apply the Ubuntu\n# diff to them.\nmkdir src\n\
+            tar -xzf \"${src}\"_*.orig.tar.gz -C src --strip-components=1 --wildcards\
+            \ '*/fs/erofs/*' '*/fs/cachefiles/*'\nzcat \"${src}_${version}.diff.gz\"\
+            \ | filterdiff -p1 -i 'fs/erofs/*' -i 'fs/cachefiles/*' | patch -d src\
+            \ -p1\n\n# Kbuild reads the rest of the module config from the headers.\n\
+            sed -i '1i CONFIG_EROFS_FS_ONDEMAND := y\\nccflags-y += -DCONFIG_EROFS_FS_ONDEMAND=1'\
+            \ src/fs/erofs/Makefile\nsed -i '1i CONFIG_CACHEFILES_ONDEMAND := y\\\
+            nccflags-y += -DCONFIG_CACHEFILES_ONDEMAND=1' src/fs/cachefiles/Makefile\n\
+            for m in erofs cachefiles; do\n  make -C \"/lib/modules/${kver}/build\"\
+            \ M=\"/build/src/fs/${m}\" CC=x86_64-linux-gnu-gcc-13 -j\"$(nproc)\" modules\n\
+            \  vermagic=\"$(modinfo -F vermagic \"src/fs/${m}/${m}.ko\")\"\n  if [[\
+            \ \"${vermagic%% *}\" != \"${kver}\" ]]; then\n    echo \"FATAL: ${m}.ko\
+            \ vermagic ${vermagic} does not match ${kver}.\" >&2\n    exit 1\n  fi\n\
+            done\n\nrm -rf \"${out}.tmp\"\nmkdir -p \"${out}.tmp\"\ncp src/fs/erofs/erofs.ko\
+            \ src/fs/cachefiles/cachefiles.ko \"${out}.tmp/\"\nrm -rf \"${out}\"\n\
+            mv \"${out}.tmp\" \"${out}\"\necho \"Installed erofs.ko and cachefiles.ko\
+            \ in ${out}.\"\n"
+          volumeMounts:
+          - name: kube-home
+            mountPath: /home/kubernetes
+          - name: boot
+            mountPath: /boot
+            readOnly: true
+          - name: lib-modules
+            mountPath: /lib/modules
+            readOnly: true
+          - name: usr-src
+            mountPath: /usr/src
+            readOnly: true
+          - name: kmod-build
+            mountPath: /build
+        containers: &id004
+        - name: dfdaemon
+          image: dragonflyoss/client:v1.5.10@sha256:1025b0ef1ec1f9684600ce722f66e5776129cc42fd2dfde5784514d5b7dca942
+          env:
+          - name: NODE_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          - name: SEED_PEER
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['ate.dev/dragonfly-seed']
+          - name: DRAGONFLY_PREFETCH
+            value: 'false'
+          command:
+          - /bin/sh
+          - -ec
+          - "mkdir -p /etc/dragonfly /var/run/dragonfly\ncat > /etc/dragonfly/dfdaemon.yaml\
+            \ <<EOF\nhost:\n  schedulerClusterID: 1\n  idc: gke\n  location: us-central1-a\n\
+            \  ip: ${NODE_IP}\ndownload:\n  server:\n    socketPath: /var/run/dragonfly/dfdaemon.sock\n\
+            \  concurrentPieceCount: 16\n  backToSourceConcurrentPieceCount: 16\n\
+            upload:\n  server:\n    port: 4000\n    requestRateLimit: 10000\nmanager:\n\
+            \  addr: http://dragonfly-manager.ate-system.svc.cluster.local:65003\n\
+            scheduler:\n  announceInterval: 1m\n  enableBackToSource: true\nseedPeer:\n\
+            \  enable: ${SEED_PEER}\n  type: super\nstorage:\n  server:\n    tcpPort:\
+            \ 4005\n    quicPort: 4006\n  dir: /var/lib/dragonfly\n  keep: true\n\
+            # Tasks stay on disk for a whole run so peers can keep fetching\n# pieces\
+            \ from them.\ngc:\n  policy:\n    taskTTL: 24h\n    diskHighThresholdPercent:\
+            \ 90\n    diskLowThresholdPercent: 85\nproxy:\n  server:\n    ip: 127.0.0.1\n\
+            \    port: 4001\n    # nydusd treats the 429 of the proxy rate limiter\
+            \ as a\n    # failed read, so keep the limit out of reach.\n    requestRateLimit:\
+            \ 100000\n  rules:\n  # nydusd reads ranges of at most a few chunks. With\
+            \ the default\n  # auto policy, dfdaemon fetches ranges up to 4 MiB straight\
+            \ from\n  # the registry and never asks the preloaded seeds.\n  - regex:\
+            \ 'blobs/sha256.*'\n    schedulingPolicy: always\n  registryMirror:\n\
+            \    addr: https://us-central1-docker.pkg.dev\n    enableTaskIDBasedBlobDigest:\
+            \ true\n  prefetch: ${DRAGONFLY_PREFETCH}\nhealth:\n  server:\n    port:\
+            \ 4003\nmetrics:\n  server:\n    port: 4002\nEOF\nexec /usr/local/bin/dfdaemon\
+            \ --config /etc/dragonfly/dfdaemon.yaml --console\n"
+          ports:
+          - name: metrics
+            containerPort: 4002
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - name: run-ate
+            mountPath: /run/ate
+          - name: var-lib-dragonfly
+            mountPath: /var/lib/dragonfly
+        - name: nydus-snapshotter
+          image: debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
+          env:
+          - name: KUBE_HOME
+            value: /home/kubernetes
+          - name: NYDUS_VERSION
+            value: 2.3.0
+          - name: NYDUS_SNAPSHOTTER_VERSION
+            value: 0.15.0
+          - name: DRAGONFLY_PROXY_ADDR
+            value: http://127.0.0.1:4001
+          - name: DRAGONFLY_HEALTH_URL
+            value: http://127.0.0.1:4003/healthy
+          - name: NYDUS_PREFETCH
+            value: 'false'
+          command:
+          - nsenter
+          - -t
+          - '1'
+          - -m
+          - -u
+          - -i
+          - -n
+          - --
+          - /bin/bash
+          - -ec
+          - "readonly nydus_root=\"/var/lib/ate/image-plugin-cache/nydus-snapshotter\"\
+            \nreadonly nydus_run=\"/run/containerd-nydus\"\nreadonly nydusd_bin=\"\
+            ${KUBE_HOME}/bin/nydusd-bootfill\"\nreadonly snapshotter_bin=\"${KUBE_HOME}/bin/containerd-nydus-grpc\"\
+            \nreadonly df_addr=\"${DRAGONFLY_PROXY_ADDR}\"\n# nydusd reads blobs from\
+            \ the seeds' HTTP servers first, through the\n# nydus-blob-seed Service.\
+            \ Kubernetes sets these from the Service.\n: \"${NYDUS_BLOB_SEED_SERVICE_HOST:?}\"\
+            \ \"${NYDUS_BLOB_SEED_SERVICE_PORT:?}\"\nreadonly df_health=\"${DRAGONFLY_HEALTH_URL}\"\
+            \n\nrm -f \"${nydus_run}/containerd-nydus-grpc.sock\" /run/ate/drain-complete\n\
+            \n# build-erofs-modules leaves on-demand builds here unless the kernel\n\
+            # already has on-demand fscache. Stock cachefiles also exports\n# cachefiles_ondemand_*\
+            \ tracepoints, so match whole function names\n# that only on-demand builds\
+            \ contain.\nhas_ondemand() {\n  grep -qw cachefiles_ondemand_init_object\
+            \ /proc/kallsyms && grep -qw erofs_fscache_register_fs /proc/kallsyms\n\
+            }\nreadonly mod_dir=\"${KUBE_HOME}/bin/modules/$(uname -r)\"\nif [[ -f\
+            \ \"${mod_dir}/erofs.ko\" ]] && ! has_ondemand; then\n  modprobe -a $(modinfo\
+            \ -F depends \"${mod_dir}/erofs.ko\" \"${mod_dir}/cachefiles.ko\" | tr\
+            \ ',' '\\n' | sort -u)\n  for m in cachefiles erofs; do\n    if [[ -d\
+            \ \"/sys/module/${m}\" ]]; then\n      rmmod \"${m}\"\n    fi\n  done\n\
+            \  insmod \"${mod_dir}/erofs.ko\"\n  insmod \"${mod_dir}/cachefiles.ko\"\
+            \nelse\n  modprobe erofs\n  modprobe cachefiles\nfi\n\nif ! has_ondemand;\
+            \ then\n  echo \"FATAL: erofs or cachefiles lacks on-demand fscache support.\"\
+            \ >&2\n  exit 1\nfi\n\nif ! grep -qw erofs /proc/filesystems; then\n \
+            \ echo \"FATAL: kernel EROFS is not registered in /proc/filesystems; fusedev\
+            \ fallback is disabled.\" >&2\n  exit 1\nfi\nif [[ ! -e /dev/cachefiles\
+            \ ]]; then\n  echo \"FATAL: /dev/cachefiles is not available; fusedev\
+            \ fallback is disabled.\" >&2\n  exit 1\nfi\n\nmkdir -p \"${KUBE_HOME}/bin\"\
+            \ \"${nydus_root}/cache/metadata\" \"${nydus_root}/mnt\" \"${nydus_run}/docker\"\
+            \ /run/ate\n\nif [[ ! -x \"${KUBE_HOME}/bin/nydus-image\" ]]; then\n \
+            \ curl -fsSL \"https://github.com/dragonflyoss/nydus/releases/download/v${NYDUS_VERSION}/nydus-static-v${NYDUS_VERSION}-linux-amd64.tgz\"\
+            \ \\\n    | tar -xz -C \"${KUBE_HOME}/bin\" --strip-components=1 nydus-static/nydusd\
+            \ nydus-static/nydus-image nydus-static/nydusify nydus-static/nydusctl\n\
+            \  chmod +x \"${KUBE_HOME}/bin/nydusd\" \"${KUBE_HOME}/bin/nydus-image\"\
+            \ \"${KUBE_HOME}/bin/nydusify\" \"${KUBE_HOME}/bin/nydusctl\"\nfi\n\n\
+            if [[ ! -x \"${snapshotter_bin}\" ]]; then\n  curl -fsSL \"https://github.com/containerd/nydus-snapshotter/releases/download/v${NYDUS_SNAPSHOTTER_VERSION}/nydus-snapshotter-v${NYDUS_SNAPSHOTTER_VERSION}-linux-amd64.tar.gz\"\
+            \ \\\n    | tar -xz -C \"${KUBE_HOME}/bin\" --strip-components=1 bin/containerd-nydus-grpc\
+            \ bin/nydus-overlayfs\n  chmod +x \"${KUBE_HOME}/bin/containerd-nydus-grpc\"\
+            \ \"${KUBE_HOME}/bin/nydus-overlayfs\"\nfi\n\necho \"Waiting for local\
+            \ Dragonfly dfdaemon health endpoint at ${df_health}...\"\nfor _ in $(seq\
+            \ 1 120); do\n  if curl -fsS \"${df_health}\" >/dev/null 2>&1; then\n\
+            \    break\n  fi\n  sleep 1\ndone\n\nexport PATH=\"${KUBE_HOME}/bin:${PATH}\"\
+            \nexport DOCKER_CONFIG=\"${nydus_run}/docker\"\nif [[ ! -f \"${DOCKER_CONFIG}/config.json\"\
+            \ ]]; then\n  echo '{\"auths\":{}}' > \"${DOCKER_CONFIG}/config.json\"\
+            \nfi\n\n# Clean up any stale EROFS mounts or orphaned snapshotter metadata\
+            \ from previous runs\nfor mnt in $(awk '$3 == \"erofs\" {print $2}' /proc/mounts);\
+            \ do\n  umount -l \"${mnt}\" 2>/dev/null || true\ndone\n# nydusd views\
+            \ die with the old daemon. The Nydus cache layout is not\n# yet split\
+            \ from view state, so this clears the whole root on start.\nrm -rf \"\
+            ${nydus_root:?}\"/* /var/lib/ate/image-plugin-cache/nydus-dragonfly/*\
+            \ 2>/dev/null || true\nmkdir -p \"${nydus_root}/snapshots\" \"${nydus_root}/cache/metadata\"\
+            \ \"${nydus_root}/mnt\"\n\ncat > \"${nydus_root}/nydusd-config.json\"\
+            \ <<EOF\n{\n  \"type\": \"bootstrap\",\n  \"domain_id\": \"ate-shared\"\
+            ,\n  \"config\": {\n    \"backend_type\": \"registry\",\n    \"backend_config\"\
+            : {\n      \"scheme\": \"https\",\n      \"mirrors\": [\n        {\n \
+            \         \"host\": \"http://${NYDUS_BLOB_SEED_SERVICE_HOST}:${NYDUS_BLOB_SEED_SERVICE_PORT}\"\
+            ,\n          \"health_check_interval\": 5,\n          \"failure_limit\"\
+            : 5\n        },\n        {\n          \"host\": \"${df_addr}\",\n    \
+            \      \"ping_url\": \"${df_health}\",\n          \"headers\": {\n   \
+            \         \"X-Dragonfly-Registry\": \"https://us-central1-docker.pkg.dev\"\
+            \n          },\n          \"health_check_interval\": 5,\n          \"\
+            failure_limit\": 5\n        }\n      ],\n      \"timeout\": 60,\n    \
+            \  \"connect_timeout\": 10,\n      \"retry_limit\": 5\n    },\n    \"\
+            cache_type\": \"fscache\",\n    \"cache_config\": {\n      \"work_dir\"\
+            : \"${nydus_root}/cache\"\n    },\n    \"prefetch_config\": {\n      \"\
+            enable\": ${NYDUS_PREFETCH},\n      \"threads_count\": 8,\n      \"merging_size\"\
+            : 1048576\n    },\n    \"metadata_path\": \"${nydus_root}/cache/metadata\"\
+            \n  }\n}\nEOF\n\n# One shared nydusd serves every actor on the node. Its\
+            \ fscache\n# worker threads bound how many cache misses are fetched at\
+            \ once.\ncat > \"${nydus_root}/config.toml\" <<EOF\nversion = 1\n[daemon]\n\
+            threads_number = ${NYDUS_FSCACHE_THREADS:-64}\n[metrics]\naddress = \"\
+            :9110\"\nEOF\n\nrm -f \"${nydus_run}/containerd-nydus-grpc.sock\" /run/ate/drain-complete\n\
+            exec \"${snapshotter_bin}\" \\\n  --config=\"${nydus_root}/config.toml\"\
+            \ \\\n  --log-level=info \\\n  --log-to-stdout \\\n  --fs-driver=fscache\
+            \ \\\n  --daemon-mode=shared \\\n  --nydusd=\"${nydusd_bin}\" \\\n  --nydusd-config=\"\
+            ${nydus_root}/nydusd-config.json\" \\\n  --address=\"${nydus_run}/containerd-nydus-grpc.sock\"\
+            \ \\\n  --root=\"${nydus_root}\"\n"
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done
+          readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - test -S /run/containerd-nydus/containerd-nydus-grpc.sock && test -S
+                /run/ate/image-plugin.sock
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - name: kube-home
+            mountPath: /home/kubernetes
+          - name: run-nydus
+            mountPath: /run/containerd-nydus
+          - name: run-ate
+            mountPath: /run/ate
+          - name: ate-base
+            mountPath: /var/lib/ate
+            mountPropagation: Bidirectional
+        - name: image-plugin-dragonfly
+          image: us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload@sha256:fc9ea405640eb5d9515f43a80933b225a7a37cd84b78bb4cead2c808ec21c98d
+          env:
+          - name: DRAGONFLY_PROXY_ADDR
+            value: http://127.0.0.1:4001
+          - name: DRAGONFLY_HEALTH_URL
+            value: http://127.0.0.1:4003/healthy
+          - name: DRAGONFLY_SCHEDULER_ADDR
+            value: dragonfly-scheduler.ate-system.svc.cluster.local:8002
+          - name: DRAGONFLY_MANAGER_ADDR
+            value: dragonfly-manager.ate-system.svc.cluster.local:65003
+          args:
+          - --listen-socket=/run/ate/image-plugin.sock
+          - --snapshotter-socket=/run/containerd-nydus/containerd-nydus-grpc.sock
+          - --docker-config=/run/containerd-nydus/docker/config.json
+          - --work-dir=/var/lib/ate/image-plugin-cache/nydus-dragonfly
+          - --verify-dragonfly-ping=true
+          - --idle-ttl=10m
+          - --startup-timeout=2m
+          - --drain-timeout=30m
+          - --drain-complete-file=/run/ate/drain-complete
+          - --blob-seed-url=http://nydus-blob-seed.ate-system.svc.cluster.local:4010
+          readinessProbe:
+            exec:
+              command:
+              - /ko-app/nydus-dragonfly-preload
+              - --probe
+              - --listen-socket=/run/ate/image-plugin.sock
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsGroup: 0
+          volumeMounts:
+          - name: run-ate
+            mountPath: /run/ate
+          - name: ate-base
+            mountPath: /var/lib/ate
+            mountPropagation: Bidirectional
+          - name: run-nydus
+            mountPath: /run/containerd-nydus
+        volumes: &id005
+        - name: kube-home
+          hostPath:
+            path: /home/kubernetes
+            type: Directory
+        - name: run-ate
+          hostPath:
+            path: /run/ate
+            type: DirectoryOrCreate
+        - name: ate-base
+          hostPath:
+            path: /var/lib/ate
+            type: DirectoryOrCreate
+        - name: run-nydus
+          hostPath:
+            path: /run/containerd-nydus
+            type: DirectoryOrCreate
+        - name: var-lib-dragonfly
+          hostPath:
+            path: /var/lib/dragonfly
+            type: DirectoryOrCreate
+        - name: boot
+          hostPath:
+            path: /boot
+            type: Directory
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+            type: Directory
+        - name: usr-src
+          hostPath:
+            path: /usr/src
+            type: Directory
+        - name: kmod-build
+          emptyDir: {}
+        nodeSelector:
+          bench-arm: nydus
+- apiVersion: apps/v1
+  kind: DaemonSet
+  metadata:
+    name: image-plugin-nydus-dragonfly-seed
+    namespace: ate-system
+    labels:
+      app: ate-image-plugin
+      ate.dev/image-plugin: nydus-dragonfly
+  spec:
+    selector:
+      matchLabels:
+        app: ate-image-plugin
+        ate.dev/image-plugin: nydus-dragonfly
+        ate.dev/dragonfly-seed: 'true'
+    updateStrategy:
+      type: RollingUpdate
+    template:
+      metadata:
+        labels:
+          app: ate-image-plugin
+          ate.dev/image-plugin: nydus-dragonfly
+          ate.dev/dragonfly-seed: 'true'
+      spec:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: ate.dev/dragonfly-seed
+                  operator: In
+                  values:
+                  - 'true'
+        hostPID: true
+        hostNetwork: true
+        terminationGracePeriodSeconds: 3600
+        dnsPolicy: ClusterFirstWithHostNet
+        tolerations: *id001
+        initContainers:
+        - *id002
+        - *id003
+        containers: *id004
+        volumes: *id005
+        nodeSelector:
+          bench-arm: nydus-seed
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dragonfly-backing-stores
+  namespace: ate-system
+  labels:
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - dragonfly-redis
+      - dragonfly-mysql
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - dragonfly-manager
+          - dragonfly-scheduler
+    ports:
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 3306
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dragonfly-controlplane-and-peers
+  namespace: ate-system
+  labels:
+    ate.dev/image-plugin: nydus-dragonfly
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - dragonfly-manager
+      - dragonfly-scheduler
+      - ate-image-plugin
+  policyTypes:
+  - Ingress
+  ingress:
+  - ports:
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 65003
+    - protocol: TCP
+      port: 8002
+    - protocol: TCP
+      port: 8000
+    - protocol: TCP
+      port: 4000
+    - protocol: TCP
+      port: 4002
+    - protocol: TCP
+      port: 4005
+    - protocol: UDP
+      port: 4006

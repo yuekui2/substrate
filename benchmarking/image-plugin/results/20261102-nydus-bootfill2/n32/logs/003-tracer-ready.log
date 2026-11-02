@@ -1,0 +1,6 @@
+# tracer-ready
+# start: 2026-11-02T14:07:32Z
+$ kubectl -n imgbench rollout status ds/readset --timeout=5m
+
+daemon set "readset" successfully rolled out
+# exit: 0  end: 2026-11-02T14:07:32Z
