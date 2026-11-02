@@ -10,3 +10,9 @@ $ kubectl -n ate-system rollout restart ds/nydus-blob-seed && kubectl -n ate-sys
 ```
 Log: [logs/002-seed-nginx.log](logs/002-seed-nginx.log)
 
+### 003 apply (exit 0, 2026-11-02T04:05:43Z)
+```
+$ kubectl apply -f benchmarking/image-plugin/results/20261102-nydus-seedhttp-perlayer/setup/nydus-dragonfly.applied.yaml
+```
+Log: [logs/003-apply.log](logs/003-apply.log)
+

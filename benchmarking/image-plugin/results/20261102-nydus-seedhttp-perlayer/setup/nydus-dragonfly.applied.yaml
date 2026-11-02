@@ -636,7 +636,7 @@ items:
             mountPath: /var/lib/ate
             mountPropagation: Bidirectional
         - name: image-plugin-dragonfly
-          image: us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload@sha256:43bf44a9916b4d196dc8978cc70c57839666203e8dc978d3dc390b12444f25e9
+          image: us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/nydus-dragonfly-preload@sha256:84f98bcf3f73076eb79ad57f14e28288f360f34705af03d487307f15f23d19c0
           env:
           - name: DRAGONFLY_PROXY_ADDR
             value: http://127.0.0.1:4001
