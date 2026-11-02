@@ -16,18 +16,17 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -71,13 +70,10 @@ func testBlob(t *testing.T, boot []byte, pad int, corruptDigest bool) []byte {
 	return b.Bytes()
 }
 
-func gz(t *testing.T, b []byte) []byte {
-	t.Helper()
-	var out bytes.Buffer
-	w := gzip.NewWriter(&out)
-	_, _ = w.Write(b)
-	_ = w.Close()
-	return out.Bytes()
+// testLayerBoot is a layer bootstrap with the placeholder blob id in its
+// device table and blob table.
+func testLayerBoot(name string) []byte {
+	return []byte("devtable:" + string(blobIDPlaceholder) + " blobtable:" + string(blobIDPlaceholder) + " " + name)
 }
 
 // fakeNydusd records the API calls made on a unix socket.
@@ -131,8 +127,6 @@ func (m *fakeMounts) unmount(target string, _ int) error {
 	return nil
 }
 
-const testParentDigests = "sha256:aaaa\nsha256:bbbb"
-
 func newTestLayered(t *testing.T, seedURL, sock string, m *fakeMounts) *layeredMounter {
 	t.Helper()
 	dir := t.TempDir()
@@ -141,13 +135,7 @@ func newTestLayered(t *testing.T, seedURL, sock string, m *fakeMounts) *layeredM
 	if err := os.WriteFile(cfgPath, []byte(tmpl), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Stands in for `nydus-image merge --bootstrap <out> <in>`.
-	merge := filepath.Join(dir, "nydus-image")
-	if err := os.WriteFile(merge, []byte("#!/bin/sh\ncp \"$4\" \"$3\"\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	return newLayeredMounter(LayeredConfig{
-		NydusImage:   merge,
 		APISockGlob:  sock,
 		DaemonConfig: cfgPath,
 		DomainID:     "ate-shared",
@@ -155,60 +143,60 @@ func newTestLayered(t *testing.T, seedURL, sock string, m *fakeMounts) *layeredM
 	}, seedURL, nil, m.mount, m.unmount, func(string) error { return nil })
 }
 
+func digestOf(c string) string { return "sha256:" + strings.Repeat(c, 64) }
+
 func TestLayeredMount(t *testing.T) {
-	boot := []byte("top-layer-rafs-bootstrap")
-	parentBoot := []byte("parent-chain-rafs-bootstrap")
-	key := parentKey(strings.Split(testParentDigests, "\n"))
+	base, env := digestOf("a"), digestOf("b")
+	tops := []string{digestOf("c"), digestOf("d")}
 	for _, tc := range []struct {
 		name          string
 		pad           int
 		corrupt       bool
-		parentMissing bool
-		wantErr       error
+		noPlaceholder bool
 		wantErrText   string
 	}{
 		{name: "bootstrap in the tail read", pad: 16},
 		{name: "bootstrap needs a second range read", pad: layerTailSize},
 		{name: "digest mismatch", pad: 16, corrupt: true, wantErrText: "sha256"},
-		{name: "no parent bootstrap falls back", pad: 16, parentMissing: true, wantErr: errNoParentBootstrap},
+		{name: "no placeholder blob id", pad: 16, noPlaceholder: true, wantErrText: "placeholder"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			blob := testBlob(t, boot, tc.pad, tc.corrupt)
-			var parentGets int
-			var mu sync.Mutex
-			seed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				switch {
-				case r.URL.Path == "/parentboots/sha256:"+key:
-					mu.Lock()
-					parentGets++
-					mu.Unlock()
-					if tc.parentMissing {
-						w.WriteHeader(http.StatusNotFound)
-						return
-					}
-					_, _ = w.Write(gz(t, parentBoot))
-				case strings.HasSuffix(r.URL.Path, "/blobs/sha256:top"):
-					http.ServeContent(w, r, "blob", time.Time{}, bytes.NewReader(blob))
-				default:
-					w.WriteHeader(http.StatusNotFound)
+			boots := map[string][]byte{}
+			blobs := map[string][]byte{}
+			for _, d := range append([]string{base, env}, tops...) {
+				boots[d] = testLayerBoot(d)
+				if tc.noPlaceholder {
+					boots[d] = []byte("bootstrap " + d)
 				}
+				blobs[d] = testBlob(t, boots[d], tc.pad, tc.corrupt)
+			}
+			var mu sync.Mutex
+			gets := map[string]int{}
+			seed := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				d := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+				blob, ok := blobs[d]
+				if !strings.HasPrefix(r.URL.Path, "/v2/repo/blobs/") || !ok {
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				mu.Lock()
+				gets[d]++
+				mu.Unlock()
+				http.ServeContent(w, r, "blob", time.Time{}, bytes.NewReader(blob))
 			}))
 			defer seed.Close()
 			nydusd, sock := startFakeNydusd(t)
 			m := &fakeMounts{}
 			lm := newTestLayered(t, seed.URL, sock, m)
-			data := append(strings.Split(testParentDigests, "\n"), "sha256:top")
 
-			// Two images on the same parent chain.
+			// Two images share the base and env layers.
+			var works [2]string
 			var dirs [2][]string
-			for i := range dirs {
-				work := filepath.Join(t.TempDir(), fmt.Sprintf("img%d", i))
-				d, err := lm.mount(context.Background(), fmt.Sprintf("example.com/repo:v%d", i), work, data)
-				if tc.wantErr != nil || tc.wantErrText != "" {
-					if tc.wantErr != nil && !errors.Is(err, tc.wantErr) {
-						t.Fatalf("mount err = %v, want %v", err, tc.wantErr)
-					}
-					if tc.wantErrText != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErrText)) {
+			for i := range works {
+				works[i] = filepath.Join(t.TempDir(), fmt.Sprintf("img%d", i))
+				d, err := lm.mount(context.Background(), fmt.Sprintf("example.com/repo:v%d", i), works[i], []string{base, env, tops[i]})
+				if tc.wantErrText != "" {
+					if err == nil || !strings.Contains(err.Error(), tc.wantErrText) {
 						t.Fatalf("mount err = %v, want it to mention %q", err, tc.wantErrText)
 					}
 					return
@@ -217,39 +205,59 @@ func TestLayeredMount(t *testing.T) {
 					t.Fatalf("mount: %v", err)
 				}
 				dirs[i] = d
-				got, err := os.ReadFile(filepath.Join(work, "layered-top", "image.boot"))
-				if err != nil || !bytes.Equal(got, boot) {
-					t.Fatalf("top image.boot = %q, %v; want %q", got, err, boot)
+			}
+			if len(dirs[0]) != 3 || !slices.Equal(dirs[0][:2], dirs[1][:2]) || dirs[0][2] == dirs[1][2] {
+				t.Errorf("mount dirs %q and %q, want shared base and env mounts and separate tops", dirs[0], dirs[1])
+			}
+			for _, d := range []string{base, env} {
+				if gets[d] == 0 || gets[d] > 2 {
+					t.Errorf("layer %s fetched with %d range reads, want one layer fetch", d, gets[d])
 				}
-				lm.release(work)
 			}
-			if dirs[0][0] != dirs[1][0] {
-				t.Errorf("parent mounts %q and %q differ, want one shared mount", dirs[0][0], dirs[1][0])
+			// The bootstrap nydusd reads has the layer digest as its blob id.
+			bootPath := filepath.Join(filepath.Dir(dirs[0][2]), strings.TrimPrefix(tops[0], "sha256:"))
+			got, err := os.ReadFile(bootPath)
+			want := bytes.ReplaceAll(boots[tops[0]], blobIDPlaceholder, []byte(strings.TrimPrefix(tops[0], "sha256:")))
+			if err != nil || !bytes.Equal(got, want) {
+				t.Errorf("top bootstrap = %q, %v; want %q", got, err, want)
 			}
-			if parentGets != 1 {
-				t.Errorf("parent bootstrap fetched %d times, want 1", parentGets)
+
+			// Releasing the first image unmounts only its top layer.
+			lm.release(works[0])
+			if !slices.Equal(m.unmounted, []string{dirs[0][2]}) {
+				t.Errorf("after the first release, unmounted %q, want only %q", m.unmounted, dirs[0][2])
 			}
-			// Parent bind, then for each image a top bind, unmount, and two unbinds.
+			lm.release(works[1])
+			if len(m.unmounted) != 4 {
+				t.Errorf("after both releases, unmounted %q, want all 4 layers", m.unmounted)
+			}
+
 			nydusd.mu.Lock()
 			defer nydusd.mu.Unlock()
-			if len(nydusd.binds) != 3 {
-				t.Fatalf("got %d binds, want 3", len(nydusd.binds))
+			if len(nydusd.binds) != 4 {
+				t.Fatalf("got %d binds, want 4", len(nydusd.binds))
 			}
-			cfg := nydusd.binds[1]["config"].(map[string]any)
-			backend := cfg["backend_config"].(map[string]any)
-			if backend["host"] != "example.com" || backend["repo"] != "repo" || cfg["metadata_path"] == "" {
-				t.Errorf("top bind config = %v, want host example.com, repo repo, and a metadata path", cfg)
-			}
-			if nydusd.binds[1]["domain_id"] != "ate-shared" || nydusd.binds[1]["id"] != cfg["id"] {
-				t.Errorf("top bind = %v, want domain ate-shared and matching ids", nydusd.binds[1])
-			}
-			if len(m.unmounted) != 2 || len(nydusd.calls) != 7 {
-				t.Errorf("unmounts %v, nydusd calls %v; want 2 top unmounts and 3 binds + 4 unbinds", m.unmounted, nydusd.calls)
-			}
-			if pf, _ := cfg["prefetch_config"].(map[string]any); pf == nil || pf["bandwidth_rate"] == nil {
-				t.Errorf("top bind config = %v, want prefetch_config.bandwidth_rate", cfg)
+			for _, b := range nydusd.binds {
+				cfg := b["config"].(map[string]any)
+				backend := cfg["backend_config"].(map[string]any)
+				if backend["host"] != "example.com" || backend["repo"] != "repo" || cfg["metadata_path"] == "" {
+					t.Errorf("bind config = %v, want host example.com, repo repo, and a metadata path", cfg)
+				}
+				if b["domain_id"] != "ate-shared" || b["id"] != cfg["id"] {
+					t.Errorf("bind = %v, want domain ate-shared and matching ids", b)
+				}
+				if pf, _ := cfg["prefetch_config"].(map[string]any); pf == nil || pf["bandwidth_rate"] == nil {
+					t.Errorf("bind config = %v, want prefetch_config.bandwidth_rate", cfg)
+				}
 			}
 		})
+	}
+}
+
+func TestTopmostUnique(t *testing.T) {
+	got := topmostUnique([]string{"a", "b", "a", "c"})
+	if !slices.Equal(got, []string{"b", "a", "c"}) {
+		t.Errorf("topmostUnique = %v, want [b a c]", got)
 	}
 }
 

@@ -16,7 +16,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -31,8 +30,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,25 +43,18 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// errNoParentBootstrap means the seeds have no bootstrap for the image's
-// parent chain, so the image is mounted through the snapshotter instead.
-var errNoParentBootstrap = errors.New("no parent bootstrap on the seeds")
-
-// LayeredConfig configures layered mounts: the parent chain (every data layer
-// but the top) is one EROFS mount shared by all images on the node with the
-// same chain, and the top layer is a second EROFS mount per image. Both are
-// bound directly with the shared nydusd, without the snapshotter.
+// LayeredConfig configures layered mounts: each Nydus data layer is its own
+// EROFS mount over the layer's bootstrap, shared by every image on the node
+// that has the layer. Mounts are bound directly with the shared nydusd,
+// without the snapshotter.
 type LayeredConfig struct {
-	// NydusImage is the nydus-image binary. It rewrites the top layer's
-	// bootstrap, whose embedded blob id is a placeholder, with the real one.
-	NydusImage string
 	// APISockGlob matches the shared nydusd's API socket.
 	APISockGlob string
 	// DaemonConfig is the nydusd config template the snapshotter also uses.
 	DaemonConfig string
 	// DomainID is the fscache domain the mounts share.
 	DomainID string
-	// WorkDir holds the parent chain bootstraps and mounts.
+	// WorkDir holds the layer bootstraps and mounts.
 	WorkDir string
 }
 
@@ -70,27 +62,30 @@ type layeredMounter struct {
 	cfg       LayeredConfig
 	seedURL   string
 	seed      *http.Client
-	workDir   string
 	keychain  authn.Keychain
 	mountFS   MountFSFunc
 	unmountFS UnmountFSFunc
 	verify    func(string) error
 
-	mu      sync.Mutex
-	api     *http.Client
-	parents map[string]*parentMount
-	tops    map[string][]layeredTop
+	mu     sync.Mutex
+	api    *http.Client
+	gen    uint64
+	layers map[string]*layerMount
+	// images maps an image work dir to the layer mounts it holds.
+	images map[string][]*layerMount
 }
 
-type parentMount struct {
-	done chan struct{}
-	mnt  string
-	err  error
-}
-
-type layeredTop struct {
-	fsid string
-	mnt  string
+// layerMount is one layer's EROFS mount. done closes once mounting finishes;
+// refs counts the images holding it.
+type layerMount struct {
+	digest string
+	done   chan struct{}
+	dir    string
+	mnt    string
+	fsid   string
+	err    error
+	refs   int
+	bytes  int
 }
 
 func newLayeredMounter(cfg LayeredConfig, seedURL string, kc authn.Keychain, mountFS MountFSFunc, unmountFS UnmountFSFunc, verify func(string) error) *layeredMounter {
@@ -98,22 +93,21 @@ func newLayeredMounter(cfg LayeredConfig, seedURL string, kc authn.Keychain, mou
 		cfg:       cfg,
 		seedURL:   seedURL,
 		seed:      &http.Client{Timeout: 30 * time.Second},
-		workDir:   cfg.WorkDir,
 		keychain:  kc,
 		mountFS:   mountFS,
 		unmountFS: unmountFS,
 		verify:    verify,
-		parents:   make(map[string]*parentMount),
-		tops:      make(map[string][]layeredTop),
+		layers:    make(map[string]*layerMount),
+		images:    make(map[string][]*layerMount),
 	}
 }
 
-// mount mounts the image's data layers as the parent chain and the top layer
-// and returns the two mount dirs, bottom first. imageWorkDir owns the top
-// mount until release.
+// mount mounts each of the image's data layers, reusing mounts other images
+// hold, and returns the mount dirs bottom first. imageWorkDir holds a
+// reference on each layer until release.
 func (lm *layeredMounter) mount(ctx context.Context, imageRef, imageWorkDir string, dataDigests []string) ([]string, error) {
-	if len(dataDigests) < 2 {
-		return nil, fmt.Errorf("layered mount needs a parent chain and a top layer, got %d data layers", len(dataDigests))
+	if len(dataDigests) == 0 {
+		return nil, errors.New("layered mount needs at least one data layer")
 	}
 	ref, err := name.ParseReference(imageRef)
 	if err != nil {
@@ -125,134 +119,165 @@ func (lm *layeredMounter) mount(ctx context.Context, imageRef, imageWorkDir stri
 		return nil, err
 	}
 	start := time.Now()
-	parentDigests, top := dataDigests[:len(dataDigests)-1], dataDigests[len(dataDigests)-1]
-	parentMnt, hit, err := lm.parent(ctx, repo, auth, parentDigests)
-	if err != nil {
-		return nil, err
-	}
-	parentDur := time.Since(start)
-
-	t := time.Now()
-	dir := filepath.Join(imageWorkDir, "layered-top")
-	topHex := strings.TrimPrefix(top, "sha256:")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, err
-	}
-	boot, err := lm.layerBootstrap(ctx, repo, top)
-	if err != nil {
-		return nil, fmt.Errorf("reading top layer bootstrap %s: %w", top, err)
-	}
-	// nydus-image takes the blob id from the file name.
-	if err := os.WriteFile(filepath.Join(dir, topHex), boot, 0o644); err != nil {
-		return nil, err
-	}
-	bootPath := filepath.Join(dir, "image.boot")
-	if out, err := exec.CommandContext(ctx, lm.cfg.NydusImage, "merge", "--bootstrap", bootPath, filepath.Join(dir, topHex)).CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("setting the blob id of the top layer bootstrap: %w: %s", err, out)
-	}
-	fetchDur := time.Since(t)
-
-	t = time.Now()
-	fsid := fsidFor("top", imageRef+"\n"+top)
-	topMnt := filepath.Join(dir, "mnt")
-	if err := lm.bindAndMount(ctx, fsid, bootPath, dir, topMnt, repo, auth); err != nil {
-		return nil, err
-	}
+	lms := make([]*layerMount, len(dataDigests))
+	hits := make([]bool, len(dataDigests))
 	lm.mu.Lock()
-	lm.tops[imageWorkDir] = append(lm.tops[imageWorkDir], layeredTop{fsid: fsid, mnt: topMnt})
+	for i, d := range dataDigests {
+		l, ok := lm.layers[d]
+		if !ok {
+			lm.gen++
+			fsid := fsidFor(d, lm.gen)
+			dir := filepath.Join(lm.cfg.WorkDir, fsid)
+			l = &layerMount{digest: d, done: make(chan struct{}), dir: dir, mnt: filepath.Join(dir, "mnt"), fsid: fsid}
+			lm.layers[d] = l
+			go lm.mountLayer(context.WithoutCancel(ctx), l, repo, auth)
+		}
+		l.refs++
+		lms[i], hits[i] = l, ok
+	}
+	lm.images[imageWorkDir] = append(lm.images[imageWorkDir], lms...)
 	lm.mu.Unlock()
 
+	dirs := make([]string, len(lms))
+	var errs []error
+	var fetched, hitCount int
+	for i, l := range lms {
+		select {
+		case <-l.done:
+		case <-ctx.Done():
+			lm.release(imageWorkDir)
+			return nil, ctx.Err()
+		}
+		if l.err != nil {
+			errs = append(errs, fmt.Errorf("layer %s: %w", l.digest, l.err))
+			continue
+		}
+		dirs[i] = l.mnt
+		if hits[i] {
+			hitCount++
+		} else {
+			fetched += l.bytes
+		}
+	}
+	if err := errors.Join(errs...); err != nil {
+		lm.release(imageWorkDir)
+		return nil, err
+	}
 	slog.InfoContext(ctx, "Nydus layered mount timing",
 		slog.String("image", imageRef),
-		slog.Bool("parent_hit", hit),
-		slog.Float64("parent_ms", ms(parentDur)),
-		slog.Float64("top_fetch_ms", ms(fetchDur)),
-		slog.Float64("top_mount_ms", ms(time.Since(t))),
-		slog.Int("top_bootstrap_bytes", len(boot)),
+		slog.Int("layers", len(dataDigests)),
+		slog.Int("layer_hits", hitCount),
+		slog.Int("bootstrap_bytes", fetched),
 		slog.Float64("total_ms", ms(time.Since(start))))
-	return []string{parentMnt, topMnt}, nil
+	return topmostUnique(dirs), nil
 }
 
-// release unmounts and unbinds the top mounts imageWorkDir owns. Parent
-// mounts stay for later images with the same chain.
+// topmostUnique drops all but the topmost copy of a repeated layer dir. The
+// lower copies add nothing, because the topmost copy shadows them.
+func topmostUnique(dirs []string) []string {
+	seen := make(map[string]bool, len(dirs))
+	var out []string
+	for i := len(dirs) - 1; i >= 0; i-- {
+		if !seen[dirs[i]] {
+			seen[dirs[i]] = true
+			out = append(out, dirs[i])
+		}
+	}
+	slices.Reverse(out)
+	return out
+}
+
+// mountLayer fetches the layer's bootstrap from the seeds, binds it with
+// nydusd and mounts it. A failed mount leaves the map so the next image
+// retries.
+func (lm *layeredMounter) mountLayer(ctx context.Context, l *layerMount, repo name.Repository, auth string) {
+	defer close(l.done)
+	t := time.Now()
+	boot, err := lm.layerBootstrap(ctx, repo, l.digest)
+	if err != nil {
+		l.err = fmt.Errorf("reading the layer bootstrap: %w", err)
+	} else {
+		l.bytes = len(boot)
+		l.err = lm.writeAndMount(ctx, l, boot, repo, auth)
+	}
+	if l.err != nil {
+		lm.mu.Lock()
+		if lm.layers[l.digest] == l {
+			delete(lm.layers, l.digest)
+		}
+		lm.mu.Unlock()
+		return
+	}
+	slog.InfoContext(ctx, "Nydus layer mounted",
+		slog.String("layer", l.digest),
+		slog.Int("bootstrap_bytes", len(boot)),
+		slog.Float64("ms", ms(time.Since(t))))
+}
+
+func (lm *layeredMounter) writeAndMount(ctx context.Context, l *layerMount, boot []byte, repo name.Repository, auth string) error {
+	if err := os.MkdirAll(l.dir, 0o755); err != nil {
+		return err
+	}
+	hexID := strings.TrimPrefix(l.digest, "sha256:")
+	boot, err := setBlobID(boot, hexID)
+	if err != nil {
+		return err
+	}
+	bootPath := filepath.Join(l.dir, hexID)
+	if err := os.WriteFile(bootPath, boot, 0o644); err != nil {
+		return err
+	}
+	return lm.bindAndMount(ctx, l.fsid, bootPath, l.dir, l.mnt, repo, auth)
+}
+
+// blobIDPlaceholder is the blob id nydus-image writes into a layer bootstrap
+// before the blob digest is known (nydus builder/src/lib.rs).
+var blobIDPlaceholder = bytes.Repeat([]byte("x"), 64)
+
+// setBlobID replaces the placeholder blob id in a layer bootstrap with the
+// layer's blob digest. The id appears in the EROFS device table, which the
+// kernel uses to ask nydusd for the blob, and in the RAFS blob table.
+func setBlobID(boot []byte, hexID string) ([]byte, error) {
+	if len(hexID) != len(blobIDPlaceholder) {
+		return nil, fmt.Errorf("blob id %q is not a sha256 hex digest", hexID)
+	}
+	if !bytes.Contains(boot, blobIDPlaceholder) {
+		return nil, errors.New("layer bootstrap has no placeholder blob id")
+	}
+	return bytes.ReplaceAll(boot, blobIDPlaceholder, []byte(hexID)), nil
+}
+
+// release drops imageWorkDir's references and unmounts layers no image
+// holds.
 func (lm *layeredMounter) release(imageWorkDir string) {
 	lm.mu.Lock()
-	tops := lm.tops[imageWorkDir]
-	delete(lm.tops, imageWorkDir)
+	var drop []*layerMount
+	for _, l := range lm.images[imageWorkDir] {
+		l.refs--
+		if l.refs == 0 {
+			if lm.layers[l.digest] == l {
+				delete(lm.layers, l.digest)
+			}
+			drop = append(drop, l)
+		}
+	}
+	delete(lm.images, imageWorkDir)
 	lm.mu.Unlock()
-	for _, t := range tops {
-		if err := lm.unmountFS(t.mnt, syscall.MNT_DETACH); err != nil {
-			slog.Warn("Unmounting layered top", slog.String("mnt", t.mnt), slog.Any("err", err))
+	for _, l := range drop {
+		<-l.done
+		if l.err != nil {
+			continue
 		}
-		if err := lm.unbind(context.Background(), t.fsid); err != nil {
-			slog.Warn("Unbinding layered top", slog.String("fsid", t.fsid), slog.Any("err", err))
+		if err := lm.unmountFS(l.mnt, syscall.MNT_DETACH); err != nil {
+			slog.Warn("Unmounting Nydus layer", slog.String("mnt", l.mnt), slog.Any("err", err))
 		}
-	}
-}
-
-// parent returns the mount of the parent chain, mounting it on first use.
-// Concurrent callers for the same chain wait for one mount.
-func (lm *layeredMounter) parent(ctx context.Context, repo name.Repository, auth string, digests []string) (string, bool, error) {
-	key := parentKey(digests)
-	lm.mu.Lock()
-	pm, ok := lm.parents[key]
-	if !ok {
-		pm = &parentMount{done: make(chan struct{})}
-		lm.parents[key] = pm
-	}
-	lm.mu.Unlock()
-	if ok {
-		select {
-		case <-pm.done:
-			return pm.mnt, true, pm.err
-		case <-ctx.Done():
-			return "", false, ctx.Err()
+		if err := lm.unbind(context.Background(), l.fsid); err != nil {
+			slog.Warn("Unbinding Nydus layer", slog.String("fsid", l.fsid), slog.Any("err", err))
+		}
+		if err := os.RemoveAll(l.dir); err != nil {
+			slog.Warn("Removing Nydus layer dir", slog.String("dir", l.dir), slog.Any("err", err))
 		}
 	}
-	pm.mnt, pm.err = lm.mountParent(ctx, key, repo, auth)
-	if pm.err != nil {
-		lm.mu.Lock()
-		delete(lm.parents, key)
-		lm.mu.Unlock()
-	}
-	close(pm.done)
-	return pm.mnt, false, pm.err
-}
-
-func (lm *layeredMounter) mountParent(ctx context.Context, key string, repo name.Repository, auth string) (string, error) {
-	dir := filepath.Join(lm.workDir, "parent-"+key)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	u := lm.seedURL + "/parentboots/sha256:" + key
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return "", err
-	}
-	resp, err := lm.seed.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusNotFound {
-		return "", fmt.Errorf("%w: %s", errNoParentBootstrap, key)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GET %s: HTTP %d", u, resp.StatusCode)
-	}
-	zr, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("GET %s: %w", u, err)
-	}
-	bootPath := filepath.Join(dir, "image.boot")
-	if err := writeFileFrom(bootPath, zr); err != nil {
-		return "", fmt.Errorf("GET %s: %w", u, err)
-	}
-	mnt := filepath.Join(dir, "mnt")
-	if err := lm.bindAndMount(ctx, fsidFor("parent", key), bootPath, dir, mnt, repo, auth); err != nil {
-		return "", err
-	}
-	return mnt, nil
 }
 
 // bindAndMount binds the bootstrap with nydusd as fsid in the shared domain
@@ -496,33 +521,11 @@ func (lm *layeredMounter) rangeGet(ctx context.Context, u, rng string) ([]byte, 
 	return b, startOff, nil
 }
 
-// parentKey identifies a parent chain by its layer digests.
-func parentKey(digests []string) string {
-	h := sha256.Sum256([]byte(strings.Join(digests, "\n")))
+// fsidFor names one mount of a layer. gen keeps a remount apart from a
+// previous mount of the same layer that is still being torn down.
+func fsidFor(digest string, gen uint64) string {
+	h := sha256.Sum256([]byte(fmt.Sprintf("ate-layered\n%s\n%d", digest, gen)))
 	return hex.EncodeToString(h[:])
-}
-
-func fsidFor(kind, key string) string {
-	h := sha256.Sum256([]byte("ate-layered-" + kind + "\n" + key))
-	return hex.EncodeToString(h[:])
-}
-
-func writeFileFrom(path string, r io.Reader) error {
-	tmp := path + ".tmp"
-	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(f, r); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return err
-	}
-	return os.Rename(tmp, path)
 }
 
 // layeredDataDigests returns the image's Nydus data layer digests, bottom

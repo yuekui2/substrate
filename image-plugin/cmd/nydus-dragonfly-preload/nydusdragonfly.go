@@ -483,14 +483,10 @@ func (nd *NydusDragonflyDriver) mountLayers(ctx context.Context, env *plugin.Mou
 			return nil, err
 		}
 		dirs, err := nd.layered.mount(ctx, env.ImageRef, env.ImageWorkDir, data)
-		if err == nil {
-			return &plugin.MountedLayers{MountDirs: dirs}, nil
-		}
-		if !errors.Is(err, errNoParentBootstrap) {
+		if err != nil {
 			return nil, fmt.Errorf("layered mount: %w", err)
 		}
-		slog.InfoContext(ctx, "No parent bootstrap on the seeds, mounting through the snapshotter",
-			slog.String("image", env.ImageRef))
+		return &plugin.MountedLayers{MountDirs: dirs}, nil
 	}
 
 	imgKey := plugin.SanitizePathKey(env.ImageRef)

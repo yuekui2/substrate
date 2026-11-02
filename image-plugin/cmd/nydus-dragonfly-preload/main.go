@@ -57,8 +57,7 @@ func main() {
 		warmTimeout            = flag.Duration("warm-timeout", 30*time.Second, "Maximum duration of the warm-up per image")
 		blobSeedURL            = flag.String("blob-seed-url", "", "Base URL of the blob seed servers to read manifests and bootstrap layers from before the registry; empty disables")
 		readAheadKB            = flag.Int("erofs-read-ahead-kb", 0, "read_ahead_kb to set on EROFS bdis after each mount; 0 leaves the kernel default")
-		layeredMount           = flag.Bool("layered-mount", false, "Mount each image's parent chain once per node and its top layer per image, bound with nydusd directly; images without a parent bootstrap on the seeds use the snapshotter")
-		nydusImage             = flag.String("nydus-image", "/home/kubernetes/bin/nydus-image", "nydus-image binary, used by --layered-mount")
+		layeredMount           = flag.Bool("layered-mount", false, "Mount each Nydus layer as its own EROFS mount, shared by the images on the node and bound with nydusd directly")
 		nydusdAPISock          = flag.String("nydusd-api-sock", "/var/lib/ate/image-plugin-cache/nydus-snapshotter/socket/*/api.sock", "Glob matching the shared nydusd API socket, used by --layered-mount")
 		nydusdConfig           = flag.String("nydusd-config", "/var/lib/ate/image-plugin-cache/nydus-snapshotter/nydusd-config.json", "nydusd config template, used by --layered-mount")
 		fscacheDomain          = flag.String("fscache-domain", "ate-shared", "fscache domain_id of the nydusd config, used by --layered-mount")
@@ -97,7 +96,6 @@ func main() {
 			root = "/var/lib/ate/image-plugin-cache/nydus-dragonfly"
 		}
 		layered = &LayeredConfig{
-			NydusImage:   *nydusImage,
 			APISockGlob:  *nydusdAPISock,
 			DaemonConfig: *nydusdConfig,
 			DomainID:     *fscacheDomain,
