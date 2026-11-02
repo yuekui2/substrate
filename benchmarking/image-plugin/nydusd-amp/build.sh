@@ -22,7 +22,10 @@
 # extends each on-demand fscache read. Stock nydusd fixes it at 1 MiB in
 # fscache mode. fscache-dispatch.patch hands each fscache request to a pool
 # of worker threads instead of handling it on the thread that read it.
-# Needs docker, git and crane.
+# bootstrap-fill.patch makes nydusd copy each bootstrap into its fscache
+# cache file when the kernel opens it; stock nydusd schedules the copy as a
+# future it never polls, so every metadata page is an on-demand read.
+# PATCHES selects patch names (default: all). Needs docker, git and crane.
 
 set -euo pipefail
 
@@ -32,11 +35,13 @@ WORK_DIR="${WORK_DIR:-${TMPDIR:-/tmp}/nydusd-amp}"
 NYDUS_VERSION=v2.3.0
 MUSLRUST=clux/muslrust:1.72.1@sha256:8d5f54894aa50a47d1b0e675aef4475ca3a05ed6d9a8bc9307fbeda6df27bc5f
 BUSYBOX=busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+read -r -a patches <<<"${PATCHES:-$(cd "${HERE}" && echo ./*.patch)}"
+patches=("${patches[@]/#/${HERE}/}")
 
 mkdir -p "${WORK_DIR}/cargo-registry"
 if [[ ! -d "${WORK_DIR}/nydus" ]]; then
   git clone -q --depth 1 --branch "${NYDUS_VERSION}" https://github.com/dragonflyoss/nydus.git "${WORK_DIR}/nydus"
-  for p in "${HERE}"/*.patch; do
+  for p in "${patches[@]}"; do
     git -C "${WORK_DIR}/nydus" apply "${p}"
   done
 fi
@@ -51,7 +56,7 @@ rm -rf "${ctx}"
 mkdir -p "${ctx}"
 cp "${WORK_DIR}/nydus/target/x86_64-unknown-linux-musl/release/nydusd" "${ctx}/nydusd"
 printf 'FROM %s\nCOPY nydusd /nydusd\n' "${BUSYBOX}" >"${ctx}/Dockerfile"
-tag="${REPO}:${NYDUS_VERSION}-amp-$(cat "${HERE}"/*.patch | sha256sum | cut -c1-8)"
+tag="${REPO}:${NYDUS_VERSION}-amp-$(cat "${patches[@]}" | sha256sum | cut -c1-8)"
 docker build -q -t "${tag}" "${ctx}" >/dev/null
 docker push -q "${tag}" >/dev/null
 echo "${REPO}@$(crane digest "${tag}")"

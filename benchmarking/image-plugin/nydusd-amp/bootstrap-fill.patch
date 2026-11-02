@@ -1,0 +1,64 @@
+diff --git a/service/src/fs_cache.rs b/service/src/fs_cache.rs
+--- a/service/src/fs_cache.rs
++++ b/service/src/fs_cache.rs
+@@ -16,8 +16,9 @@ use std::collections::hash_map::Entry::Vacant;
+ use std::collections::HashMap;
+ use std::convert::TryFrom;
+ use std::fs::{self, File, OpenOptions};
+-use std::io::{copy, Error, ErrorKind, Result, Write};
++use std::io::{Error, ErrorKind, Result, Write};
+ use std::ops::Deref;
++use std::os::unix::fs::FileExt;
+ use std::os::unix::io::{AsRawFd, FromRawFd, RawFd};
+ use std::path::{Path, PathBuf};
+ use std::ptr::read_unaligned;
+@@ -577,12 +578,25 @@ impl FsCacheHandler {
+     }
+ 
+     fn fill_bootstrap_cache(bootstrap: Arc<FsCacheBootstrap>) -> Result<u64> {
+-        // Safe because bootstrap.bootstrap_file/cache_file are valid.
+-        let mut src = unsafe { File::from_raw_fd(bootstrap.bootstrap_file.as_raw_fd()) };
+-        let mut dst = unsafe { File::from_raw_fd(bootstrap.cache_file.as_raw_fd()) };
+-        let ret = copy(&mut src, &mut dst);
+-        std::mem::forget(src);
+-        std::mem::forget(dst);
++        // Copy at explicit offsets so a retry after a partial failure starts
++        // again at 0. Copying by file position left the source ahead of the
++        // cache file and wrote metadata at the wrong offsets.
++        let src = &bootstrap.bootstrap_file;
++        let dst = &bootstrap.cache_file;
++        let mut buf = vec![0u8; 1 << 20];
++        let mut off = 0u64;
++        let ret = loop {
++            match src.read_at(&mut buf, off) {
++                Ok(0) => break Ok(off),
++                Ok(n) => {
++                    if let Err(e) = dst.write_all_at(&buf[..n], off) {
++                        break Err(e);
++                    }
++                    off += n as u64;
++                }
++                Err(e) => break Err(e),
++            }
++        };
+         ret.map_err(|e| {
+             warn!("failed to copy content from bootstap into cache fd, {}", e);
+             e
+@@ -619,7 +633,7 @@ impl FsCacheHandler {
+                         });
+                         let object = FsCacheObject::Bootstrap(bootstrap.clone());
+                         e.insert((object, msg.fd));
+-                        ASYNC_RUNTIME.spawn_blocking(|| async move {
++                        ASYNC_RUNTIME.spawn_blocking(move || {
+                             // Ensure copen reply message has been sent to kernel.
+                             {
+                                 let (m, c) = condvar.as_ref();
+@@ -633,7 +647,7 @@ impl FsCacheHandler {
+                                 if Self::fill_bootstrap_cache(bootstrap.clone()).is_ok() {
+                                     break;
+                                 }
+-                                tokio::time::sleep(time::Duration::from_secs(2)).await;
++                                thread::sleep(time::Duration::from_secs(2));
+                             }
+                         });
+                         md.len() as i64
