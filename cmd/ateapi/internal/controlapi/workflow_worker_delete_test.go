@@ -592,7 +592,7 @@ func TestDeleteWorkerWorkflow_BusyActorDoesNotHoldUpOthers(t *testing.T) {
 			a.Metadata.Name = name
 		})
 		ref := resources.ActorRefFromActor(actor)
-		if err := persistence.BindActorToWorker(ctx, apiWorkerName, &ateapi.ActorAssignment{
+		if _, err := persistence.BindActorToWorker(ctx, apiWorkerName, &ateapi.ActorAssignment{
 			Actor:    &ateapi.ObjectRef{Atespace: ref.Atespace, Name: ref.Name},
 			ActorUid: actor.GetMetadata().GetUid(),
 		}, nil); err != nil {
@@ -659,7 +659,7 @@ func TestDeleteWorkerWorkflow_HungReclaimDoesNotWedgeDelete(t *testing.T) {
 					a.Status.WorkerAssignment.WorkerPodUid = workerName
 				})
 				ref := resources.ActorRefFromActor(actor)
-				if err := persistence.BindActorToWorker(ctx, workerName, &ateapi.ActorAssignment{
+				if _, err := persistence.BindActorToWorker(ctx, workerName, &ateapi.ActorAssignment{
 					Actor:    &ateapi.ObjectRef{Atespace: ref.Atespace, Name: ref.Name},
 					ActorUid: actor.GetMetadata().GetUid(),
 				}, nil); err != nil {

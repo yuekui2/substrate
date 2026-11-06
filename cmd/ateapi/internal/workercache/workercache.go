@@ -148,6 +148,13 @@ func (c *Cache) Forget(name string) {
 	delete(c.workers, name)
 }
 
+// Observe records a Worker a store write returned, as its watch event would.
+// Placements in the same process then see the write before the event
+// arrives. An older version than the cached one is ignored.
+func (c *Cache) Observe(worker *ateapi.Worker) {
+	c.applyEvent(store.WorkerEvent{Type: store.WorkerEventUpdated, Worker: worker})
+}
+
 func (c *Cache) sync(ctx context.Context) (*store.WorkerWatch, error) {
 	watch, err := c.store.WatchWorkers(ctx)
 	if err != nil {

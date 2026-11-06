@@ -536,7 +536,8 @@ func (w *ActorWorkflow) assignWorkerAttempt(ctx context.Context, actorRef resour
 		bound = fresh
 		return nil
 	}
-	if err := w.store.BindActorToWorker(ctx, assignedWorker.GetMetadata().GetName(), assignment, admit); err != nil {
+	saved, err := w.store.BindActorToWorker(ctx, assignedWorker.GetMetadata().GetName(), assignment, admit)
+	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			w.workerCache.Forget(assignedWorker.GetMetadata().GetName())
 			return nil, nil, fmt.Errorf("selected worker disappeared before claim: %w", store.ErrVersionConflict)
@@ -547,6 +548,9 @@ func (w *ActorWorkflow) assignWorkerAttempt(ctx context.Context, actorRef resour
 		// the next watch event or relist.
 		return nil, nil, err
 	}
+	// Resumes that start together would otherwise place against the
+	// allocation from before this bind until its watch event arrives.
+	w.workerCache.Observe(saved)
 
 	newAssignment := workerAssignmentFrom(bound, snapRuntime)
 	storedActor, err := w.store.UpdateActor(ctx, actorRef, store.PreconditionFrom(actor), func(toUpdate *ateapi.Actor) error {

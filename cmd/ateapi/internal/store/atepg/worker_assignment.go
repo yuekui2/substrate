@@ -69,10 +69,10 @@ func saveWorker(ctx context.Context, tx pgx.Tx, worker *ateapi.Worker) error {
 	return nil
 }
 
-func (p *Persistence) BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error) error {
+func (p *Persistence) BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error) (*ateapi.Worker, error) {
 	actorUID := assignment.GetActorUid()
 	if actorUID == "" {
-		return fmt.Errorf("binding an assignment with no actor_uid to worker %s", workerName)
+		return nil, fmt.Errorf("binding an assignment with no actor_uid to worker %s", workerName)
 	}
 	// The store assigns identity. atespace is empty because Workers are
 	// global-scoped; the name is the Actor's UID, which is also the row key.
@@ -80,7 +80,7 @@ func (p *Persistence) BindActorToWorker(ctx context.Context, workerName string, 
 	assignment.Metadata = &ateapi.ResourceMetadata{Name: actorUID}
 	setCreateMetadata(assignment.Metadata)
 
-	_, err := p.writeAndAppendEvent(ctx, store.WorkerEventUpdated, func(ctx context.Context, tx pgx.Tx) (*ateapi.Worker, error) {
+	return p.writeAndAppendEvent(ctx, store.WorkerEventUpdated, func(ctx context.Context, tx pgx.Tx) (*ateapi.Worker, error) {
 		worker, err := getWorkerForUpdate(ctx, tx, workerName)
 		if err != nil {
 			return nil, err
@@ -169,7 +169,6 @@ func (p *Persistence) BindActorToWorker(ctx context.Context, workerName string, 
 		}
 		return worker, nil
 	})
-	return err
 }
 
 func (p *Persistence) ReleaseActorFromWorker(ctx context.Context, workerName string, actorUID string) (*ateapi.Worker, error) {

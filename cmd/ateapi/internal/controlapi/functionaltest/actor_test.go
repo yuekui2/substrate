@@ -5304,7 +5304,7 @@ func TestResumeActor_CrashesIfAssignedWorkerIsDraining(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetActor failed: %v", err)
 	}
-	if err := tc.persistence.BindActorToWorker(context.Background(), podA, &ateapi.ActorAssignment{
+	if _, err := tc.persistence.BindActorToWorker(context.Background(), podA, &ateapi.ActorAssignment{
 		Actor:    &ateapi.ObjectRef{Atespace: testAtespace, Name: id},
 		ActorUid: suspended.GetMetadata().GetUid(),
 	}, nil); err != nil {
@@ -5555,7 +5555,7 @@ func TestResumeActor_DanglingWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetActor failed: %v", err)
 	}
-	if err := tc.persistence.BindActorToWorker(context.Background(), podA, &ateapi.ActorAssignment{
+	if _, err := tc.persistence.BindActorToWorker(context.Background(), podA, &ateapi.ActorAssignment{
 		Actor:    &ateapi.ObjectRef{Atespace: testAtespace, Name: name},
 		ActorUid: suspended.GetMetadata().GetUid(),
 	}, nil); err != nil {
@@ -6347,7 +6347,7 @@ func TestDeleteActor_ReleasesAnAssignmentTheActorDoesNotReference(t *testing.T) 
 
 	// Bind straight through the store, leaving the Actor's backlink unset:
 	// exactly the state a crash between the two writes leaves behind.
-	if err := tc.persistence.BindActorToWorker(ctx, podUID, &ateapi.ActorAssignment{
+	if _, err := tc.persistence.BindActorToWorker(ctx, podUID, &ateapi.ActorAssignment{
 		Actor:    &ateapi.ObjectRef{Atespace: testAtespace, Name: "orphaned"},
 		ActorUid: actorUID,
 	}, nil); err != nil {

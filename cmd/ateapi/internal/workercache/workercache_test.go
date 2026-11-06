@@ -160,6 +160,38 @@ func TestCache_UpdatedEvent_OlderVersionIgnored(t *testing.T) {
 	}
 }
 
+func TestCache_Observe(t *testing.T) {
+	tests := []struct {
+		name     string
+		observed *ateapi.Worker
+		wantNew  bool
+	}{
+		{name: "newer version is applied", observed: makeWorker("ns", "pod1", 6), wantNew: true},
+		{name: "older version is ignored", observed: makeWorker("ns", "pod1", 4)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := makeWorker("ns", "pod1", 5)
+			c := workercache.New(newFakeStore(w), time.Hour)
+			if err := c.Start(t.Context()); err != nil {
+				t.Fatalf("Start: %v", err)
+			}
+
+			tc.observed.Status.Allocated = &ateapi.WorkerResources{Actors: 1}
+			c.Observe(tc.observed)
+
+			want := w
+			if tc.wantNew {
+				want = tc.observed
+			}
+			got, _ := c.Workers()
+			if diff := cmp.Diff([]*ateapi.Worker{want}, got, protocmp.Transform()); diff != "" {
+				t.Errorf("workers mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestCache_DeletedEvent(t *testing.T) {
 	w := makeWorker("ns", "pod1", 1)
 	fs := newFakeStore(w)

@@ -282,8 +282,10 @@ type Interface interface {
 
 	// Assignments and Worker allocation are updated atomically.
 
-	// BindActorToWorker assigns an Actor and updates the Worker's allocation.
-	// Rebinding the same Actor replaces its assignment.
+	// BindActorToWorker assigns an Actor and updates the Worker's allocation,
+	// returning the Worker as it now stands so the caller can feed the
+	// watch-fed cache before the watch event arrives. Rebinding the same Actor
+	// replaces its assignment.
 	//
 	// admit decides whether the Worker will take the Actor, and runs against the
 	// Worker as it stands with its row locked, so the answer cannot go stale
@@ -292,7 +294,7 @@ type Interface interface {
 	// Actor already on this Worker is already counted against it.
 	//
 	// ErrNotFound if the Worker is gone.
-	BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error) error
+	BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error) (*ateapi.Worker, error)
 
 	// ReleaseActorFromWorker removes an assignment and updates allocation,
 	// returning the Worker as it now stands so the caller can feed the
