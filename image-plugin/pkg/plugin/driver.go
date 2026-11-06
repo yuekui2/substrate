@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -948,8 +947,6 @@ func (d *Driver) prepareImageCold(ctx context.Context, req *imagepluginclient.Pr
 			}
 			wDur := time.Since(wrapStart)
 
-			go warmLayerMetadata(mDir)
-
 			durMu.Lock()
 			if lDur > listableDur {
 				listableDur = lDur
@@ -1683,16 +1680,6 @@ func (d *Driver) getClient() (snapshots.SnapshotsClient, error) {
 	d.conn = conn
 	d.snapshotsClient = snapshots.NewSnapshotsClient(conn)
 	return d.snapshotsClient, nil
-}
-
-func warmLayerMetadata(root string) {
-	_ = filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		_, _ = d.Info()
-		return nil
-	})
 }
 
 func (d *Driver) defaultImageResolver(ctx context.Context, refStr string, authConfig *imagepluginclient.AuthConfig) (string, *v1.Config, []string, []string, error) {

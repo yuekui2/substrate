@@ -22,6 +22,8 @@ import (
 	"context"
 	"flag"
 	"log/slog"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -61,11 +63,18 @@ func main() {
 		nydusdAPISock          = flag.String("nydusd-api-sock", "/var/lib/ate/image-plugin-cache/nydus-snapshotter/socket/*/api.sock", "Glob matching the shared nydusd API socket, used by --layered-mount")
 		nydusdConfig           = flag.String("nydusd-config", "/var/lib/ate/image-plugin-cache/nydus-snapshotter/nydusd-config.json", "nydusd config template, used by --layered-mount")
 		fscacheDomain          = flag.String("fscache-domain", "ate-shared", "fscache domain_id of the nydusd config, used by --layered-mount")
+		pprofAddr              = flag.String("pprof-addr", "", "If set, serve net/http/pprof on this address, e.g. 127.0.0.1:6060")
 	)
 	flag.Parse()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	if *pprofAddr != "" {
+		go func() {
+			slog.Error("pprof server exited", slog.Any("err", http.ListenAndServe(*pprofAddr, nil)))
+		}()
+	}
 
 	if *probe {
 		if err := plugin.ProbeUnixSocket(ctx, *listenSocket); err != nil {
