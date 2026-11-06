@@ -1,0 +1,3 @@
+gke-substrate-stream-test-bench-nydus-88bef328-197x 10.1.15.206
+gke-substrate-stream-test-bench-nydus-88bef328-9tc5 10.1.15.198
+gke-substrate-stream-test-bench-nydus-88bef328-qg5s 10.1.15.203

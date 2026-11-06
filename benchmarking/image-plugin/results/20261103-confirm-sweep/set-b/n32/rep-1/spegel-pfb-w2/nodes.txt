@@ -1,0 +1,3 @@
+gke-substrate-stream-tes-bench-spegel-ab201235-0nbj 10.1.15.213
+gke-substrate-stream-tes-bench-spegel-ab201235-bctn 10.1.0.63
+gke-substrate-stream-tes-bench-spegel-ab201235-t487 10.1.0.45

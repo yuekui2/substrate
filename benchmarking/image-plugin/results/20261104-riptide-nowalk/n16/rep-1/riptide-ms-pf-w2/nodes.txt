@@ -1,0 +1,3 @@
+gke-substrate-stream-bench-riptide-ms-8377ec62-3m8c 10.1.15.193
+gke-substrate-stream-bench-riptide-ms-8377ec62-4njf 10.1.15.242
+gke-substrate-stream-bench-riptide-ms-8377ec62-blmt 10.1.15.243

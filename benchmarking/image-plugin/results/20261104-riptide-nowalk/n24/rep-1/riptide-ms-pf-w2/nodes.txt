@@ -1,0 +1,3 @@
+gke-substrate-stream-bench-riptide-ms-f5cce436-53hk 10.1.15.199
+gke-substrate-stream-bench-riptide-ms-f5cce436-kk6v 10.1.15.241
+gke-substrate-stream-bench-riptide-ms-f5cce436-vqsz 10.1.0.60

@@ -1,0 +1,3 @@
+gke-substrate-stream-tes-bench-spegel-2369116e-7j2v 10.1.15.240
+gke-substrate-stream-tes-bench-spegel-2369116e-l4t9 10.1.15.245
+gke-substrate-stream-tes-bench-spegel-2369116e-m0k7 10.1.15.241

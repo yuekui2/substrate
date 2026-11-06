@@ -1,0 +1,3 @@
+gke-substrate-stream-test-bench-pull-c8688e56-2mmt 10.1.15.225
+gke-substrate-stream-test-bench-pull-c8688e56-gnmr 10.1.15.227
+gke-substrate-stream-test-bench-pull-c8688e56-t8sk 10.1.15.226

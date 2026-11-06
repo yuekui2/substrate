@@ -1,0 +1,3 @@
+gke-substrate-stream-test-bench-nydus-91fc219f-28rx 10.1.0.22
+gke-substrate-stream-test-bench-nydus-91fc219f-j1qh 10.1.0.23
+gke-substrate-stream-test-bench-nydus-91fc219f-t3hf 10.1.0.11

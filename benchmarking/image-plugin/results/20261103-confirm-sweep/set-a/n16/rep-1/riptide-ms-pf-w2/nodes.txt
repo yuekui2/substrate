@@ -1,0 +1,3 @@
+gke-substrate-stream-bench-riptide-ms-91018b6d-145k 10.1.15.205
+gke-substrate-stream-bench-riptide-ms-91018b6d-k5dh 10.1.15.208
+gke-substrate-stream-bench-riptide-ms-91018b6d-vlpl 10.1.15.206

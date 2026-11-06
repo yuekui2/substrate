@@ -1,0 +1,3 @@
+gke-substrate-stream-test-bench-nydus-dfd164ab-dcgm 10.1.0.21
+gke-substrate-stream-test-bench-nydus-dfd164ab-rfm0 10.1.0.37
+gke-substrate-stream-test-bench-nydus-dfd164ab-wkrh 10.1.0.24

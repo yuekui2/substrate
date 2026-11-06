@@ -1,0 +1,3 @@
+gke-substrate-stream-bench-riptide-ms-09e0c330-0g92 10.1.0.24
+gke-substrate-stream-bench-riptide-ms-09e0c330-5bcl 10.1.0.31
+gke-substrate-stream-bench-riptide-ms-09e0c330-qm1b 10.1.0.28

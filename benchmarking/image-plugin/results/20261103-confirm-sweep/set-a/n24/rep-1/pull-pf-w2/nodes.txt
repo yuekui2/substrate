@@ -1,0 +1,3 @@
+gke-substrate-stream-test-bench-pull-ad14aba2-rm31 10.1.15.216
+gke-substrate-stream-test-bench-pull-ad14aba2-xbxh 10.1.15.207
+gke-substrate-stream-test-bench-pull-ad14aba2-zwk7 10.1.15.218

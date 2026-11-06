@@ -1,0 +1,1 @@
+us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/ateapi@sha256:8b1657ba3cae1a43c302643227ac3d9770774c0680aa6a30ddd79e7012f7fc25

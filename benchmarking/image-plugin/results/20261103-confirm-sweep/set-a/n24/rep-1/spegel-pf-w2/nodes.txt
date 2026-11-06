@@ -1,0 +1,3 @@
+gke-substrate-stream-tes-bench-spegel-2cf9584d-9ctv 10.1.15.224
+gke-substrate-stream-tes-bench-spegel-2cf9584d-kxrs 10.1.15.228
+gke-substrate-stream-tes-bench-spegel-2cf9584d-m9kq 10.1.15.220

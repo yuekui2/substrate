@@ -1,0 +1,3 @@
+gke-substrate-stream-bench-riptide-ms-f499b20c-0pgb 10.1.15.204
+gke-substrate-stream-bench-riptide-ms-f499b20c-0z4k 10.1.0.46
+gke-substrate-stream-bench-riptide-ms-f499b20c-fv1h 10.1.0.59

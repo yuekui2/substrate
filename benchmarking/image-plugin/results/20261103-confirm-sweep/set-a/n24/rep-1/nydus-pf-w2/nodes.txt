@@ -1,0 +1,3 @@
+gke-substrate-stream-test-bench-nydus-bbc39bfd-2j1d 10.1.0.43
+gke-substrate-stream-test-bench-nydus-bbc39bfd-dn7v 10.1.0.42
+gke-substrate-stream-test-bench-nydus-bbc39bfd-vd4g 10.1.0.44

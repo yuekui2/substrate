@@ -1,0 +1,219 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-plugin-riptide-ms
+  namespace: ate-system
+  labels:
+    app: ate-image-plugin
+    ate.dev/image-plugin: riptide-ms
+spec:
+  selector:
+    matchLabels:
+      app: ate-image-plugin
+      ate.dev/image-plugin: riptide-ms
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 10%
+  template:
+    metadata:
+      labels:
+        app: ate-image-plugin
+        ate.dev/image-plugin: riptide-ms
+    spec:
+      hostPID: true
+      hostNetwork: true
+      terminationGracePeriodSeconds: 3600
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: riptide-provider
+        image: debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
+        env:
+        - name: KUBE_HOME
+          value: /home/kubernetes
+        - name: MEMORYSTORE_ADDRESS
+          value: 10.1.15.239:6379
+        - name: CLEAR_CACHE_ON_START
+          value: 'true'
+        - name: RIPTIDE_BIN_DIR
+          value: /home/kubernetes/bin/ate-riptide
+        command:
+        - nsenter
+        - -t
+        - '1'
+        - -m
+        - -u
+        - -i
+        - -n
+        - --
+        - /bin/bash
+        - -ec
+        - "readonly gcfs_root=\"/var/lib/ate/image-plugin-cache/riptide-gcfs\"\nreadonly\
+          \ gcfs_run_dir=\"/run/ate/gcfsd\"\nreadonly gcfsd_mnt_dir=\"${gcfs_root}/mnt\"\
+          \n\nif [[ -z \"${MEMORYSTORE_ADDRESS:-}\" ]]; then\n  echo \"MEMORYSTORE_ADDRESS\
+          \ is not set\" >&2\n  exit 1\nfi\nbin_dir=\"${RIPTIDE_BIN_DIR:-${KUBE_HOME}/bin}\"\
+          \nexport GCFSD_BIN=\"${bin_dir}/gcfsd-v2\"\nexport GCFS_SNAPSHOTTER_BIN=\"\
+          ${bin_dir}/containerd-gcfs-grpc\"\nfor bin in \"${GCFSD_BIN}\" \"${GCFS_SNAPSHOTTER_BIN}\"\
+          ; do\n  if [[ ! -x \"${bin}\" ]]; then\n    echo \"Riptide binary ${bin}\
+          \ is missing or not executable\" >&2\n    exit 1\n  fi\ndone\necho \"Using\
+          \ gcfsd ${GCFSD_BIN} ($(timeout 5 \"${GCFSD_BIN}\" --build_number 2>&1 |\
+          \ head -1)) and snapshotter ${GCFS_SNAPSHOTTER_BIN}\"\n\n# The kernel truncates\
+          \ process names to 15 characters.\nfor name in gcfsd-v2 containerd-gcfs-grpc;\
+          \ do\n  for pid in $(pgrep -x \"${name:0:15}\" || true); do\n    if tr '\\\
+          0' ' ' < \"/proc/${pid}/cmdline\" 2>/dev/null | grep -q \"${gcfs_root}\"\
+          ; then\n      kill -9 \"${pid}\" 2>/dev/null || true\n    fi\n  done\ndone\n\
+          \numount -l \"${gcfsd_mnt_dir}\" 2>/dev/null || true\n# See riptide.yaml\
+          \ for why the view state is always cleared.\ncache_version=\"$(cat \"${GCFSD_BIN}\"\
+          \ \"${GCFS_SNAPSHOTTER_BIN}\" | sha256sum | cut -c1-16)\"\nclear_reason=\"\
+          \"\nif [[ \"${CLEAR_CACHE_ON_START:-false}\" == \"true\" ]]; then\n  clear_reason=\"\
+          CLEAR_CACHE_ON_START=true\"\nelif [[ \"$(cat \"${gcfs_root}/version\" 2>/dev/null)\"\
+          \ != \"${cache_version}\" ]]; then\n  clear_reason=\"provider cache version\
+          \ changed to ${cache_version}\"\nfi\nif [[ -n \"${clear_reason}\" ]]; then\n\
+          \  echo \"Clearing the local cache: ${clear_reason}\"\n  rm -rf \"${gcfs_root}/snapshotter/layers\"\
+          \nfi\nrm -rf \"${gcfs_root}/gcfsd\" \"${gcfs_root}/gcfsd_sentinel.txt\"\
+          \ \\\n  \"${gcfs_root}/snapshotter/metadata.db\" \"${gcfs_root}/snapshotter/snapshots\"\
+          \ \\\n  /var/lib/ate/image-plugin-cache/riptide/*\nmkdir -p /run/ate \"\
+          ${gcfs_run_dir}\" \"${gcfs_root}\" \"${gcfsd_mnt_dir}\" /run/gcfsd /var/lib/ate/image-plugin-cache/riptide\n\
+          echo \"${cache_version}\" > \"${gcfs_root}/version\"\nrm -f \"${gcfs_run_dir}/grpc.sock\"\
+          \ \"${gcfs_run_dir}/keychain.sock\" \"${gcfs_run_dir}/downloader.sock\"\
+          \ /run/ate/gcfs-snapshotter.sock /run/ate/drain-complete\n\nif ! mountpoint\
+          \ -q \"${gcfs_root}\"; then\n  mount --bind \"${gcfs_root}\" \"${gcfs_root}\"\
+          \nfi\nmount --make-rshared \"${gcfs_root}\"\n\nexec unshare -m --propagation\
+          \ unchanged -- /bin/bash -ec '\n  readonly gcfs_root=\"/var/lib/ate/image-plugin-cache/riptide-gcfs\"\
+          \n  readonly gcfsd_mnt_dir=\"${gcfs_root}/mnt\"\n  readonly gcfs_socket_path=\"\
+          /run/gcfsd/grpc.sock\"\n  readonly images_in_use_db_path=\"${gcfs_root}/gcfsd/images_in_use.db\"\
+          \n  readonly sentinel_file_path=\"${gcfs_root}/gcfsd_sentinel.txt\"\n\n\
+          \  mount --make-rslave /run\n  mount --bind /run/ate/gcfsd /run/gcfsd\n\
+          \  mount --make-private /run/gcfsd\n\n  gcfs_cache_size_flag=\"\"\n  if\
+          \ [[ -n \"${GCFSD_CACHE_SIZE_MIB:-}\" ]]; then\n    each_cache_size=$((GCFSD_CACHE_SIZE_MIB\
+          \ / 2))\n    gcfs_cache_size_flag=\"--max_content_cache_size_mb=${each_cache_size}\
+          \ --max_large_files_cache_size_mb=${each_cache_size}\"\n  fi\n\n  client_version_flag=\"\
+          \"\n  if [[ -n \"${KUBELET_VERSION:-}\" ]]; then\n    client_version_flag=\"\
+          --client_version=${KUBELET_VERSION}\"\n  fi\n\n  gcfs_read_ahead_flag=\"\
+          --enable_single_flighting=true --read_ahead_max_blocks=10 --read_ahead_cache_size_ratio=0.1\"\
+          \n  gcfs_memorystore_flag=\"--layer_cache_dir= --use_local_cache=true --use_memorystore=true\
+          \ --redis_cluster_address=${MEMORYSTORE_ADDRESS} --memorystore_opt_stage=1\"\
+          \n\n  if [[ -f \"${KUBE_HOME}/gcfsd_application_default_credentials.json\"\
+          \ ]]; then\n    export GCFSD_METRICS_ADC_CONFIG_PATH=\"${KUBE_HOME}/gcfsd_application_default_credentials.json\"\
+          \n  fi\n\n  mkdir -p \"${gcfsd_mnt_dir}\" \"$(dirname \"${images_in_use_db_path}\"\
+          )\"\n\n  gcfsd_pid=\"\"\n  snapshotter_pid=\"\"\n  cleanup() {\n    kill\
+          \ -TERM ${snapshotter_pid} ${gcfsd_pid} 2>/dev/null || true\n    wait ${snapshotter_pid}\
+          \ ${gcfsd_pid} 2>/dev/null || true\n    umount -l \"${gcfsd_mnt_dir}\" 2>/dev/null\
+          \ || true\n    rm -f /run/ate/gcfs-snapshotter.sock \"${gcfs_socket_path}\"\
+          \ /run/gcfsd/keychain.sock /run/gcfsd/downloader.sock\n  }\n  trap cleanup\
+          \ TERM INT EXIT\n\n  GOGC=10 \"${GCFSD_BIN}\" \\\n    --mount_point=\"${gcfsd_mnt_dir}\"\
+          \ \\\n    --control_server_socket_path=\"${gcfs_socket_path}\" \\\n    --downloader_uds_path=/run/gcfsd/downloader.sock\
+          \ \\\n    --sentinel_file_path=\"${sentinel_file_path}\" \\\n    --containerd_uds_path=\"\
+          \" \\\n    --event_reporter_type=none \\\n    --port=11254 \\\n    ${gcfs_cache_size_flag}\
+          \ \\\n    --images_in_use_db_path=\"${images_in_use_db_path}\" \\\n    --enable_pull_secret_keychain\
+          \ \\\n    --client_name=GKE \\\n    ${client_version_flag} \\\n    ${gcfs_read_ahead_flag}\
+          \ \\\n    ${gcfs_memorystore_flag} &\n  gcfsd_pid=$!\n\n  for _ in $(seq\
+          \ 1 150); do\n    [[ -S \"${gcfs_socket_path}\" && -S /run/gcfsd/keychain.sock\
+          \ ]] && break\n    sleep 0.1\n  done\n\n  mkdir -p /etc/containerd-gcfs-grpc\n\
+          \  touch \"${gcfs_root}/config.toml\"\n  export HOME=/root\n  if [[ -f \"\
+          ${KUBE_HOME}/gcfs_snaphotter_application_default_credentials.json\" ]];\
+          \ then\n    export GCFS_SNAPSHOTTER_METRICS_ADC_CONFIG_PATH=\"${KUBE_HOME}/gcfs_snaphotter_application_default_credentials.json\"\
+          \n  fi\n\n  rm -f /run/ate/gcfs-snapshotter.sock\n  \"${GCFS_SNAPSHOTTER_BIN}\"\
+          \ \\\n    --log-level=info \\\n    --config=\"${gcfs_root}/config.toml\"\
+          \ \\\n    --address=/run/ate/gcfs-snapshotter.sock \\\n    --root=\"${gcfs_root}\"\
+          \ \\\n    --gcfs-socket-path=\"${gcfs_socket_path}\" \\\n    --enable-kubernetes-event-reporting=false\
+          \ \\\n    --disable-duplicate-layer-support=false \\\n    --enable-metric-exporter=false\
+          \ \\\n    --enable-v2 &\n  snapshotter_pid=$!\n  wait -n \"${gcfsd_pid}\"\
+          \ \"${snapshotter_pid}\"\n'\n"
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - while [ ! -f /run/ate/drain-complete ]; do sleep 0.5; done
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - test -S /run/ate/gcfs-snapshotter.sock && test -S /run/ate/gcfsd/keychain.sock
+              && test -S /run/ate/image-plugin.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: kube-home
+          mountPath: /home/kubernetes
+          readOnly: true
+        - name: run-ate
+          mountPath: /run/ate
+        - name: ate-base
+          mountPath: /var/lib/ate
+          mountPropagation: Bidirectional
+        - name: dev-fuse
+          mountPath: /dev/fuse
+      - name: image-plugin-riptide
+        image: us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/riptide@sha256:7afe69f076ae107ac54dc357ccf65ad5cc5bdb4c694c69fa315a8edc72d40d87
+        args:
+        - --listen-socket=/run/ate/image-plugin.sock
+        - --snapshotter-socket=/run/ate/gcfs-snapshotter.sock
+        - --keychain-socket=/run/ate/gcfsd/keychain.sock
+        - --work-dir=/var/lib/ate/image-plugin-cache/riptide
+        - --idle-ttl=10m
+        - --startup-timeout=2m
+        - --drain-timeout=30m
+        - --drain-complete-file=/run/ate/drain-complete
+        readinessProbe:
+          exec:
+            command:
+            - /ko-app/riptide
+            - --probe
+            - --listen-socket=/run/ate/image-plugin.sock
+          initialDelaySeconds: 2
+          periodSeconds: 2
+        securityContext:
+          privileged: true
+          runAsUser: 0
+          runAsGroup: 0
+        volumeMounts:
+        - name: run-ate
+          mountPath: /run/ate
+        - name: ate-base
+          mountPath: /var/lib/ate
+          mountPropagation: HostToContainer
+      volumes:
+      - name: kube-home
+        hostPath:
+          path: /home/kubernetes
+          type: Directory
+      - name: run-ate
+        hostPath:
+          path: /run/ate
+          type: DirectoryOrCreate
+      - name: ate-base
+        hostPath:
+          path: /var/lib/ate
+          type: DirectoryOrCreate
+      - name: dev-fuse
+        hostPath:
+          path: /dev/fuse
+          type: CharDevice
+      - name: kube-home-bin
+        hostPath:
+          path: /home/kubernetes/bin
+          type: Directory
+      nodeSelector:
+        bench-arm: riptide-ms
+      initContainers:
+      - name: install-riptide-bins
+        image: us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/riptide-bins-ms@sha256:3ff5e4c2db00244db28d437a3e4e334f1acab10d2f1016e9851daecd1edc49d8
+        command:
+        - /bin/sh
+        - -ec
+        - "dst=/host-bin/ate-riptide\nmkdir -p \"${dst}\"\nfor f in /riptide/*; do\n\
+          \  n=\"$(basename \"${f}\")\"\n  cp \"${f}\" \"${dst}/.${n}.tmp\"\n  chmod\
+          \ 0755 \"${dst}/.${n}.tmp\"\n  mv -f \"${dst}/.${n}.tmp\" \"${dst}/${n}\"\
+          \ndone\n"
+        volumeMounts:
+        - name: kube-home-bin
+          mountPath: /host-bin

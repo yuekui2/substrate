@@ -1,0 +1,3 @@
+gke-substrate-stream-tes-bench-spegel-9a0f5c5e-26d7 10.1.0.52
+gke-substrate-stream-tes-bench-spegel-9a0f5c5e-4wsg 10.1.0.50
+gke-substrate-stream-tes-bench-spegel-9a0f5c5e-hd28 10.1.0.53

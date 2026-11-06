@@ -1,0 +1,3 @@
+gke-substrate-stream-test-bench-pull-d810d566-616w 10.1.0.35
+gke-substrate-stream-test-bench-pull-d810d566-c0jq 10.1.0.37
+gke-substrate-stream-test-bench-pull-d810d566-pv4v 10.1.0.33

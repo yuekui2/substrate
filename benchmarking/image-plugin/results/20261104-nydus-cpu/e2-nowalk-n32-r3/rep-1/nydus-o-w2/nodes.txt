@@ -1,0 +1,3 @@
+gke-substrate-stream-test-bench-nydus-cdcac391-0v83 10.1.0.29
+gke-substrate-stream-test-bench-nydus-cdcac391-nhnj 10.1.15.232
+gke-substrate-stream-test-bench-nydus-cdcac391-sqll 10.1.0.16

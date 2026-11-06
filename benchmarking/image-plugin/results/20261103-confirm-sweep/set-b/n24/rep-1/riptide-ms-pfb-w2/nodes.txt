@@ -1,0 +1,3 @@
+gke-substrate-stream-bench-riptide-ms-dc00a2d0-fxnx 10.1.0.29
+gke-substrate-stream-bench-riptide-ms-dc00a2d0-n0mb 10.1.15.237
+gke-substrate-stream-bench-riptide-ms-dc00a2d0-vdhc 10.1.0.30

@@ -1,0 +1,60 @@
+# delete-rest
+# start: 2026-11-03T12:16:45Z
+$ benchmarking/image-plugin/pools.sh delete pull riptide-ms spegel
+
+deleted bench-riptide-ms
+deleted bench-spegel
+deleted bench-pull
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   2d21h   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   2d21h   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-spegel-see-ebbfe067-0tml   Ready    <none>   6h10m   v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-bench-spegel-see-ebbfe067-g92b   Ready    <none>   6h10m   v1.36.4-gke.2046003   spegel-seed
+# exit: 0  end: 2026-11-03T12:19:04Z
+# n16-recreate-pools
+# start: 2026-11-03T12:19:04Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/pools.sh recreate nydus
+
+created bench-nydus
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   2d21h   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   2d21h   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-spegel-see-ebbfe067-0tml   Ready    <none>   6h11m   v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-bench-spegel-see-ebbfe067-g92b   Ready    <none>   6h11m   v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-test-bench-nydus-56719ea8-61lz   Ready    <none>   12s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-56719ea8-g2p4   Ready    <none>   26s     v1.36.4-gke.2046003   nydus
+gke-substrate-stream-test-bench-nydus-56719ea8-m23f   Ready    <none>   27s     v1.36.4-gke.2046003   nydus
+# exit: 0  end: 2026-11-03T12:20:35Z
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 of 3 updated pods are available...
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME               DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus        48        48         48      gvisor-default   True       4d15h
+bench-pull         48        48                 gvisor-default   True       4d15h
+bench-riptide      48        48                 gvisor-default   True       4d15h
+bench-riptide-ms   48        48                 gvisor-default   True       2d13h
+bench-spegel       48        48                 gvisor-default   True       4d15h
+NAME                                      READY   STATUS    RESTARTS   AGE     IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-8tqzh        3/3     Running   0          77s     10.1.0.58     gke-substrate-stream-test-bench-nydus-56719ea8-g2p4   <none>           <none>
+image-plugin-nydus-dragonfly-prfdk        3/3     Running   0          63s     10.1.0.62     gke-substrate-stream-test-bench-nydus-56719ea8-61lz   <none>           <none>
+image-plugin-nydus-dragonfly-rn7ts        3/3     Running   0          78s     10.1.0.60     gke-substrate-stream-test-bench-nydus-56719ea8-m23f   <none>           <none>
+image-plugin-nydus-dragonfly-seed-2h5c6   3/3     Running   0          6h35m   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-seed-wmlb2   3/3     Running   0          6h35m   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-spegel-seed-9jxdw            1/1     Running   0          6h11m   10.1.15.250   gke-substrate-stream-bench-spegel-see-ebbfe067-0tml   <none>           <none>
+image-plugin-spegel-seed-vvbc6            1/1     Running   0          6h11m   10.1.15.249   gke-substrate-stream-bench-spegel-see-ebbfe067-g92b   <none>           <none>
+# exit: 0  end: 2026-11-03T12:21:31Z
+# n16-run
+# start: 2026-11-03T12:21:31Z
+$ /usr/local/google/home/kuiyue/src/substrate/benchmarking/image-plugin/run.sh rep 1 nydus
+
+job.batch/imgbench-rep-1-nydus-pf-w2 created
+pod/imgbench-rep-1-nydus-pf-w2-cmmlv condition met
+nydus: imgbench-rep-1-nydus-pf-w2 pod imgbench-rep-1-nydus-pf-w2-cmmlv started 2026-11-03T12:21:48Z
+nydus: done (exit 0), 240 lines, 0
+0 errors
+wrote 35 points to benchmarking/image-plugin/results/20261103-confirm-sweep/smoke/n16/rep-1/nydus-pf-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-03T12:25:18Z
+NODE-SWEEP-DONE
+SMOKE-DONE

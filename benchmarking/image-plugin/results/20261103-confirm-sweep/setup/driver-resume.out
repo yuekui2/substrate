@@ -1,0 +1,191 @@
+# bake-nydus-pfb
+# start: 2026-11-03T06:00:13Z
+$ DENSITY=2 TAG=-pfb LOADER_ARGS='-images /config/images-96-pf-b.jsonl -actors 96 -concurrency 48' benchmarking/image-plugin/run.sh bake nydus
+
+NAME                    AGE
+imgbench-nydus-pfb-w2   0s
+job.batch/imgbench-bake-0-nydus-pfb-w2 created
+pod/imgbench-bake-0-nydus-pfb-w2-m5fx7 condition met
+nydus: imgbench-bake-0-nydus-pfb-w2 pod imgbench-bake-0-nydus-pfb-w2-m5fx7 started 2026-11-03T06:00:30Z
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/nydus-pfb-w2/turns.jsonl: No such file or directory
+nydus: done (exit 0), 0 lines, 0 errors
+wrote 25 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/nydus-pfb-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-03T06:02:55Z
+# bake-nydus-pfc
+# start: 2026-11-03T06:02:55Z
+$ DENSITY=2 TAG=-pfc LOADER_ARGS='-images /config/images-96-pf-c.jsonl -actors 96 -concurrency 48' benchmarking/image-plugin/run.sh bake nydus
+
+NAME                    AGE
+imgbench-nydus-pfc-w2   0s
+job.batch/imgbench-bake-0-nydus-pfc-w2 created
+pod/imgbench-bake-0-nydus-pfc-w2-7d7qj condition met
+nydus: imgbench-bake-0-nydus-pfc-w2 pod imgbench-bake-0-nydus-pfc-w2-7d7qj started 2026-11-03T06:03:09Z
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/nydus-pfc-w2/turns.jsonl: No such file or directory
+nydus: done (exit 0), 0 lines, 0 errors
+wrote 10 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/nydus-pfc-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-03T06:05:30Z
+# delete-nydus
+# start: 2026-11-03T06:05:30Z
+$ benchmarking/image-plugin/pools.sh delete nydus
+
+deleted bench-nydus
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   2d15h   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   2d15h   v1.36.4-gke.2046003   nydus-seed
+# exit: 0  end: 2026-11-03T06:07:34Z
+
+created bench-pull
+created bench-spegel
+created bench-spegel-seed
+created bench-riptide-ms
+NAME                                                  STATUS   ROLES    AGE     VERSION               BENCH-ARM
+gke-substrate-stream-bench-nydus-seed-faaf7805-9672   Ready    <none>   2d15h   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   Ready    <none>   2d15h   v1.36.4-gke.2046003   nydus-seed
+gke-substrate-stream-bench-riptide-ms-b6e5b2db-40kt   Ready    <none>   24s     v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-bench-riptide-ms-b6e5b2db-4d9n   Ready    <none>   21s     v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-bench-riptide-ms-b6e5b2db-zbln   Ready    <none>   24s     v1.36.4-gke.2046003   riptide-ms
+gke-substrate-stream-bench-spegel-see-ebbfe067-0tml   Ready    <none>   18s     v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-bench-spegel-see-ebbfe067-g92b   Ready    <none>   19s     v1.36.4-gke.2046003   spegel-seed
+gke-substrate-stream-tes-bench-spegel-37916223-5v0z   Ready    <none>   25s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-37916223-7z7m   Ready    <none>   24s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-tes-bench-spegel-37916223-rn4k   Ready    <none>   25s     v1.36.4-gke.2046003   spegel
+gke-substrate-stream-test-bench-pull-29bce9cc-3pz0    Ready    <none>   25s     v1.36.4-gke.2046003   pull
+gke-substrate-stream-test-bench-pull-29bce9cc-k77p    Ready    <none>   25s     v1.36.4-gke.2046003   pull
+gke-substrate-stream-test-bench-pull-29bce9cc-p6x5    Ready    <none>   25s     v1.36.4-gke.2046003   pull
+# exit: 0  end: 2026-11-03T06:08:58Z
+daemon set "image-plugin-riptide-ms" successfully rolled out
+deployment.apps/bench-riptide-ms condition met
+NAME                                      READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-seed-2h5c6   3/3     Running   0          23m   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-seed-wmlb2   3/3     Running   0          23m   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-riptide-ms-k4qjq             2/2     Running   0          7s    10.1.15.245   gke-substrate-stream-bench-riptide-ms-b6e5b2db-zbln   <none>           <none>
+image-plugin-riptide-ms-srdm5             2/2     Running   0          12s   10.1.15.240   gke-substrate-stream-bench-riptide-ms-b6e5b2db-4d9n   <none>           <none>
+image-plugin-riptide-ms-wv5jt             2/2     Running   0          17s   10.1.15.241   gke-substrate-stream-bench-riptide-ms-b6e5b2db-40kt   <none>           <none>
+image-plugin-spegel-525dw                 1/1     Running   0          68s   10.1.15.247   gke-substrate-stream-tes-bench-spegel-37916223-7z7m   <none>           <none>
+image-plugin-spegel-seed-ncwc8            1/1     Running   0          68s   10.1.15.249   gke-substrate-stream-bench-spegel-see-ebbfe067-g92b   <none>           <none>
+image-plugin-spegel-seed-tvnnk            1/1     Running   0          63s   10.1.15.250   gke-substrate-stream-bench-spegel-see-ebbfe067-0tml   <none>           <none>
+image-plugin-spegel-shchh                 1/1     Running   0          72s   10.1.15.246   gke-substrate-stream-tes-bench-spegel-37916223-5v0z   <none>           <none>
+image-plugin-spegel-zqkvq                 1/1     Running   0          72s   10.1.15.248   gke-substrate-stream-tes-bench-spegel-37916223-rn4k   <none>           <none>
+NAME               DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus        48        48                 gvisor-default   True       4d9h
+bench-pull         48        48         44      gvisor-default   True       4d9h
+bench-riptide      48        48                 gvisor-default   True       4d9h
+bench-riptide-ms   48        46         44      gvisor-default   True       2d7h
+bench-spegel       48        48         48      gvisor-default   True       4d9h
+# exit: 0  end: 2026-11-03T06:09:57Z
+2026/11/03 06:10:06 existing blob: sha256:4a2796d8ea5ef7ae1a64ba20ba56759987f49f2ea2091ddce6bade81c0ad1fa6
+2026/11/03 06:10:07 existing blob: sha256:ec1b04bf2eb2122e86781f791b03ea0cf6588694e0f4a88245250224c186cdf0
+2026/11/03 06:10:07 existing blob: sha256:3214acf345c0cc6bbdb56b698a41ccdefc624a09d6beb0d38b5de0b2303ecaf4
+2026/11/03 06:10:07 existing blob: sha256:617b009a71d625ef77982b400cb9939dd5ed9809ebf50681a0520b7c08c0ca89
+2026/11/03 06:10:07 existing blob: sha256:c172f21841dff4c8cf45cde46589c1c2616cefe7e819965e92e6d3475c428aa0
+2026/11/03 06:10:07 existing blob: sha256:ebddc55facdc6b1f7e0f30816a5fc7cc62f38abdf76c0a8b0a0ce52085754795
+2026/11/03 06:10:07 pushed blob: sha256:2a3f209725c075876ded7a607bf7673f05c092c92ba01647330baf61c2c2ceb4
+2026/11/03 06:10:07 pushed blob: sha256:6ab6b3668317fe98123fb279af83e3cb5cad739685628a2f1606290cac92f4e6
+2026/11/03 06:10:07 pushed blob: sha256:3d04690a4babf0e94cf00258f19dcf6f95e5d7a2cccba28a792f4e0f64a1ee01
+2026/11/03 06:10:07 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel-preload:sha256-e228082197977413432108d364c1cf4e133977ec031673e474bff2f8651534eb.sbom: digest: sha256:8cb1656ad15d80c5a1263f1cd3d4905a06aff905cd982f956c994f530e55a396 size: 374
+2026/11/03 06:10:07 Published SBOM us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel-preload:sha256-e228082197977413432108d364c1cf4e133977ec031673e474bff2f8651534eb.sbom
+2026/11/03 06:10:07 pushed blob: sha256:080a322d83bf2e1af4a79bf89691a3ae128cb0cd6d393b12ca7cf32dd9e52ded
+2026/11/03 06:10:08 us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel-preload:latest: digest: sha256:e228082197977413432108d364c1cf4e133977ec031673e474bff2f8651534eb size: 2938
+2026/11/03 06:10:08 Published us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/ate-images/spegel-preload@sha256:e228082197977413432108d364c1cf4e133977ec031673e474bff2f8651534eb
+service/spegel-bootstrap unchanged
+daemonset.apps/image-plugin-spegel configured
+service/spegel-seeds unchanged
+daemonset.apps/image-plugin-spegel-seed configured
+networkpolicy.networking.k8s.io/spegel-p2p unchanged
+# exit: 0  end: 2026-11-03T06:10:09Z
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME               DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus        48        48                 gvisor-default   True       4d9h
+bench-pull         48        48         48      gvisor-default   True       4d9h
+bench-riptide      48        48                 gvisor-default   True       4d9h
+bench-riptide-ms   48        48         48      gvisor-default   True       2d7h
+bench-spegel       48        48         48      gvisor-default   True       4d9h
+NAME                                      READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-seed-2h5c6   3/3     Running   0          24m   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-seed-wmlb2   3/3     Running   0          24m   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-riptide-ms-k4qjq             2/2     Running   0          37s   10.1.15.245   gke-substrate-stream-bench-riptide-ms-b6e5b2db-zbln   <none>           <none>
+image-plugin-riptide-ms-srdm5             2/2     Running   0          42s   10.1.15.240   gke-substrate-stream-bench-riptide-ms-b6e5b2db-4d9n   <none>           <none>
+image-plugin-riptide-ms-wv5jt             2/2     Running   0          47s   10.1.15.241   gke-substrate-stream-bench-riptide-ms-b6e5b2db-40kt   <none>           <none>
+image-plugin-spegel-9z5qk                 1/1     Running   0          12s   10.1.15.246   gke-substrate-stream-tes-bench-spegel-37916223-5v0z   <none>           <none>
+image-plugin-spegel-fd7wr                 1/1     Running   0          8s    10.1.15.247   gke-substrate-stream-tes-bench-spegel-37916223-7z7m   <none>           <none>
+image-plugin-spegel-pxsxf                 1/1     Running   0          17s   10.1.15.248   gke-substrate-stream-tes-bench-spegel-37916223-rn4k   <none>           <none>
+image-plugin-spegel-seed-9jxdw            1/1     Running   0          13s   10.1.15.250   gke-substrate-stream-bench-spegel-see-ebbfe067-0tml   <none>           <none>
+image-plugin-spegel-seed-vvbc6            1/1     Running   0          17s   10.1.15.249   gke-substrate-stream-bench-spegel-see-ebbfe067-g92b   <none>           <none>
+# exit: 0  end: 2026-11-03T06:10:26Z
+# wait-spegel-seed
+# start: 2026-11-03T06:10:26Z
+$ kubectl -n ate-system rollout status ds/image-plugin-spegel-seed --timeout=20m
+
+daemon set "image-plugin-spegel-seed" successfully rolled out
+# exit: 0  end: 2026-11-03T06:10:27Z
+# spegel-seed-preload
+# start: 2026-11-03T06:10:27Z
+$ benchmarking/image-plugin/spegel-seed-preload.sh benchmarking/image-plugin/images-320.jsonl 288
+
+448 unique layer blobs in the first 288 images
+gke-substrate-stream-bench-spegel-see-ebbfe067-0tml:     220 200     228 404 
+gke-substrate-stream-bench-spegel-see-ebbfe067-g92b:     228 200     220 404 
+448 of 448 blobs stored in 127 s
+# exit: 0  end: 2026-11-03T06:20:47Z
+imgbench-pull-pf-w2   0s
+job.batch/imgbench-bake-0-spegel-pf-w2 created
+job.batch/imgbench-bake-0-pull-pf-w2 created
+job.batch/imgbench-bake-0-riptide-ms-pf-w2 created
+pod/imgbench-bake-0-pull-pf-w2-8cqwg condition met
+pull: imgbench-bake-0-pull-pf-w2 pod imgbench-bake-0-pull-pf-w2-8cqwg started 2026-11-03T06:21:04Z
+pod/imgbench-bake-0-spegel-pf-w2-hvfsz condition met
+pod/imgbench-bake-0-riptide-ms-pf-w2-nss86 condition met
+spegel: imgbench-bake-0-spegel-pf-w2 pod imgbench-bake-0-spegel-pf-w2-hvfsz started 2026-11-03T06:21:04Z
+riptide-ms: imgbench-bake-0-riptide-ms-pf-w2 pod imgbench-bake-0-riptide-ms-pf-w2-nss86 started 2026-11-03T06:21:04Z
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/pull-pf-w2/turns.jsonl: No such file or directory
+pull: done (exit 1), 0 lines, 0 errors
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/riptide-ms-pf-w2/turns.jsonl: No such file or directory
+riptide-ms: done (exit 1), 0 lines, 0 errors
+wrote 105 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/pull-pf-w2/monitoring.jsonl
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/spegel-pf-w2/turns.jsonl: No such file or directory
+spegel: done (exit 1), 0 lines, 0 errors
+wrote 120 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/riptide-ms-pf-w2/monitoring.jsonl
+wrote 245 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/spegel-pf-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-03T06:31:19Z
+imgbench-spegel-pfb-w2   0s
+job.batch/imgbench-bake-0-riptide-ms-pfb-w2 created
+job.batch/imgbench-bake-0-spegel-pfb-w2 created
+job.batch/imgbench-bake-0-pull-pfb-w2 created
+pod/imgbench-bake-0-riptide-ms-pfb-w2-59r5n condition met
+pod/imgbench-bake-0-spegel-pfb-w2-85j66 condition met
+pod/imgbench-bake-0-pull-pfb-w2-ptq8m condition met
+riptide-ms: imgbench-bake-0-riptide-ms-pfb-w2 pod imgbench-bake-0-riptide-ms-pfb-w2-59r5n started 2026-11-03T06:31:35Z
+spegel: imgbench-bake-0-spegel-pfb-w2 pod imgbench-bake-0-spegel-pfb-w2-85j66 started 2026-11-03T06:31:35Z
+pull: imgbench-bake-0-pull-pfb-w2 pod imgbench-bake-0-pull-pfb-w2-ptq8m started 2026-11-03T06:31:35Z
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/riptide-ms-pfb-w2/turns.jsonl: No such file or directory
+riptide-ms: done (exit 0), 0 lines, 0 errors
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/pull-pfb-w2/turns.jsonl: No such file or directory
+pull: done (exit 0), 0 lines, 0 errors
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/spegel-pfb-w2/turns.jsonl: No such file or directory
+spegel: done (exit 0), 0 lines, 0 errors
+wrote 54 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/riptide-ms-pfb-w2/monitoring.jsonl
+wrote 57 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/pull-pfb-w2/monitoring.jsonl
+wrote 140 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/spegel-pfb-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-03T06:37:43Z
+imgbench-pull-pfc-w2   0s
+job.batch/imgbench-bake-0-riptide-ms-pfc-w2 created
+job.batch/imgbench-bake-0-pull-pfc-w2 created
+job.batch/imgbench-bake-0-spegel-pfc-w2 created
+pod/imgbench-bake-0-riptide-ms-pfc-w2-crrmr condition met
+pod/imgbench-bake-0-spegel-pfc-w2-ls9bs condition met
+pod/imgbench-bake-0-pull-pfc-w2-v5krz condition met
+riptide-ms: imgbench-bake-0-riptide-ms-pfc-w2 pod imgbench-bake-0-riptide-ms-pfc-w2-crrmr started 2026-11-03T06:38:00Z
+pull: imgbench-bake-0-pull-pfc-w2 pod imgbench-bake-0-pull-pfc-w2-v5krz started 2026-11-03T06:38:00Z
+spegel: imgbench-bake-0-spegel-pfc-w2 pod imgbench-bake-0-spegel-pfc-w2-ls9bs started 2026-11-03T06:38:00Z
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/riptide-ms-pfc-w2/turns.jsonl: No such file or directory
+riptide-ms: done (exit 0), 0 lines, 0 errors
+wrote 39 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/riptide-ms-pfc-w2/monitoring.jsonl
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/spegel-pfc-w2/turns.jsonl: No such file or directory
+spegel: done (exit 0), 0 lines, 0 errors
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/pull-pfc-w2/turns.jsonl: No such file or directory
+pull: done (exit 0), 0 lines, 0 errors
+wrote 69 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/pull-pfc-w2/monitoring.jsonl
+wrote 125 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/spegel-pfc-w2/monitoring.jsonl
+# exit: 0  end: 2026-11-03T06:44:14Z
+SETUP-REST-DONE

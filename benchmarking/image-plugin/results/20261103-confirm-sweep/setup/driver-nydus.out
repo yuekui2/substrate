@@ -1,0 +1,94 @@
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 1 out of 3 new pods have been updated...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 out of 3 new pods have been updated...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 out of 3 new pods have been updated...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 out of 3 new pods have been updated...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 of 3 updated pods are available...
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+deployment.apps/bench-nydus condition met
+NAME                                      READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-59mpl        3/3     Running   0          37s   10.1.15.193   gke-substrate-stream-test-bench-nydus-0e28d3b2-w7p7   <none>           <none>
+image-plugin-nydus-dragonfly-r9n7t        3/3     Running   0          27s   10.1.0.57     gke-substrate-stream-test-bench-nydus-0e28d3b2-k7rm   <none>           <none>
+image-plugin-nydus-dragonfly-seed-hnhm4   3/3     Running   0          30s   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+image-plugin-nydus-dragonfly-seed-qvxgf   3/3     Running   0          37s   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-ttsjr        3/3     Running   0          14s   10.1.0.56     gke-substrate-stream-test-bench-nydus-0e28d3b2-glrx   <none>           <none>
+NAME               DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus        48        48         48      gvisor-default   True       4d8h
+bench-pull         48        48                 gvisor-default   True       4d8h
+bench-riptide      48        48                 gvisor-default   True       4d8h
+bench-riptide-ms   48        48                 gvisor-default   True       2d7h
+bench-spegel       48        48                 gvisor-default   True       4d8h
+# exit: 0  end: 2026-11-03T05:45:59Z
+deployment.apps/dragonfly-mysql unchanged
+configmap/dragonfly-controlplane-config configured
+service/dragonfly-manager unchanged
+deployment.apps/dragonfly-manager unchanged
+service/dragonfly-scheduler unchanged
+deployment.apps/dragonfly-scheduler unchanged
+configmap/nydus-blob-seed configured
+service/nydus-blob-seed unchanged
+daemonset.apps/nydus-blob-seed unchanged
+daemonset.apps/image-plugin-nydus-dragonfly configured
+daemonset.apps/image-plugin-nydus-dragonfly-seed configured
+networkpolicy.networking.k8s.io/dragonfly-backing-stores unchanged
+networkpolicy.networking.k8s.io/dragonfly-controlplane-and-peers unchanged
+daemonset.apps/nydus-blob-seed restarted
+Waiting for daemon set "nydus-blob-seed" rollout to finish: 1 out of 2 new pods have been updated...
+Waiting for daemon set "nydus-blob-seed" rollout to finish: 1 out of 2 new pods have been updated...
+Waiting for daemon set "nydus-blob-seed" rollout to finish: 1 out of 2 new pods have been updated...
+Waiting for daemon set "nydus-blob-seed" rollout to finish: 1 of 2 updated pods are available...
+daemon set "nydus-blob-seed" successfully rolled out
+# exit: 0  end: 2026-11-03T05:46:16Z
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 out of 3 new pods have been updated...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 out of 3 new pods have been updated...
+Waiting for daemon set "image-plugin-nydus-dragonfly" rollout to finish: 2 of 3 updated pods are available...
+daemon set "image-plugin-nydus-dragonfly" successfully rolled out
+daemon set "image-plugin-nydus-dragonfly-seed" successfully rolled out
+daemon set "atelet" successfully rolled out
+daemon set "node-sampler" successfully rolled out
+NAME               DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+bench-nydus        48        48         48      gvisor-default   True       4d8h
+bench-pull         48        48                 gvisor-default   True       4d8h
+bench-riptide      48        48                 gvisor-default   True       4d8h
+bench-riptide-ms   48        48                 gvisor-default   True       2d7h
+bench-spegel       48        48                 gvisor-default   True       4d8h
+NAME                                      READY   STATUS    RESTARTS   AGE   IP            NODE                                                  NOMINATED NODE   READINESS GATES
+image-plugin-nydus-dragonfly-fhxxd        3/3     Running   0          27s   10.1.0.56     gke-substrate-stream-test-bench-nydus-0e28d3b2-glrx   <none>           <none>
+image-plugin-nydus-dragonfly-jw8zj        3/3     Running   0          19s   10.1.0.57     gke-substrate-stream-test-bench-nydus-0e28d3b2-k7rm   <none>           <none>
+image-plugin-nydus-dragonfly-nbfrv        3/3     Running   0          11s   10.1.15.193   gke-substrate-stream-test-bench-nydus-0e28d3b2-w7p7   <none>           <none>
+image-plugin-nydus-dragonfly-seed-2h5c6   3/3     Running   0          26s   10.1.0.2      gke-substrate-stream-bench-nydus-seed-faaf7805-9672   <none>           <none>
+image-plugin-nydus-dragonfly-seed-wmlb2   3/3     Running   0          19s   10.1.0.61     gke-substrate-stream-bench-nydus-seed-faaf7805-gsb7   <none>           <none>
+# exit: 0  end: 2026-11-03T05:46:41Z
+# seed-preload-b
+# start: 2026-11-03T05:46:41Z
+$ SAVE_DIR=/var/lib/ate/nydus-seed-blobs benchmarking/image-plugin/seed-preload.sh benchmarking/image-plugin/images-96-pf-b.jsonl 96
+
+373 unique blobs in the first 96 images
+preloaded in 96 s
+# exit: 0  end: 2026-11-03T05:51:03Z
+# seed-preload-c
+# start: 2026-11-03T05:51:03Z
+$ SAVE_DIR=/var/lib/ate/nydus-seed-blobs benchmarking/image-plugin/seed-preload.sh benchmarking/image-plugin/images-96-pf-c.jsonl 96
+
+380 unique blobs in the first 96 images
+preloaded in 107 s
+# exit: 0  end: 2026-11-03T05:55:30Z
+# bake-nydus-pfB
+# start: 2026-11-03T05:55:30Z
+$ DENSITY=2 TAG=-pfB LOADER_ARGS='-images /config/images-96-pf-b.jsonl -actors 96 -concurrency 48' benchmarking/image-plugin/run.sh bake nydus
+
+The Job "imgbench-bake-0-nydus-pfB-w2" is invalid: metadata.name: Invalid value: "imgbench-bake-0-nydus-pfB-w2": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')
+error: no matching resources found
+error: error executing jsonpath "{.items[0].metadata.name}": Error executing template: array index out of bounds: index 0, length 0. Printing more information for debugging the template:
+	template was:
+		{.items[0].metadata.name}
+	object given to jsonpath engine was:
+		map[string]interface {}{"apiVersion":"v1", "items":[]interface {}{}, "kind":"List", "metadata":map[string]interface {}{"resourceVersion":""}}
+
+
+nydus: imgbench-bake-0-nydus-pfB-w2 pod  started 2026-11-03T05:55:58Z
+nydus: pod  is gone
+benchmarking/image-plugin/run.sh: line 108: benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/nydus-pfB-w2/turns.jsonl: No such file or directory
+nydus: done (exit ), 0 lines, 0 errors
+wrote 0 points to benchmarking/image-plugin/results/20261103-confirm-sweep/setup/bake-0/nydus-pfB-w2/monitoring.jsonl
+Error from server (NotFound): jobs.batch "imgbench-bake-0-nydus-pfB-w2" not found
+# exit: 1  end: 2026-11-03T05:57:13Z

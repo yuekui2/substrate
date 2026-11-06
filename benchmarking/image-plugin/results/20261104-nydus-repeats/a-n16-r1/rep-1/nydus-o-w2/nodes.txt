@@ -1,0 +1,3 @@
+gke-substrate-stream-test-bench-nydus-e627bc7c-1wp3 10.1.15.234
+gke-substrate-stream-test-bench-nydus-e627bc7c-34bx 10.1.0.32
+gke-substrate-stream-test-bench-nydus-e627bc7c-hmdl 10.1.0.20
