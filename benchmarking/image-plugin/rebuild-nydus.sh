@@ -24,6 +24,9 @@
 #
 # Needs crane, jq and python3, and push access to TARGET_REPO through the
 # docker config. WORK_DIR keeps per-image logs and lists.
+#
+# PREFETCH=0 converts without a prefetch table. COMPRESSOR sets the blob
+# compressor: zstd (default), lz4_block or none.
 
 set -euo pipefail
 
@@ -32,6 +35,8 @@ TARGET_REPO="${TARGET_REPO:-us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke
 WORK_DIR="${WORK_DIR:-${TMPDIR:-/tmp}/rebuild-nydus}"
 PARALLEL="${PARALLEL:-8}"
 TAG="${TAG:-pf}"
+PREFETCH="${PREFETCH:-1}"
+COMPRESSOR="${COMPRESSOR:-zstd}"
 # Optional nydus-image chunk size, such as 0x400000.
 CHUNK_SIZE="${CHUNK_SIZE:-}"
 NYDUS_VERSION=v2.3.0
@@ -75,32 +80,39 @@ convert_one() {
   rm -rf "${dir}"
   mkdir -p "${dir}"
 
-  fetch_bootstrap "${nydus}" "${dir}/old"
-  "${NYDUS}/nydus-image" check -v "${dir}/old/image/image.boot" >"${dir}/old.txt" 2>/dev/null
-  grep -q 'metadata is valid' "${dir}/old.txt"
-  python3 "${HERE}/prefetch_list.py" <"${dir}/old.txt" >"${dir}/prefetch.txt"
-
   local chunk=()
   if [[ -n "${CHUNK_SIZE}" ]]; then
     chunk=(--chunk-size "${CHUNK_SIZE}")
   fi
+  local prefetch=(--prefetch-patterns)
+  if [[ "${PREFETCH}" == 1 ]]; then
+    fetch_bootstrap "${nydus}" "${dir}/old"
+    "${NYDUS}/nydus-image" check -v "${dir}/old/image/image.boot" >"${dir}/old.txt" 2>/dev/null
+    grep -q 'metadata is valid' "${dir}/old.txt"
+    python3 "${HERE}/prefetch_list.py" <"${dir}/old.txt" >"${dir}/prefetch.txt"
+  else
+    prefetch=()
+    : >"${dir}/prefetch.txt"
+  fi
   start="$(date +%s)"
   "${NYDUS}/nydusify" convert \
     --source "${oci}" --target "${target}:${TAG}" "${chunk[@]}" \
-    --fs-version 6 --compressor zstd \
+    --fs-version 6 --compressor "${COMPRESSOR}" \
     --nydus-image "${NYDUS}/nydus-image" --work-dir "${dir}/tmp" \
-    --prefetch-patterns <"${dir}/prefetch.txt" >"${dir}/convert.log" 2>&1
+    "${prefetch[@]}" <"${dir}/prefetch.txt" >"${dir}/convert.log" 2>&1
   secs=$(($(date +%s) - start))
   rm -rf "${dir}/tmp"
 
   digest="$(crane digest "${target}:${TAG}")"
-  fetch_bootstrap "${target}@${digest}" "${dir}/new"
-  "${NYDUS}/nydus-image" inspect -R prefetch "${dir}/new/image/image.boot" 2>/dev/null >"${dir}/prefetch-table.json"
-  if [[ "$(jq length "${dir}/prefetch-table.json")" -lt 2 ]]; then
-    echo "${id}: no prefetch table" >&2
-    return 1
+  if [[ "${PREFETCH}" == 1 ]]; then
+    fetch_bootstrap "${target}@${digest}" "${dir}/new"
+    "${NYDUS}/nydus-image" inspect -R prefetch "${dir}/new/image/image.boot" 2>/dev/null >"${dir}/prefetch-table.json"
+    if [[ "$(jq length "${dir}/prefetch-table.json")" -lt 2 ]]; then
+      echo "${id}: no prefetch table" >&2
+      return 1
+    fi
   fi
-  echo "${id} convert_s=${secs} prefetch_list=$(wc -l <"${dir}/prefetch.txt") prefetch_table=$(jq length "${dir}/prefetch-table.json")" >&2
+  echo "${id} convert_s=${secs} prefetch_list=$(wc -l <"${dir}/prefetch.txt")" >&2
   jq -c --arg n "${target}@${digest}" '.nydus = $n' <<<"${line}" >"${dir}/out.json"
 }
 
@@ -111,7 +123,7 @@ main() {
   fi
   local images="$1" n="$2" out="$3"
   install_nydus
-  export HERE TARGET_REPO WORK_DIR NYDUS BOOTSTRAP_ANNOTATION TAG CHUNK_SIZE
+  export HERE TARGET_REPO WORK_DIR NYDUS BOOTSTRAP_ANNOTATION TAG CHUNK_SIZE PREFETCH COMPRESSOR
   head -n "${n}" "${images}" | tr '\n' '\0' |
     xargs -0 -P "${PARALLEL}" -I{} "${BASH_SOURCE[0]}" convert-one {} ||
     echo "some conversions failed, see ${WORK_DIR}/<id>/convert.log" >&2

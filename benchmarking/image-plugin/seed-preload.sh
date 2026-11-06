@@ -28,6 +28,9 @@
 # SAVE_DIR/<hex digest> on its node, and the image manifests as
 # SAVE_DIR/manifests/<hex digest>, for nydus-blob-seed to serve
 # (nydus-dragonfly-seedhttp.yaml).
+#
+# DIRECT=1 fetches the blobs straight from the registry, so the seed's
+# dfdaemon doesn't keep a second copy.
 
 set -euo pipefail
 
@@ -35,6 +38,7 @@ images="${1:?usage: seed-preload.sh <images.jsonl> <n>}"
 n="${2:?usage: seed-preload.sh <images.jsonl> <n>}"
 PARALLEL="${PARALLEL:-16}"
 SAVE_DIR="${SAVE_DIR:-}"
+DIRECT="${DIRECT:-0}"
 REG=us-central1-docker.pkg.dev
 
 blobs="$(mktemp)"
@@ -67,7 +71,11 @@ xargs -P ${PARALLEL} -L 1 sh -c '
   if [ -n "\${SAVE_DIR}" ]; then
     out="\${SAVE_DIR}/.\${1#sha256:}.tmp"
   fi
-  if curl -sf -o "\${out}" -H "\${AUTH}" -H "X-Dragonfly-Registry: https://${REG}" "http://127.0.0.1:4001/v2/\$0/blobs/\$1"; then
+  url="http://127.0.0.1:4001/v2/\$0/blobs/\$1" hdr="X-Dragonfly-Registry: https://${REG}"
+  if [ "${DIRECT}" = 1 ]; then
+    url="https://${REG}/v2/\$0/blobs/\$1" hdr="Accept: */*"
+  fi
+  if curl -sfL -o "\${out}" -H "\${AUTH}" -H "\${hdr}" "\${url}"; then
     if [ -n "\${SAVE_DIR}" ]; then
       mv "\${out}" "\${SAVE_DIR}/\${1#sha256:}"
     fi

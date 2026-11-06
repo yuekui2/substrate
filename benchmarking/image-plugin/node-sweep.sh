@@ -18,7 +18,16 @@
 # <RUN_DIR>/n<n>. Uses the templates already baked at DENSITY (default 8).
 # With the riptide-ms arm, also empties its Valkey cluster before each run.
 #
-#   RUN_DIR=... [ARMS="pull riptide spegel"] [DENSITY=8] [TURNS=5] [VALKEY_EP=...] node-sweep.sh <n...>
+#   RUN_DIR=... [ARMS="pull riptide spegel"] [DENSITY=8] [TURNS=5] [VALKEY_EP=...]
+#     [IMAGES=images-96-pf-b.jsonl] [SOLO=nydus] node-sweep.sh <n...>
+#
+# IMAGES picks the image list from the imgbench-images ConfigMap. Pair it
+# with a TAG that names the atespace its templates were baked in.
+#
+# SOLO runs that arm alone first, on its own fresh pool, with the other
+# arms' pools deleted. Then it deletes the SOLO pool and runs the other arms
+# together on fresh pools. This keeps the SOLO arm clear of the others'
+# load and keeps at most the larger group's pools up, for the C3 quota.
 
 set -uo pipefail
 
@@ -28,19 +37,40 @@ EV="${HERE}/ev.sh"
 ARMS="${ARMS:-pull riptide nydus spegel}"
 DENSITY="${DENSITY:-8}"
 TURNS="${TURNS:-5}"
+SOLO="${SOLO:-}"
 NODES=3
 base="${RUN_DIR}"
 export DENSITY
 
+# run_group <n> <label> <arms> recreates the arms' pools and runs one rep.
+run_group() {
+  local n="$1" label="$2" arms="$3"
+  "${EV}" "n${n}-${label}recreate-pools" "${HERE}/pools.sh recreate ${arms}"
+  "${EV}" "n${n}-${label}wait-ready" "${HERE}/wait-ready.sh ${arms}"
+  if [[ " ${arms} " == *" riptide-ms "* ]]; then
+    "${EV}" "n${n}-${label}valkey-flush" "${HERE}/valkey-flush.sh" || exit 1
+  fi
+  LOADER_ARGS="-actors $((NODES * n)) -turns ${TURNS} -reads 1000${IMAGES:+ -images /config/${IMAGES}}" \
+    "${EV}" "n${n}-${label}run" "${HERE}/run.sh rep 1 ${arms}"
+}
+
+rest=""
+for a in ${ARMS}; do
+  [[ "${a}" == "${SOLO}" ]] || rest+="${rest:+ }${a}"
+done
+
 for n in "$@"; do
   export RUN_DIR="${base}/n${n}"
   mkdir -p "${RUN_DIR}"
-  "${EV}" "n${n}-recreate-pools" "${HERE}/pools.sh recreate ${ARMS}"
-  "${EV}" "n${n}-wait-ready" "${HERE}/wait-ready.sh ${ARMS}"
-  if [[ " ${ARMS} " == *" riptide-ms "* ]]; then
-    "${EV}" "n${n}-valkey-flush" "${HERE}/valkey-flush.sh" || exit 1
+  if [[ -z "${SOLO}" ]]; then
+    run_group "${n}" "" "${ARMS}"
+    continue
   fi
-  LOADER_ARGS="-actors $((NODES * n)) -turns ${TURNS} -reads 1000" \
-    "${EV}" "n${n}-run" "${HERE}/run.sh rep 1 ${ARMS}"
+  [[ -n "${rest}" ]] && "${EV}" "n${n}-delete-rest" "${HERE}/pools.sh delete ${rest}"
+  run_group "${n}" "${SOLO}-" "${SOLO}"
+  if [[ -n "${rest}" ]]; then
+    "${EV}" "n${n}-delete-${SOLO}" "${HERE}/pools.sh delete ${SOLO}"
+    run_group "${n}" "rest-" "${rest}"
+  fi
 done
 echo NODE-SWEEP-DONE

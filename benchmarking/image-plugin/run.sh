@@ -121,6 +121,17 @@ run_arm() {
     kubectl -n imgbench logs "${p}" --since-time="${start}" 2>/dev/null |
       grep -E 'Restore timing breakdown|Checkpoint timing breakdown' >>"${dir}/worker-phases.log" || true
   done
+  # nginx access log of the Nydus seeds (deploy-nydus-best.sh), one JSON
+  # line per request.
+  if [[ "${arm}" == nydus ]]; then
+    for p in $(kubectl -n ate-system get pods -l app=nydus-blob-seed -o name); do
+      kubectl -n ate-system logs "${p}" --since-time="${start}" 2>/dev/null |
+        grep '^{"msec"' >"${dir}/seed-access-${p#pod/}.jsonl" || true
+    done
+  fi
+  # Node name and internal IP, to map seed requests to nodes.
+  kubectl get nodes -l "bench-arm=${arm}" \
+    -o jsonpath='{range .items[*]}{.metadata.name} {.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}' >"${dir}/nodes.txt"
   collect_nodes "${arm}" "${dir}" "${start}" "${nodes}"
   kubectl -n imgbench delete job "${job}" --wait=false >/dev/null
 }

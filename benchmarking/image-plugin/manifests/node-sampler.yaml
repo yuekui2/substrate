@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Samples disk and CPU counters on every bench node into the pod log, and serves
-# node-sampler.sh snapshot through kubectl exec. deploy.sh creates the
-# node-sampler ConfigMap from node-sampler.sh.
+# Samples disk, CPU and host counters on every bench node into the pod log,
+# and serves node-sampler.sh snapshot through kubectl exec. deploy.sh creates
+# the node-sampler ConfigMap from node-sampler.sh.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -58,7 +58,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
         - name: SAMPLE_INTERVAL
-          value: "5"
+          value: "1"
         resources:
           requests:
             cpu: 10m

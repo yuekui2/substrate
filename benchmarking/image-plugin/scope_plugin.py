@@ -24,10 +24,11 @@
 - Clears the plugin's cache on every start, so each rep starts cold.
 - Riptide: runs gcfsd v1.37-2 and snapshotter v1.37-1 from the riptide-bins
   image, installed by an init container, as in the teammate's run.
-- riptide-ms: the same, with the Memorystore gcfsd-v2 build dev-c98764b
+- riptide-ms: the same, with the Memorystore gcfsd-v2 build dev-e49ebb5
   and MEMORYSTORE_ADDRESS from VALKEY_EP.
 - Nydus: sets DRAGONFLY_PREFETCH, NYDUS_PREFETCH and NYDUS_USER_IO_BATCH_SIZE
-  from the environment when they are set.
+  from the environment when they are set, and appends NYDUS_PLUGIN_ARGS to
+  the image plugin's args.
 """
 
 import os
@@ -39,11 +40,12 @@ RIPTIDE_BINS = (
     "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/riptide-bins"
     "@sha256:e6648c4d79f258df2ad6aea531428ebfc0d7fec5010b7adca48307f3479343f5"
 )
-# gcfsd-v2 from gs://kuiyue-gke-dev-riptide/gcfsd-v2-ms and the snapshotter
-# from RIPTIDE_BINS, packed by image-plugin/cmd/riptide-bin-image.
+# gcfsd-v2 dev-e49ebb5 from gs://kuiyue-gke-dev-riptide/gcfsd-v2-ms-fpt and
+# the snapshotter from RIPTIDE_BINS, packed by
+# image-plugin/cmd/riptide-bin-image.
 RIPTIDE_MS_BINS = (
     "us-central1-docker.pkg.dev/kuiyue-gke-dev/kuiyue-gke-dev-repo/riptide-bins-ms"
-    "@sha256:338f2c9d097d2810799fe204f1765c934881d99f74f0fda08682ff9f5a980951"
+    "@sha256:3ff5e4c2db00244db28d437a3e4e334f1acab10d2f1016e9851daecd1edc49d8"
 )
 BINS = {"riptide": RIPTIDE_BINS, "riptide-ms": RIPTIDE_MS_BINS}
 RIPTIDE_BIN_DIR = "/home/kubernetes/bin/ate-riptide"
@@ -95,6 +97,8 @@ def patch(doc, arm):
         if c["name"] == "image-plugin-spegel":
             c["args"] = [a for a in c["args"] if not a.startswith("--clear-cache-on-start")]
             c["args"].append("--clear-cache-on-start=true")
+        if c["name"] == "image-plugin-dragonfly" and os.environ.get("NYDUS_PLUGIN_ARGS"):
+            c["args"] += os.environ["NYDUS_PLUGIN_ARGS"].split()
     if arm in BINS:
         spec.setdefault("initContainers", []).append({
             "name": "install-riptide-bins",

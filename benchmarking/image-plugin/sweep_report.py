@@ -68,7 +68,7 @@ def present(path):
 
 
 def disk_rates(path):
-    """Peak and p50 of per-node write MB/s, read MB/s and IOPS over 5 s samples."""
+    """Peak and p50 of per-node write MB/s, read MB/s and IOPS per node-sampler sample."""
     by_node = defaultdict(list)
     for r in load(path):
         if r.get("kind") != "diskstats" or not r.get("disks"):
@@ -89,7 +89,7 @@ def disk_rates(path):
 
 
 def cpu_rates(path):
-    """Per-node CPU busy and iowait percent over 5 s samples, and the mean
+    """Per-node CPU busy and iowait percent per node-sampler sample, and the mean
     cores per node of each process name over the run."""
     by_node = defaultdict(list)
     for r in load(path):
@@ -202,14 +202,14 @@ def main():
               + " / ".join(fmt(x, 0) for x in r["session"]) + f" | {fmt(r['wall'], 0)} | {fmt(r['turns_per_s'], 1)} | "
               + f"{mv}/{rs} ({100 * mv / rs if rs else 0:.0f}%) | {fmt(r['moved_ttfi'])} |")
 
-    print("\n### Disk peak per node (5 s samples)\n")
+    print("\n### Disk peak per node (node-sampler samples)\n")
     print("| arm | actors/worker | write MB/s | read MB/s | IOPS |")
     print("|---|---|---|---|---|")
     for r in rows:
         w, rd, io = r["disk"]
         print(f"| {r['arm']} | {r['w']} | {fmt(w, 0)} | {fmt(rd, 0)} | {fmt(io, 0)} |")
 
-    print("\n### CPU per node (5 s samples, % of all cores)\n")
+    print("\n### CPU per node (node-sampler samples, % of all cores)\n")
     print("| arm | actors/worker | busy p50 / p95 / max | iowait p50 / max | top processes, mean cores per node |")
     print("|---|---|---|---|---|")
     for r in rows:

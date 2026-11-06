@@ -14,7 +14,8 @@
 # limitations under the License.
 
 # Deploys the fastest Nydus arm: seed HTTP blobs, one fscache domain,
-# snapshotter mounts, nydusd prefetch off, and a nydusd that fills bootstrap
+# snapshotter mounts, nydusd prefetch off, the seed access log on
+# (seed-access-log.py), and a nydusd that fills bootstrap
 # caches (nydusd-amp/bootstrap-fill.patch).
 #
 #   deploy-nydus-best.sh <nydusd image>
@@ -36,5 +37,9 @@ KO="$(cd "${ROOT}/hack/tools/ko" && go tool -n ko)"
 out="${RUN_DIR}/nydus-dragonfly.applied.yaml"
 (cd "${ROOT}" && "${KO}" resolve --base-import-paths -f image-plugin/manifests/nydus-dragonfly-seedhttp.yaml) 2>"${RUN_DIR}/ko.log" |
   DRAGONFLY_PREFETCH=false NYDUS_PREFETCH=false python3 "${HERE}/scope_plugin.py" nydus |
-  python3 "${HERE}/nydusd-amp/use-nydusd.py" "${NYDUSD_IMAGE}" >"${out}"
+  python3 "${HERE}/nydusd-amp/use-nydusd.py" "${NYDUSD_IMAGE}" |
+  python3 "${HERE}/seed-access-log.py" >"${out}"
 kubectl apply -f "${out}"
+# nginx reads its config only at start.
+kubectl -n ate-system rollout restart ds/nydus-blob-seed
+kubectl -n ate-system rollout status ds/nydus-blob-seed --timeout=10m
