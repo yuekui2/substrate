@@ -48,6 +48,7 @@ function codegen::protobuf() {
         ':!:third_party/*' \
         ':!:**/third_party/*' \
         ':!:_LICENSES/*' \
+        ':!:repos/*' \
         | while read -r FILE; do dirname "${FILE}"; done \
         | sort \
         | uniq)
@@ -85,6 +86,7 @@ function codegen::validation() {
         ':!:third_party/*' \
         ':!:**/third_party/*' \
         ':!:_LICENSES/*' \
+        ':!:repos/*' \
         | while read -r FILE; do dirname "${FILE}"; done \
         | sort \
         | uniq)

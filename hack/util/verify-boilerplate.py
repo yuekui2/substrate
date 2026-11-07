@@ -124,6 +124,10 @@ def main():
         if filepath.startswith("_LICENSES/"):
             continue
 
+        # exclude the modules under repos/, which check their own headers
+        if filepath.startswith("repos/"):
+            continue
+
         # exclude github config
         if filepath in [".github/dependabot.yml"]:
             continue
