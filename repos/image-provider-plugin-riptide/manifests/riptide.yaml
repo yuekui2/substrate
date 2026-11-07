@@ -22,7 +22,8 @@
 #
 # The binaries come from the node: GKE preloads gcfsd, gcfsd-v2 and
 # containerd-gcfs-grpc under /home/kubernetes/bin. Set RIPTIDE_BIN_DIR to a
-# node directory to run other builds.
+# node directory to run other builds. cmd/riptide-bin-image packages custom
+# builds and writes a patch that installs them there.
 #
 # On SIGTERM the plugin drains its leases and writes /run/ate/drain-complete.
 # riptide-provider keeps gcfsd running until then.
