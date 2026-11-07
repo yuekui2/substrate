@@ -150,7 +150,7 @@ func TestImageSourceEnsure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
 			inst, reader := newTestInstruments(t)
-			images := imageSource{cache: newImageVolumeStore(t), keychain: keychain, instruments: inst}
+			images := imageSource{cache: newImageVolumeStore(t), keychain: keychain, authModes: &providerAuthModes{}, instruments: inst}
 			if tc.cached {
 				if _, err := images.cache.EnsureImage(ctx, ref); err != nil {
 					t.Fatal(err)
@@ -229,7 +229,7 @@ func TestPrepareOCIDirectoryProviderLeases(t *testing.T) {
 	provider.PrepareImageFunc = func(context.Context, *providerclient.PrepareRequest) (*providerclient.PrepareResult, error) {
 		return streamedResult(layerDir), nil
 	}
-	images := imageSource{cache: newImageVolumeStore(t), provider: provider}
+	images := imageSource{cache: newImageVolumeStore(t), provider: provider, authModes: &providerAuthModes{}}
 
 	// Two containers of one actor take a lease each on the same images.
 	for _, ctr := range []string{"app", "sidecar"} {
