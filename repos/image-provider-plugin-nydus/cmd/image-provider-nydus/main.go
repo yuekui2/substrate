@@ -38,6 +38,7 @@ func main() {
 		verifyDragonflyPing = flag.Bool("verify-dragonfly-ping", true, "Require a healthy dfdaemon to serve images")
 		procFilesystems     = flag.String("proc-filesystems", "/proc/filesystems", "File listing the kernel's filesystems, checked for EROFS")
 		cachefilesDev       = flag.String("cachefiles-dev", "/dev/cachefiles", "fscache device that EROFS over fscache needs")
+		blobSeedURL         = flag.String("blob-seed-url", "", "Base URL of the blob seed servers to read manifests and bootstrap layers from before the registry; empty disables")
 		workDir             = flag.String("work-dir", "", "Work directory for image layer links (default "+plugin.DefaultBaseWorkDir+"/"+providerName+")")
 		namespace           = flag.String("namespace", plugin.DefaultNamespace, "containerd namespace sent to containerd-nydus-grpc")
 		snapshotterName     = flag.String("snapshotter-name", "nydus", "Snapshotter name sent in snapshot requests")
@@ -48,6 +49,7 @@ func main() {
 		drainTimeout        = flag.Duration("drain-timeout", plugin.DefaultDrainTimeout, "How long to wait after SIGTERM for image leases to end")
 		drainCompleteFile   = flag.String("drain-complete-file", plugin.DefaultDrainCompleteFile, "File to write once draining finishes")
 		probe               = flag.Bool("probe", false, "Check that the plugin on --listen-socket is ready and exit")
+		credentialRenewal   = flag.String("credential-renewal", plugin.CredentialRenewalClient, "Who keeps registry credentials fresh: \"client\" refreshes them with RefreshAuth, \"self\" renews them with the plugin's own keychain")
 	)
 	flag.Parse()
 
@@ -62,7 +64,12 @@ func main() {
 		return
 	}
 
-	opts := []plugin.Option{
+	renewalOpts, err := plugin.CredentialRenewalOptions(*credentialRenewal)
+	if err != nil {
+		slog.Error("Invalid --credential-renewal", slog.Any("err", err))
+		os.Exit(1)
+	}
+	opts := append([]plugin.Option{
 		plugin.WithSocketPath(*snapshotterSocket),
 		plugin.WithNamespace(*namespace),
 		plugin.WithSnapshotterName(*snapshotterName),
@@ -71,7 +78,7 @@ func main() {
 		plugin.WithListableTimeout(*listableTimeout),
 		plugin.WithStartupTimeout(*startupTimeout),
 		plugin.WithDrainTimeout(*drainTimeout),
-	}
+	}, renewalOpts...)
 	if *workDir != "" {
 		opts = append(opts, plugin.WithWorkDir(*workDir))
 	}
@@ -82,6 +89,7 @@ func main() {
 		VerifyDragonflyPing: *verifyDragonflyPing,
 		ProcFilesystemsPath: *procFilesystems,
 		CachefilesDevPath:   *cachefilesDev,
+		BlobSeedURL:         *blobSeedURL,
 		DriverOpts:          opts,
 	})
 	if err != nil {

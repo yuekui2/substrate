@@ -102,12 +102,16 @@ type config struct {
 	VerifyDragonflyPing bool
 	ProcFilesystemsPath string
 	CachefilesDevPath   string
-	LayerReader         layerReaderFunc
-	LayerAnnotations    layerAnnotationsFunc
-	Mount               mountFunc
-	Unmount             unmountFunc
-	StatFS              statFSFunc
-	DriverOpts          []plugin.Option
+	// BlobSeedURL is the base URL of the blob seed servers. When set, the
+	// plugin reads manifests and bootstrap layers from them before the
+	// registry.
+	BlobSeedURL      string
+	LayerReader      layerReaderFunc
+	LayerAnnotations layerAnnotationsFunc
+	Mount            mountFunc
+	Unmount          unmountFunc
+	StatFS           statFSFunc
+	DriverOpts       []plugin.Option
 }
 
 // nydusDriver prepares Nydus RAFS v6 images with containerd-nydus-grpc in
@@ -120,6 +124,8 @@ type nydusDriver struct {
 	verifyDragonflyPing bool
 	httpClient          *http.Client
 	blobTransport       http.RoundTripper
+	blobSeedURL         string
+	seedClient          *http.Client
 	layerReader         layerReaderFunc
 	layerAnnotations    layerAnnotationsFunc
 	mount               mountFunc
@@ -197,6 +203,11 @@ func newNydusDriver(cfg config) (*nydusDriver, error) {
 	if _, err := httpURL(cfg.DragonflyHealthURL, "Dragonfly health URL"); err != nil {
 		return nil, err
 	}
+	if cfg.BlobSeedURL != "" {
+		if _, err := httpURL(cfg.BlobSeedURL, "blob seed URL"); err != nil {
+			return nil, err
+		}
+	}
 	if err := verifyKernelSupport(cfg.ProcFilesystemsPath, cfg.CachefilesDevPath); err != nil {
 		return nil, err
 	}
@@ -207,6 +218,8 @@ func newNydusDriver(cfg config) (*nydusDriver, error) {
 		verifyDragonflyPing: cfg.VerifyDragonflyPing,
 		httpClient:          &http.Client{Timeout: plugin.DefaultProbeTimeout},
 		blobTransport:       &dragonflyBlobTransport{proxy: proxyURL, base: remote.DefaultTransport},
+		blobSeedURL:         strings.TrimRight(cfg.BlobSeedURL, "/"),
+		seedClient:          &http.Client{Timeout: seedTimeout},
 		layerReader:         cfg.LayerReader,
 		layerAnnotations:    cfg.LayerAnnotations,
 		mount:               cfg.Mount,
@@ -223,6 +236,9 @@ func newNydusDriver(cfg config) (*nydusDriver, error) {
 		plugin.WithWorkDirTeardownHook(nd.unmountWorkDir),
 		plugin.WithProbeHook(nd.probeDragonfly),
 	}, cfg.DriverOpts...)
+	if nd.blobSeedURL != "" {
+		opts = append(opts, plugin.WithImageResolver(nd.resolveImage))
+	}
 	d, err := plugin.NewDriver(providerName, defaultSnapshotterSocket, "nydus", opts...)
 	if err != nil {
 		return nil, err
@@ -265,7 +281,9 @@ func (nd *nydusDriver) probeDragonfly(ctx context.Context) error {
 // onWarmHit refreshes the registry credentials nydusd reads for a reused
 // image.
 func (nd *nydusDriver) onWarmHit(ctx context.Context, _ string, req *client.PrepareRequest) {
-	nd.dockerSyncer.Sync(ctx, nd.Keychain(), req.ImageRef, req.AuthConfig, false)
+	if err := nd.dockerSyncer.Sync(ctx, nd.Keychain(), req.ImageRef, req.AuthConfig, false); err != nil {
+		slog.WarnContext(ctx, "Failed to refresh registry credentials for nydusd", slog.String("image", req.ImageRef), slog.Any("err", err))
+	}
 }
 
 // onAuthRefresh writes a leased image's fresh registry credentials for
@@ -286,7 +304,11 @@ func (nd *nydusDriver) mountLayers(ctx context.Context, env *plugin.MountEnv) (*
 			return nil, err
 		}
 	}
-	nd.dockerSyncer.Sync(ctx, nd.Keychain(), env.ImageRef, env.AuthConfig, true)
+	// A missing credential shows up as a pull error in the snapshotter, so a
+	// failed write does not fail the mount.
+	if err := nd.dockerSyncer.Sync(ctx, nd.Keychain(), env.ImageRef, env.AuthConfig, true); err != nil {
+		slog.WarnContext(ctx, "Failed to write registry credentials for nydusd", slog.String("image", env.ImageRef), slog.Any("err", err))
+	}
 
 	imgKey := plugin.SanitizePathKey(env.ImageRef)
 	runID := fmt.Sprintf("%x", time.Now().UnixNano())
@@ -390,6 +412,10 @@ func (nd *nydusDriver) commitLayer(nsCtx context.Context, env *plugin.MountEnv, 
 		defer func() { _ = rc.Close() }()
 		if err := unpackLayerTarToDir(nsCtx, rc, dir); err != nil {
 			return fmt.Errorf("unpacking the bootstrap layer: %w", err)
+		}
+		// Read to the end so the reader checks the layer digest.
+		if _, err := io.Copy(io.Discard, rc); err != nil {
+			return fmt.Errorf("reading the bootstrap layer: %w", err)
 		}
 	}
 	labels["containerd.io/snapshot.ref"] = c.ChainID
@@ -542,11 +568,19 @@ func (nd *nydusDriver) layerLabels(ctx context.Context, imageRef string, auth *c
 }
 
 // registryLayerAnnotations reads the layer annotations from the image's
-// manifest in its registry, and marks Nydus data blob layers.
+// manifest on the blob seeds or in its registry, and marks Nydus data blob
+// layers.
 func (nd *nydusDriver) registryLayerAnnotations(ctx context.Context, imageRef string, auth *client.AuthConfig) ([]map[string]string, error) {
 	ref, err := name.ParseReference(imageRef)
 	if err != nil {
 		return nil, err
+	}
+	if nd.blobSeedURL != "" {
+		m, err := nd.seedManifest(ctx, ref)
+		if err == nil {
+			return manifestAnnotations(m), nil
+		}
+		logSeedMiss(ctx, "manifest", imageRef, err)
 	}
 	img, err := remote.Image(ref, plugin.RemoteOptions(ctx, nd.Keychain(), auth)...)
 	if err != nil {
@@ -574,8 +608,8 @@ func manifestAnnotations(m *v1.Manifest) []map[string]string {
 	return out
 }
 
-// registryLayerReader fetches a layer by digest through the Dragonfly
-// proxy, so the nodes share it.
+// registryLayerReader fetches a layer by digest from the blob seeds, or
+// through the Dragonfly proxy so the nodes share it.
 func (nd *nydusDriver) registryLayerReader(ctx context.Context, imageRef string, auth *client.AuthConfig, i int, layerDigest string) (io.ReadCloser, error) {
 	ref, err := name.ParseReference(imageRef)
 	if err != nil {
@@ -583,6 +617,13 @@ func (nd *nydusDriver) registryLayerReader(ctx context.Context, imageRef string,
 	}
 	if layerDigest == "" {
 		return nil, fmt.Errorf("layer %d of %s has no digest", i, imageRef)
+	}
+	if nd.blobSeedURL != "" {
+		rc, err := nd.seedLayer(ctx, ref.Context(), layerDigest)
+		if err == nil {
+			return rc, nil
+		}
+		logSeedMiss(ctx, "layer "+layerDigest, imageRef, err)
 	}
 	opts := append(plugin.RemoteOptions(ctx, nd.Keychain(), auth), remote.WithTransport(nd.blobTransport))
 	layer, err := remote.Layer(ref.Context().Digest(layerDigest), opts...)
