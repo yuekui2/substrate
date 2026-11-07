@@ -63,7 +63,16 @@ service ImageProviderPlugin {
   // ReconcileImages replaces the plugin's leases with the leases that
   // surviving workloads still hold. The caller sends it after it restarts or
   // finds the plugin socket. The plugin removes layers that no lease uses.
+  // The caller then calls RefreshAuth on each surviving lease. Until then, a
+  // plugin that reported AUTH_REFRESH_REQUIRED may have no credentials for
+  // it.
   rpc ReconcileImages(ReconcileImagesRequest) returns (ReconcileImagesResponse);
+
+  // RefreshAuth replaces the registry credentials of a lease the plugin
+  // holds. The plugin uses the latest credentials it got for a lease. It
+  // returns codes.NotFound if the plugin does not hold the lease, and never
+  // takes a lease.
+  rpc RefreshAuth(RefreshAuthRequest) returns (RefreshAuthResponse);
 }
 
 // LayerForm is the form in which the plugin returns an image's layers.
@@ -122,6 +131,23 @@ enum PluginState {
   // after SIGTERM during a RollingUpdate. It declines PrepareImage, and
   // workloads holding its leases should cycle so it can unmount.
   PLUGIN_STATE_DRAINING = 2;
+}
+
+// AuthRefresh says whether the caller must refresh a lease's registry
+// credentials while it holds the lease.
+enum AuthRefresh {
+  // AUTH_REFRESH_UNSPECIFIED is treated as AUTH_REFRESH_REQUIRED.
+  AUTH_REFRESH_UNSPECIFIED = 0;
+
+  // AUTH_REFRESH_NOT_NEEDED means the plugin no longer needs the caller's
+  // credentials for the lease, because it read the whole image or renews
+  // credentials itself.
+  AUTH_REFRESH_NOT_NEEDED = 1;
+
+  // AUTH_REFRESH_REQUIRED means the plugin keeps reading the registry with
+  // the caller's credentials. The caller calls RefreshAuth with fresh
+  // credentials before the old ones expire.
+  AUTH_REFRESH_REQUIRED = 2;
 }
 
 message CanProvideResponse {
@@ -212,6 +238,9 @@ message PrepareImageResponse {
 
   // extensions is for customized forks only. See the service comment.
   repeated google.protobuf.Any extensions = 7;
+
+  // auth_refresh says whether the caller must call RefreshAuth on the lease.
+  AuthRefresh auth_refresh = 8;
 }
 
 message ReleaseImageRequest {
@@ -266,4 +295,24 @@ message ReconcileImagesRequest {
 message ReconcileImagesResponse {
   // extensions is for customized forks only. See the service comment.
   repeated google.protobuf.Any extensions = 1;
+}
+
+message RefreshAuthRequest {
+  // lease_id is the lease_id the caller passed to PrepareImage.
+  string lease_id = 1;
+
+  // auth replaces the lease's registry credentials.
+  RegistryAuth auth = 2;
+
+  // extensions is for customized forks only. See the service comment.
+  repeated google.protobuf.Any extensions = 3;
+}
+
+message RefreshAuthResponse {
+  // auth_refresh says whether the caller must keep calling RefreshAuth on
+  // the lease.
+  AuthRefresh auth_refresh = 1;
+
+  // extensions is for customized forks only. See the service comment.
+  repeated google.protobuf.Any extensions = 2;
 }

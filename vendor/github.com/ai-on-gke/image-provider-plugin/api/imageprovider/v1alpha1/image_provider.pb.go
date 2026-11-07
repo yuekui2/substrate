@@ -154,6 +154,64 @@ func (PluginState) EnumDescriptor() ([]byte, []int) {
 	return file_api_imageprovider_v1alpha1_image_provider_proto_rawDescGZIP(), []int{1}
 }
 
+// AuthRefresh says whether the caller must refresh a lease's registry
+// credentials while it holds the lease.
+type AuthRefresh int32
+
+const (
+	// AUTH_REFRESH_UNSPECIFIED is treated as AUTH_REFRESH_REQUIRED.
+	AuthRefresh_AUTH_REFRESH_UNSPECIFIED AuthRefresh = 0
+	// AUTH_REFRESH_NOT_NEEDED means the plugin no longer needs the caller's
+	// credentials for the lease, because it read the whole image or renews
+	// credentials itself.
+	AuthRefresh_AUTH_REFRESH_NOT_NEEDED AuthRefresh = 1
+	// AUTH_REFRESH_REQUIRED means the plugin keeps reading the registry with
+	// the caller's credentials. The caller calls RefreshAuth with fresh
+	// credentials before the old ones expire.
+	AuthRefresh_AUTH_REFRESH_REQUIRED AuthRefresh = 2
+)
+
+// Enum value maps for AuthRefresh.
+var (
+	AuthRefresh_name = map[int32]string{
+		0: "AUTH_REFRESH_UNSPECIFIED",
+		1: "AUTH_REFRESH_NOT_NEEDED",
+		2: "AUTH_REFRESH_REQUIRED",
+	}
+	AuthRefresh_value = map[string]int32{
+		"AUTH_REFRESH_UNSPECIFIED": 0,
+		"AUTH_REFRESH_NOT_NEEDED":  1,
+		"AUTH_REFRESH_REQUIRED":    2,
+	}
+)
+
+func (x AuthRefresh) Enum() *AuthRefresh {
+	p := new(AuthRefresh)
+	*p = x
+	return p
+}
+
+func (x AuthRefresh) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AuthRefresh) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_imageprovider_v1alpha1_image_provider_proto_enumTypes[2].Descriptor()
+}
+
+func (AuthRefresh) Type() protoreflect.EnumType {
+	return &file_api_imageprovider_v1alpha1_image_provider_proto_enumTypes[2]
+}
+
+func (x AuthRefresh) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AuthRefresh.Descriptor instead.
+func (AuthRefresh) EnumDescriptor() ([]byte, []int) {
+	return file_api_imageprovider_v1alpha1_image_provider_proto_rawDescGZIP(), []int{2}
+}
+
 // RegistryAuth carries resolved registry credentials, for example from a
 // kubelet credential provider or imagePullSecrets, for one image request.
 type RegistryAuth struct {
@@ -688,7 +746,9 @@ type PrepareImageResponse struct {
 	//	*PrepareImageResponse_Rootfs
 	Layers isPrepareImageResponse_Layers `protobuf_oneof:"layers"`
 	// extensions is for customized forks only. See the service comment.
-	Extensions    []*anypb.Any `protobuf:"bytes,7,rep,name=extensions,proto3" json:"extensions,omitempty"`
+	Extensions []*anypb.Any `protobuf:"bytes,7,rep,name=extensions,proto3" json:"extensions,omitempty"`
+	// auth_refresh says whether the caller must call RefreshAuth on the lease.
+	AuthRefresh   AuthRefresh `protobuf:"varint,8,opt,name=auth_refresh,json=authRefresh,proto3,enum=imageprovider.v1alpha1.AuthRefresh" json:"auth_refresh,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -783,6 +843,13 @@ func (x *PrepareImageResponse) GetExtensions() []*anypb.Any {
 		return x.Extensions
 	}
 	return nil
+}
+
+func (x *PrepareImageResponse) GetAuthRefresh() AuthRefresh {
+	if x != nil {
+		return x.AuthRefresh
+	}
+	return AuthRefresh_AUTH_REFRESH_UNSPECIFIED
 }
 
 type isPrepareImageResponse_Layers interface {
@@ -1119,6 +1186,124 @@ func (x *ReconcileImagesResponse) GetExtensions() []*anypb.Any {
 	return nil
 }
 
+type RefreshAuthRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// lease_id is the lease_id the caller passed to PrepareImage.
+	LeaseId string `protobuf:"bytes,1,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"`
+	// auth replaces the lease's registry credentials.
+	Auth *RegistryAuth `protobuf:"bytes,2,opt,name=auth,proto3" json:"auth,omitempty"`
+	// extensions is for customized forks only. See the service comment.
+	Extensions    []*anypb.Any `protobuf:"bytes,3,rep,name=extensions,proto3" json:"extensions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshAuthRequest) Reset() {
+	*x = RefreshAuthRequest{}
+	mi := &file_api_imageprovider_v1alpha1_image_provider_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshAuthRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshAuthRequest) ProtoMessage() {}
+
+func (x *RefreshAuthRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_imageprovider_v1alpha1_image_provider_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshAuthRequest.ProtoReflect.Descriptor instead.
+func (*RefreshAuthRequest) Descriptor() ([]byte, []int) {
+	return file_api_imageprovider_v1alpha1_image_provider_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *RefreshAuthRequest) GetLeaseId() string {
+	if x != nil {
+		return x.LeaseId
+	}
+	return ""
+}
+
+func (x *RefreshAuthRequest) GetAuth() *RegistryAuth {
+	if x != nil {
+		return x.Auth
+	}
+	return nil
+}
+
+func (x *RefreshAuthRequest) GetExtensions() []*anypb.Any {
+	if x != nil {
+		return x.Extensions
+	}
+	return nil
+}
+
+type RefreshAuthResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// auth_refresh says whether the caller must keep calling RefreshAuth on
+	// the lease.
+	AuthRefresh AuthRefresh `protobuf:"varint,1,opt,name=auth_refresh,json=authRefresh,proto3,enum=imageprovider.v1alpha1.AuthRefresh" json:"auth_refresh,omitempty"`
+	// extensions is for customized forks only. See the service comment.
+	Extensions    []*anypb.Any `protobuf:"bytes,2,rep,name=extensions,proto3" json:"extensions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshAuthResponse) Reset() {
+	*x = RefreshAuthResponse{}
+	mi := &file_api_imageprovider_v1alpha1_image_provider_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshAuthResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshAuthResponse) ProtoMessage() {}
+
+func (x *RefreshAuthResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_imageprovider_v1alpha1_image_provider_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RefreshAuthResponse.ProtoReflect.Descriptor instead.
+func (*RefreshAuthResponse) Descriptor() ([]byte, []int) {
+	return file_api_imageprovider_v1alpha1_image_provider_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RefreshAuthResponse) GetAuthRefresh() AuthRefresh {
+	if x != nil {
+		return x.AuthRefresh
+	}
+	return AuthRefresh_AUTH_REFRESH_UNSPECIFIED
+}
+
+func (x *RefreshAuthResponse) GetExtensions() []*anypb.Any {
+	if x != nil {
+		return x.Extensions
+	}
+	return nil
+}
+
 var File_api_imageprovider_v1alpha1_image_provider_proto protoreflect.FileDescriptor
 
 const file_api_imageprovider_v1alpha1_image_provider_proto_rawDesc = "" +
@@ -1164,7 +1349,7 @@ const file_api_imageprovider_v1alpha1_image_provider_proto_rawDesc = "" +
 	"\vErofsLayers\x12:\n" +
 	"\x06layers\x18\x01 \x03(\v2\".imageprovider.v1alpha1.ErofsLayerR\x06layers\"\x1a\n" +
 	"\x06Rootfs\x12\x10\n" +
-	"\x03dir\x18\x01 \x01(\tR\x03dir\"\x87\x03\n" +
+	"\x03dir\x18\x01 \x01(\tR\x03dir\"\xcf\x03\n" +
 	"\x14PrepareImageResponse\x12!\n" +
 	"\fimage_digest\x18\x01 \x01(\tR\vimageDigest\x12\x1f\n" +
 	"\vconfig_json\x18\x02 \x01(\fR\n" +
@@ -1176,7 +1361,8 @@ const file_api_imageprovider_v1alpha1_image_provider_proto_rawDesc = "" +
 	"\x06rootfs\x18\x06 \x01(\v2\x1e.imageprovider.v1alpha1.RootfsH\x00R\x06rootfs\x124\n" +
 	"\n" +
 	"extensions\x18\a \x03(\v2\x14.google.protobuf.AnyR\n" +
-	"extensionsB\b\n" +
+	"extensions\x12F\n" +
+	"\fauth_refresh\x18\b \x01(\x0e2#.imageprovider.v1alpha1.AuthRefreshR\vauthRefreshB\b\n" +
 	"\x06layers\"\xc0\x01\n" +
 	"\x13ReleaseImageRequest\x12\x19\n" +
 	"\blease_id\x18\x01 \x01(\tR\aleaseId\x12!\n" +
@@ -1206,6 +1392,17 @@ const file_api_imageprovider_v1alpha1_image_provider_proto_rawDesc = "" +
 	"\x17ReconcileImagesResponse\x124\n" +
 	"\n" +
 	"extensions\x18\x01 \x03(\v2\x14.google.protobuf.AnyR\n" +
+	"extensions\"\x9f\x01\n" +
+	"\x12RefreshAuthRequest\x12\x19\n" +
+	"\blease_id\x18\x01 \x01(\tR\aleaseId\x128\n" +
+	"\x04auth\x18\x02 \x01(\v2$.imageprovider.v1alpha1.RegistryAuthR\x04auth\x124\n" +
+	"\n" +
+	"extensions\x18\x03 \x03(\v2\x14.google.protobuf.AnyR\n" +
+	"extensions\"\x93\x01\n" +
+	"\x13RefreshAuthResponse\x12F\n" +
+	"\fauth_refresh\x18\x01 \x01(\x0e2#.imageprovider.v1alpha1.AuthRefreshR\vauthRefresh\x124\n" +
+	"\n" +
+	"extensions\x18\x02 \x03(\v2\x14.google.protobuf.AnyR\n" +
 	"extensions*i\n" +
 	"\tLayerForm\x12\x1a\n" +
 	"\x16LAYER_FORM_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -1215,13 +1412,18 @@ const file_api_imageprovider_v1alpha1_image_provider_proto_rawDesc = "" +
 	"\vPluginState\x12\x1c\n" +
 	"\x18PLUGIN_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14PLUGIN_STATE_SERVING\x10\x01\x12\x19\n" +
-	"\x15PLUGIN_STATE_DRAINING\x10\x022\xc4\x03\n" +
+	"\x15PLUGIN_STATE_DRAINING\x10\x02*c\n" +
+	"\vAuthRefresh\x12\x1c\n" +
+	"\x18AUTH_REFRESH_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17AUTH_REFRESH_NOT_NEEDED\x10\x01\x12\x19\n" +
+	"\x15AUTH_REFRESH_REQUIRED\x10\x022\xac\x04\n" +
 	"\x13ImageProviderPlugin\x12c\n" +
 	"\n" +
 	"CanProvide\x12).imageprovider.v1alpha1.CanProvideRequest\x1a*.imageprovider.v1alpha1.CanProvideResponse\x12i\n" +
 	"\fPrepareImage\x12+.imageprovider.v1alpha1.PrepareImageRequest\x1a,.imageprovider.v1alpha1.PrepareImageResponse\x12i\n" +
 	"\fReleaseImage\x12+.imageprovider.v1alpha1.ReleaseImageRequest\x1a,.imageprovider.v1alpha1.ReleaseImageResponse\x12r\n" +
-	"\x0fReconcileImages\x12..imageprovider.v1alpha1.ReconcileImagesRequest\x1a/.imageprovider.v1alpha1.ReconcileImagesResponseBUZSgithub.com/ai-on-gke/image-provider-plugin/api/imageprovider/v1alpha1;imageproviderb\x06proto3"
+	"\x0fReconcileImages\x12..imageprovider.v1alpha1.ReconcileImagesRequest\x1a/.imageprovider.v1alpha1.ReconcileImagesResponse\x12f\n" +
+	"\vRefreshAuth\x12*.imageprovider.v1alpha1.RefreshAuthRequest\x1a+.imageprovider.v1alpha1.RefreshAuthResponseBUZSgithub.com/ai-on-gke/image-provider-plugin/api/imageprovider/v1alpha1;imageproviderb\x06proto3"
 
 var (
 	file_api_imageprovider_v1alpha1_image_provider_proto_rawDescOnce sync.Once
@@ -1235,62 +1437,72 @@ func file_api_imageprovider_v1alpha1_image_provider_proto_rawDescGZIP() []byte {
 	return file_api_imageprovider_v1alpha1_image_provider_proto_rawDescData
 }
 
-var file_api_imageprovider_v1alpha1_image_provider_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_api_imageprovider_v1alpha1_image_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_api_imageprovider_v1alpha1_image_provider_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_api_imageprovider_v1alpha1_image_provider_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_api_imageprovider_v1alpha1_image_provider_proto_goTypes = []any{
 	(LayerForm)(0),                  // 0: imageprovider.v1alpha1.LayerForm
 	(PluginState)(0),                // 1: imageprovider.v1alpha1.PluginState
-	(*RegistryAuth)(nil),            // 2: imageprovider.v1alpha1.RegistryAuth
-	(*CanProvideRequest)(nil),       // 3: imageprovider.v1alpha1.CanProvideRequest
-	(*CanProvideResponse)(nil),      // 4: imageprovider.v1alpha1.CanProvideResponse
-	(*PrepareImageRequest)(nil),     // 5: imageprovider.v1alpha1.PrepareImageRequest
-	(*LayerDirs)(nil),               // 6: imageprovider.v1alpha1.LayerDirs
-	(*ErofsLayer)(nil),              // 7: imageprovider.v1alpha1.ErofsLayer
-	(*ErofsLayers)(nil),             // 8: imageprovider.v1alpha1.ErofsLayers
-	(*Rootfs)(nil),                  // 9: imageprovider.v1alpha1.Rootfs
-	(*PrepareImageResponse)(nil),    // 10: imageprovider.v1alpha1.PrepareImageResponse
-	(*ReleaseImageRequest)(nil),     // 11: imageprovider.v1alpha1.ReleaseImageRequest
-	(*ReleaseImageResponse)(nil),    // 12: imageprovider.v1alpha1.ReleaseImageResponse
-	(*ActiveLease)(nil),             // 13: imageprovider.v1alpha1.ActiveLease
-	(*ReconcileImagesRequest)(nil),  // 14: imageprovider.v1alpha1.ReconcileImagesRequest
-	(*ReconcileImagesResponse)(nil), // 15: imageprovider.v1alpha1.ReconcileImagesResponse
-	(*anypb.Any)(nil),               // 16: google.protobuf.Any
+	(AuthRefresh)(0),                // 2: imageprovider.v1alpha1.AuthRefresh
+	(*RegistryAuth)(nil),            // 3: imageprovider.v1alpha1.RegistryAuth
+	(*CanProvideRequest)(nil),       // 4: imageprovider.v1alpha1.CanProvideRequest
+	(*CanProvideResponse)(nil),      // 5: imageprovider.v1alpha1.CanProvideResponse
+	(*PrepareImageRequest)(nil),     // 6: imageprovider.v1alpha1.PrepareImageRequest
+	(*LayerDirs)(nil),               // 7: imageprovider.v1alpha1.LayerDirs
+	(*ErofsLayer)(nil),              // 8: imageprovider.v1alpha1.ErofsLayer
+	(*ErofsLayers)(nil),             // 9: imageprovider.v1alpha1.ErofsLayers
+	(*Rootfs)(nil),                  // 10: imageprovider.v1alpha1.Rootfs
+	(*PrepareImageResponse)(nil),    // 11: imageprovider.v1alpha1.PrepareImageResponse
+	(*ReleaseImageRequest)(nil),     // 12: imageprovider.v1alpha1.ReleaseImageRequest
+	(*ReleaseImageResponse)(nil),    // 13: imageprovider.v1alpha1.ReleaseImageResponse
+	(*ActiveLease)(nil),             // 14: imageprovider.v1alpha1.ActiveLease
+	(*ReconcileImagesRequest)(nil),  // 15: imageprovider.v1alpha1.ReconcileImagesRequest
+	(*ReconcileImagesResponse)(nil), // 16: imageprovider.v1alpha1.ReconcileImagesResponse
+	(*RefreshAuthRequest)(nil),      // 17: imageprovider.v1alpha1.RefreshAuthRequest
+	(*RefreshAuthResponse)(nil),     // 18: imageprovider.v1alpha1.RefreshAuthResponse
+	(*anypb.Any)(nil),               // 19: google.protobuf.Any
 }
 var file_api_imageprovider_v1alpha1_image_provider_proto_depIdxs = []int32{
-	2,  // 0: imageprovider.v1alpha1.CanProvideRequest.auth:type_name -> imageprovider.v1alpha1.RegistryAuth
+	3,  // 0: imageprovider.v1alpha1.CanProvideRequest.auth:type_name -> imageprovider.v1alpha1.RegistryAuth
 	0,  // 1: imageprovider.v1alpha1.CanProvideRequest.form:type_name -> imageprovider.v1alpha1.LayerForm
-	16, // 2: imageprovider.v1alpha1.CanProvideRequest.extensions:type_name -> google.protobuf.Any
+	19, // 2: imageprovider.v1alpha1.CanProvideRequest.extensions:type_name -> google.protobuf.Any
 	1,  // 3: imageprovider.v1alpha1.CanProvideResponse.state:type_name -> imageprovider.v1alpha1.PluginState
-	16, // 4: imageprovider.v1alpha1.CanProvideResponse.extensions:type_name -> google.protobuf.Any
-	2,  // 5: imageprovider.v1alpha1.PrepareImageRequest.auth:type_name -> imageprovider.v1alpha1.RegistryAuth
+	19, // 4: imageprovider.v1alpha1.CanProvideResponse.extensions:type_name -> google.protobuf.Any
+	3,  // 5: imageprovider.v1alpha1.PrepareImageRequest.auth:type_name -> imageprovider.v1alpha1.RegistryAuth
 	0,  // 6: imageprovider.v1alpha1.PrepareImageRequest.form:type_name -> imageprovider.v1alpha1.LayerForm
-	16, // 7: imageprovider.v1alpha1.PrepareImageRequest.extensions:type_name -> google.protobuf.Any
-	7,  // 8: imageprovider.v1alpha1.ErofsLayers.layers:type_name -> imageprovider.v1alpha1.ErofsLayer
-	6,  // 9: imageprovider.v1alpha1.PrepareImageResponse.layer_dirs:type_name -> imageprovider.v1alpha1.LayerDirs
-	8,  // 10: imageprovider.v1alpha1.PrepareImageResponse.erofs_layers:type_name -> imageprovider.v1alpha1.ErofsLayers
-	9,  // 11: imageprovider.v1alpha1.PrepareImageResponse.rootfs:type_name -> imageprovider.v1alpha1.Rootfs
-	16, // 12: imageprovider.v1alpha1.PrepareImageResponse.extensions:type_name -> google.protobuf.Any
-	0,  // 13: imageprovider.v1alpha1.ReleaseImageRequest.form:type_name -> imageprovider.v1alpha1.LayerForm
-	16, // 14: imageprovider.v1alpha1.ReleaseImageRequest.extensions:type_name -> google.protobuf.Any
-	16, // 15: imageprovider.v1alpha1.ReleaseImageResponse.extensions:type_name -> google.protobuf.Any
-	0,  // 16: imageprovider.v1alpha1.ActiveLease.form:type_name -> imageprovider.v1alpha1.LayerForm
-	16, // 17: imageprovider.v1alpha1.ActiveLease.extensions:type_name -> google.protobuf.Any
-	13, // 18: imageprovider.v1alpha1.ReconcileImagesRequest.active_leases:type_name -> imageprovider.v1alpha1.ActiveLease
-	16, // 19: imageprovider.v1alpha1.ReconcileImagesRequest.extensions:type_name -> google.protobuf.Any
-	16, // 20: imageprovider.v1alpha1.ReconcileImagesResponse.extensions:type_name -> google.protobuf.Any
-	3,  // 21: imageprovider.v1alpha1.ImageProviderPlugin.CanProvide:input_type -> imageprovider.v1alpha1.CanProvideRequest
-	5,  // 22: imageprovider.v1alpha1.ImageProviderPlugin.PrepareImage:input_type -> imageprovider.v1alpha1.PrepareImageRequest
-	11, // 23: imageprovider.v1alpha1.ImageProviderPlugin.ReleaseImage:input_type -> imageprovider.v1alpha1.ReleaseImageRequest
-	14, // 24: imageprovider.v1alpha1.ImageProviderPlugin.ReconcileImages:input_type -> imageprovider.v1alpha1.ReconcileImagesRequest
-	4,  // 25: imageprovider.v1alpha1.ImageProviderPlugin.CanProvide:output_type -> imageprovider.v1alpha1.CanProvideResponse
-	10, // 26: imageprovider.v1alpha1.ImageProviderPlugin.PrepareImage:output_type -> imageprovider.v1alpha1.PrepareImageResponse
-	12, // 27: imageprovider.v1alpha1.ImageProviderPlugin.ReleaseImage:output_type -> imageprovider.v1alpha1.ReleaseImageResponse
-	15, // 28: imageprovider.v1alpha1.ImageProviderPlugin.ReconcileImages:output_type -> imageprovider.v1alpha1.ReconcileImagesResponse
-	25, // [25:29] is the sub-list for method output_type
-	21, // [21:25] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	19, // 7: imageprovider.v1alpha1.PrepareImageRequest.extensions:type_name -> google.protobuf.Any
+	8,  // 8: imageprovider.v1alpha1.ErofsLayers.layers:type_name -> imageprovider.v1alpha1.ErofsLayer
+	7,  // 9: imageprovider.v1alpha1.PrepareImageResponse.layer_dirs:type_name -> imageprovider.v1alpha1.LayerDirs
+	9,  // 10: imageprovider.v1alpha1.PrepareImageResponse.erofs_layers:type_name -> imageprovider.v1alpha1.ErofsLayers
+	10, // 11: imageprovider.v1alpha1.PrepareImageResponse.rootfs:type_name -> imageprovider.v1alpha1.Rootfs
+	19, // 12: imageprovider.v1alpha1.PrepareImageResponse.extensions:type_name -> google.protobuf.Any
+	2,  // 13: imageprovider.v1alpha1.PrepareImageResponse.auth_refresh:type_name -> imageprovider.v1alpha1.AuthRefresh
+	0,  // 14: imageprovider.v1alpha1.ReleaseImageRequest.form:type_name -> imageprovider.v1alpha1.LayerForm
+	19, // 15: imageprovider.v1alpha1.ReleaseImageRequest.extensions:type_name -> google.protobuf.Any
+	19, // 16: imageprovider.v1alpha1.ReleaseImageResponse.extensions:type_name -> google.protobuf.Any
+	0,  // 17: imageprovider.v1alpha1.ActiveLease.form:type_name -> imageprovider.v1alpha1.LayerForm
+	19, // 18: imageprovider.v1alpha1.ActiveLease.extensions:type_name -> google.protobuf.Any
+	14, // 19: imageprovider.v1alpha1.ReconcileImagesRequest.active_leases:type_name -> imageprovider.v1alpha1.ActiveLease
+	19, // 20: imageprovider.v1alpha1.ReconcileImagesRequest.extensions:type_name -> google.protobuf.Any
+	19, // 21: imageprovider.v1alpha1.ReconcileImagesResponse.extensions:type_name -> google.protobuf.Any
+	3,  // 22: imageprovider.v1alpha1.RefreshAuthRequest.auth:type_name -> imageprovider.v1alpha1.RegistryAuth
+	19, // 23: imageprovider.v1alpha1.RefreshAuthRequest.extensions:type_name -> google.protobuf.Any
+	2,  // 24: imageprovider.v1alpha1.RefreshAuthResponse.auth_refresh:type_name -> imageprovider.v1alpha1.AuthRefresh
+	19, // 25: imageprovider.v1alpha1.RefreshAuthResponse.extensions:type_name -> google.protobuf.Any
+	4,  // 26: imageprovider.v1alpha1.ImageProviderPlugin.CanProvide:input_type -> imageprovider.v1alpha1.CanProvideRequest
+	6,  // 27: imageprovider.v1alpha1.ImageProviderPlugin.PrepareImage:input_type -> imageprovider.v1alpha1.PrepareImageRequest
+	12, // 28: imageprovider.v1alpha1.ImageProviderPlugin.ReleaseImage:input_type -> imageprovider.v1alpha1.ReleaseImageRequest
+	15, // 29: imageprovider.v1alpha1.ImageProviderPlugin.ReconcileImages:input_type -> imageprovider.v1alpha1.ReconcileImagesRequest
+	17, // 30: imageprovider.v1alpha1.ImageProviderPlugin.RefreshAuth:input_type -> imageprovider.v1alpha1.RefreshAuthRequest
+	5,  // 31: imageprovider.v1alpha1.ImageProviderPlugin.CanProvide:output_type -> imageprovider.v1alpha1.CanProvideResponse
+	11, // 32: imageprovider.v1alpha1.ImageProviderPlugin.PrepareImage:output_type -> imageprovider.v1alpha1.PrepareImageResponse
+	13, // 33: imageprovider.v1alpha1.ImageProviderPlugin.ReleaseImage:output_type -> imageprovider.v1alpha1.ReleaseImageResponse
+	16, // 34: imageprovider.v1alpha1.ImageProviderPlugin.ReconcileImages:output_type -> imageprovider.v1alpha1.ReconcileImagesResponse
+	18, // 35: imageprovider.v1alpha1.ImageProviderPlugin.RefreshAuth:output_type -> imageprovider.v1alpha1.RefreshAuthResponse
+	31, // [31:36] is the sub-list for method output_type
+	26, // [26:31] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_api_imageprovider_v1alpha1_image_provider_proto_init() }
@@ -1308,8 +1520,8 @@ func file_api_imageprovider_v1alpha1_image_provider_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_imageprovider_v1alpha1_image_provider_proto_rawDesc), len(file_api_imageprovider_v1alpha1_image_provider_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   14,
+			NumEnums:      3,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

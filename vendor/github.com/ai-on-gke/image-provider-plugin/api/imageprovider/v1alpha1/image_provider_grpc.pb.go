@@ -37,6 +37,7 @@ const (
 	ImageProviderPlugin_PrepareImage_FullMethodName    = "/imageprovider.v1alpha1.ImageProviderPlugin/PrepareImage"
 	ImageProviderPlugin_ReleaseImage_FullMethodName    = "/imageprovider.v1alpha1.ImageProviderPlugin/ReleaseImage"
 	ImageProviderPlugin_ReconcileImages_FullMethodName = "/imageprovider.v1alpha1.ImageProviderPlugin/ReconcileImages"
+	ImageProviderPlugin_RefreshAuth_FullMethodName     = "/imageprovider.v1alpha1.ImageProviderPlugin/RefreshAuth"
 )
 
 // ImageProviderPluginClient is the client API for ImageProviderPlugin service.
@@ -83,7 +84,15 @@ type ImageProviderPluginClient interface {
 	// ReconcileImages replaces the plugin's leases with the leases that
 	// surviving workloads still hold. The caller sends it after it restarts or
 	// finds the plugin socket. The plugin removes layers that no lease uses.
+	// The caller then calls RefreshAuth on each surviving lease. Until then, a
+	// plugin that reported AUTH_REFRESH_REQUIRED may have no credentials for
+	// it.
 	ReconcileImages(ctx context.Context, in *ReconcileImagesRequest, opts ...grpc.CallOption) (*ReconcileImagesResponse, error)
+	// RefreshAuth replaces the registry credentials of a lease the plugin
+	// holds. The plugin uses the latest credentials it got for a lease. It
+	// returns codes.NotFound if the plugin does not hold the lease, and never
+	// takes a lease.
+	RefreshAuth(ctx context.Context, in *RefreshAuthRequest, opts ...grpc.CallOption) (*RefreshAuthResponse, error)
 }
 
 type imageProviderPluginClient struct {
@@ -134,6 +143,16 @@ func (c *imageProviderPluginClient) ReconcileImages(ctx context.Context, in *Rec
 	return out, nil
 }
 
+func (c *imageProviderPluginClient) RefreshAuth(ctx context.Context, in *RefreshAuthRequest, opts ...grpc.CallOption) (*RefreshAuthResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefreshAuthResponse)
+	err := c.cc.Invoke(ctx, ImageProviderPlugin_RefreshAuth_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ImageProviderPluginServer is the server API for ImageProviderPlugin service.
 // All implementations must embed UnimplementedImageProviderPluginServer
 // for forward compatibility.
@@ -178,7 +197,15 @@ type ImageProviderPluginServer interface {
 	// ReconcileImages replaces the plugin's leases with the leases that
 	// surviving workloads still hold. The caller sends it after it restarts or
 	// finds the plugin socket. The plugin removes layers that no lease uses.
+	// The caller then calls RefreshAuth on each surviving lease. Until then, a
+	// plugin that reported AUTH_REFRESH_REQUIRED may have no credentials for
+	// it.
 	ReconcileImages(context.Context, *ReconcileImagesRequest) (*ReconcileImagesResponse, error)
+	// RefreshAuth replaces the registry credentials of a lease the plugin
+	// holds. The plugin uses the latest credentials it got for a lease. It
+	// returns codes.NotFound if the plugin does not hold the lease, and never
+	// takes a lease.
+	RefreshAuth(context.Context, *RefreshAuthRequest) (*RefreshAuthResponse, error)
 	mustEmbedUnimplementedImageProviderPluginServer()
 }
 
@@ -200,6 +227,9 @@ func (UnimplementedImageProviderPluginServer) ReleaseImage(context.Context, *Rel
 }
 func (UnimplementedImageProviderPluginServer) ReconcileImages(context.Context, *ReconcileImagesRequest) (*ReconcileImagesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReconcileImages not implemented")
+}
+func (UnimplementedImageProviderPluginServer) RefreshAuth(context.Context, *RefreshAuthRequest) (*RefreshAuthResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RefreshAuth not implemented")
 }
 func (UnimplementedImageProviderPluginServer) mustEmbedUnimplementedImageProviderPluginServer() {}
 func (UnimplementedImageProviderPluginServer) testEmbeddedByValue()                             {}
@@ -294,6 +324,24 @@ func _ImageProviderPlugin_ReconcileImages_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ImageProviderPlugin_RefreshAuth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshAuthRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ImageProviderPluginServer).RefreshAuth(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ImageProviderPlugin_RefreshAuth_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ImageProviderPluginServer).RefreshAuth(ctx, req.(*RefreshAuthRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ImageProviderPlugin_ServiceDesc is the grpc.ServiceDesc for ImageProviderPlugin service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -316,6 +364,10 @@ var ImageProviderPlugin_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReconcileImages",
 			Handler:    _ImageProviderPlugin_ReconcileImages_Handler,
+		},
+		{
+			MethodName: "RefreshAuth",
+			Handler:    _ImageProviderPlugin_RefreshAuth_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
