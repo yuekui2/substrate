@@ -839,7 +839,7 @@ func TestServiceImplAssignmentWrites_ValidateActor(t *testing.T) {
 		{
 			name: "bind",
 			write: func(ctx context.Context, impl *ServiceImpl, actor *ateapi.Actor) error {
-				_, err := impl.BindActorToWorker(ctx, apiWorkerName, assignmentOf(actor), nil, resources.ActorRefFromActor(actor), store.PreconditionFrom(actor), func(a *ateapi.Actor) error {
+				_, _, err := impl.BindActorToWorker(ctx, apiWorkerName, assignmentOf(actor), nil, resources.ActorRefFromActor(actor), store.PreconditionFrom(actor), func(a *ateapi.Actor) error {
 					a.Status.State = ateapi.ActorState_ACTOR_STATE_RESUMING
 					a.Status.WorkerAssignment = invalid
 					return nil

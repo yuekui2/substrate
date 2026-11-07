@@ -69,16 +69,16 @@ func saveWorker(ctx context.Context, tx pgx.Tx, worker *ateapi.Worker) error {
 	return nil
 }
 
-func (p *Persistence) BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, actorRef resources.ActorRef, precondition store.Precondition, mutate func(*ateapi.Actor) error) (*ateapi.Actor, error) {
+func (p *Persistence) BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, actorRef resources.ActorRef, precondition store.Precondition, mutate func(*ateapi.Actor) error) (*ateapi.Actor, *ateapi.Worker, error) {
 	actorUID := assignment.GetActorUid()
 	if actorUID == "" {
-		return nil, fmt.Errorf("binding an assignment with no actor_uid to worker %s", workerName)
+		return nil, nil, fmt.Errorf("binding an assignment with no actor_uid to worker %s", workerName)
 	}
 	if err := precondition.Validate(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if precondition.UID != actorUID {
-		return nil, fmt.Errorf("binding actor %s to worker %s under a precondition for actor %s", actorUID, workerName, precondition.UID)
+		return nil, nil, fmt.Errorf("binding actor %s to worker %s under a precondition for actor %s", actorUID, workerName, precondition.UID)
 	}
 	// The store assigns identity. atespace is empty because Workers are
 	// global-scoped; the name is the Actor's UID, which is also the row key.
@@ -86,11 +86,11 @@ func (p *Persistence) BindActorToWorker(ctx context.Context, workerName string, 
 	setCreateMetadata(assignment.Metadata)
 	assignmentBytes, err := proto.Marshal(assignment)
 	if err != nil {
-		return nil, fmt.Errorf("marshaling assignment: %w", err)
+		return nil, nil, fmt.Errorf("marshaling assignment: %w", err)
 	}
 
 	var updated *ateapi.Actor
-	_, err = p.writeAndAppendEvent(ctx, store.WorkerEventUpdated, func(ctx context.Context, tx pgx.Tx) (*ateapi.Worker, error) {
+	worker, err := p.writeAndAppendEvent(ctx, store.WorkerEventUpdated, func(ctx context.Context, tx pgx.Tx) (*ateapi.Worker, error) {
 		worker, err := getWorkerForUpdate(ctx, tx, workerName)
 		if errors.Is(err, store.ErrNotFound) {
 			return nil, store.ErrWorkerNotFound
@@ -126,9 +126,9 @@ func (p *Persistence) BindActorToWorker(ctx context.Context, workerName string, 
 		return worker, nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return updated, nil
+	return updated, worker, nil
 }
 
 func (p *Persistence) UpdateActorAndRelease(ctx context.Context, actorRef resources.ActorRef, precondition store.Precondition, mutate func(*ateapi.Actor) error) (*ateapi.Actor, error) {

@@ -117,9 +117,11 @@ func New(source WorkerSource, opts ...Option) Scheduler {
 }
 
 // Schedule filters the fleet for eligible candidates with room, samples two at
-// random (power of two choices), and returns the less-loaded one, where load is
-// the higher of actor-slot and compute-resource utilization. Spreading across
-// the warm pool avoids hotspots until autoscaling reclaims idle workers.
+// random (power of two choices), and returns the one on the less-utilized node,
+// or the less-loaded one if their nodes are equally utilized. Load is the
+// higher of actor-slot and compute-resource utilization. Spreading across
+// nodes and the warm pool avoids hotspots until autoscaling reclaims idle
+// workers.
 func (s *scheduler) Schedule(ctx context.Context, constraints Constraints) (*ateapi.Worker, error) {
 	workers, err := s.source.Workers()
 	if err != nil {
@@ -152,10 +154,76 @@ func (s *scheduler) Schedule(ctx context.Context, constraints Constraints) (*ate
 	if j >= i {
 		j++
 	}
-	if lessLoaded(&candidates[j], &candidates[i]) {
-		return candidates[j].worker, nil
+	a, b := &candidates[i], &candidates[j]
+	if na, nb := a.worker.GetNodeName(), b.worker.GetNodeName(); na != nb {
+		loads := nodeLoads(workers)
+		if la, lb := loads[na], loads[nb]; la != lb {
+			if lb.less(la) {
+				return b.worker, nil
+			}
+			return a.worker, nil
+		}
 	}
-	return candidates[i].worker, nil
+	if lessLoaded(b, a) {
+		return b.worker, nil
+	}
+	return a.worker, nil
+}
+
+// nodeLoad is the utilization of a node's workers, summed, full ones included.
+type nodeLoad struct {
+	// load is the higher of slot and compute-resource utilization.
+	load float64
+	// slots is the actor-slot utilization, which breaks ties in load.
+	slots float64
+}
+
+func (l nodeLoad) less(o nodeLoad) bool {
+	if l.load != o.load {
+		return l.load < o.load
+	}
+	return l.slots < o.slots
+}
+
+func nodeLoads(workers []*ateapi.Worker) map[string]nodeLoad {
+	type sums struct {
+		capActors, allocActors int64
+		capCPU, allocCPU       int64
+		capMem, allocMem       int64
+	}
+	byNode := make(map[string]*sums)
+	for _, w := range workers {
+		node := w.GetNodeName()
+		if node == "" {
+			continue
+		}
+		s := byNode[node]
+		if s == nil {
+			s = &sums{}
+			byNode[node] = s
+		}
+		capacity, used := w.GetStatus().GetCapacity(), w.GetStatus().GetAllocated()
+		s.capActors += int64(capacity.GetActors())
+		s.allocActors += int64(used.GetActors())
+		s.capCPU += capacity.GetCpuMillicores()
+		s.allocCPU += used.GetCpuMillicores()
+		s.capMem += capacity.GetMemoryBytes()
+		s.allocMem += used.GetMemoryBytes()
+	}
+	loads := make(map[string]nodeLoad, len(byNode))
+	for node, s := range byNode {
+		var slots float64
+		if s.capActors > 0 {
+			slots = float64(s.allocActors) / float64(s.capActors)
+		}
+		loads[node] = nodeLoad{
+			load: max(slots, utilization(
+				&ateapi.WorkerResources{CpuMillicores: s.capCPU, MemoryBytes: s.capMem},
+				&ateapi.WorkerResources{CpuMillicores: s.allocCPU, MemoryBytes: s.allocMem})),
+			slots: slots,
+		}
+	}
+	return loads
 }
 
 // candidate pairs an eligible worker with its cached compute utilization.

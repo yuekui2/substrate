@@ -5301,7 +5301,7 @@ func TestResumeActor_CrashesIfAssignedWorkerIsDraining(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetActor failed: %v", err)
 	}
-	if _, err := tc.persistence.BindActorToWorker(context.Background(), podA, &ateapi.ActorAssignment{
+	if _, _, err := tc.persistence.BindActorToWorker(context.Background(), podA, &ateapi.ActorAssignment{
 		Actor:    &ateapi.ObjectRef{Atespace: testAtespace, Name: id},
 		ActorUid: suspended.GetMetadata().GetUid(),
 	}, nil, actorRef, store.PreconditionFrom(suspended), func(toUpdate *ateapi.Actor) error {
@@ -5549,7 +5549,7 @@ func TestResumeActor_DanglingWorker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetActor failed: %v", err)
 	}
-	if _, err := tc.persistence.BindActorToWorker(context.Background(), podA, &ateapi.ActorAssignment{
+	if _, _, err := tc.persistence.BindActorToWorker(context.Background(), podA, &ateapi.ActorAssignment{
 		Actor:    &ateapi.ObjectRef{Atespace: testAtespace, Name: name},
 		ActorUid: suspended.GetMetadata().GetUid(),
 	}, nil, actorRef, store.PreconditionFrom(suspended), func(toUpdate *ateapi.Actor) error {

@@ -294,8 +294,10 @@ type Interface interface {
 
 	// BindActorToWorker assigns an Actor, updates the Worker's allocation, and
 	// applies mutate to the Actor as UpdateActor does, all in one transaction.
-	// It returns the updated Actor. precondition must name the assignment's
-	// Actor, and mutate should point the Actor at the Worker.
+	// It returns the updated Actor, and the Worker as it now stands so the
+	// caller can feed the watch-fed worker cache before the watch event
+	// arrives. precondition must name the assignment's Actor, and mutate should
+	// point the Actor at the Worker.
 	//
 	// admit decides whether the Worker will take the Actor, and runs against the
 	// Worker as it stands with its row locked, so the answer cannot go stale
@@ -305,7 +307,7 @@ type Interface interface {
 	// ErrWorkerNotFound if the Worker is gone, ErrNotFound if the Actor is, and
 	// ErrUIDConflict/ErrVersionConflict if precondition fails. Binding an Actor
 	// that is already bound is an error. Any error leaves both unchanged.
-	BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, actorRef resources.ActorRef, precondition Precondition, mutate func(toUpdate *ateapi.Actor) error) (*ateapi.Actor, error)
+	BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, actorRef resources.ActorRef, precondition Precondition, mutate func(toUpdate *ateapi.Actor) error) (*ateapi.Actor, *ateapi.Worker, error)
 
 	// UpdateActorAndRelease applies mutate to the Actor as UpdateActor does
 	// and, in the same transaction, removes the assignment of the Actor

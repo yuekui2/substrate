@@ -306,7 +306,7 @@ func TestReconcileAssignments_KeepsActorReboundSinceList(t *testing.T) {
 		}
 		// As finalizeRunning does, the Actor records the epoch of the
 		// process it was restored on.
-		if _, err := persistence.BindActorToWorker(ctx, apiWorkerName, newAPIAssignment(bound.GetMetadata().GetUid()), nil, apiActorRef, store.PreconditionFrom(released), func(a *ateapi.Actor) error {
+		if _, _, err := persistence.BindActorToWorker(ctx, apiWorkerName, newAPIAssignment(bound.GetMetadata().GetUid()), nil, apiActorRef, store.PreconditionFrom(released), func(a *ateapi.Actor) error {
 			a.Status.WorkerAssignment = previous
 			a.Status.WorkerAssignment.WorkerEpoch = 2
 			return nil

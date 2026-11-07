@@ -329,6 +329,25 @@ func TestSchedule(t *testing.T) {
 			wantPod:     "w-amd",
 		},
 		{
+			name: "equally loaded workers: the one on the less-loaded node",
+			fleet: fleet{
+				worker("w-a", "gvisor", "node-a", nil, withMaxActors(2)),
+				worker("w-a-full", "gvisor", "node-a", nil, assigned("demo", "x")),
+				worker("w-b", "gvisor", "node-b", nil, withMaxActors(2)),
+			},
+			wantPod: "w-b",
+		},
+		{
+			name: "less-loaded node wins over less-loaded worker",
+			fleet: fleet{
+				worker("w-a", "gvisor", "node-a", nil, withMaxActors(4), assigned("demo", "a1")),
+				worker("w-a-full", "gvisor", "node-a", nil, withMaxActors(4),
+					assigned("demo", "a2"), assigned("demo", "a3"), assigned("demo", "a4"), assigned("demo", "a5")),
+				worker("w-b", "gvisor", "node-b", nil, withMaxActors(4), assigned("demo", "b1"), assigned("demo", "b2")),
+			},
+			wantPod: "w-b",
+		},
+		{
 			name: "required runtime matches worker restorable runtime",
 			fleet: fleet{
 				worker("w-upgraded", "gvisor", "node-a", tierTwo,

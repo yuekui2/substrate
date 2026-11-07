@@ -478,7 +478,7 @@ func (w *ActorWorkflow) assignWorkerAttempt(ctx context.Context, actorRef resour
 	// The Actor is updated in the bind's transaction, so a bind whose Actor
 	// changed since it was read fails the precondition and leaves no
 	// assignment behind.
-	storedActor, err := w.store.BindActorToWorker(ctx, assignedWorker.GetMetadata().GetName(), assignment, admit, actorRef, store.PreconditionFrom(actor), func(toUpdate *ateapi.Actor) error {
+	storedActor, saved, err := w.store.BindActorToWorker(ctx, assignedWorker.GetMetadata().GetName(), assignment, admit, actorRef, store.PreconditionFrom(actor), func(toUpdate *ateapi.Actor) error {
 		newAssignment := workerAssignmentFrom(bound, snapRuntime)
 		toUpdate.Status.State = ateapi.ActorState_ACTOR_STATE_RESUMING
 		toUpdate.Status.WorkerAssignment = newAssignment
@@ -514,6 +514,9 @@ func (w *ActorWorkflow) assignWorkerAttempt(ctx context.Context, actorRef resour
 			return nil, nil, apierror.Aborted("actor %s is %s and can no longer be resumed", actorRef, fresh.GetStatus().GetState())
 		}
 	}
+	// Resumes that start together would otherwise place against the
+	// allocation from before this bind until its watch event arrives.
+	w.workerCache.Observe(saved)
 	poolNamespace = bound.GetWorkerNamespace()
 	pool = bound.GetWorkerPool()
 	class = hardware.SandboxClass(bound.GetStatus())

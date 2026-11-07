@@ -323,8 +323,8 @@ type bindErrorStore struct {
 	err error
 }
 
-func (s *bindErrorStore) BindActorToWorker(context.Context, string, *ateapi.ActorAssignment, func(*ateapi.Worker) error, resources.ActorRef, store.Precondition, func(*ateapi.Actor) error) (*ateapi.Actor, error) {
-	return nil, s.err
+func (s *bindErrorStore) BindActorToWorker(context.Context, string, *ateapi.ActorAssignment, func(*ateapi.Worker) error, resources.ActorRef, store.Precondition, func(*ateapi.Actor) error) (*ateapi.Actor, *ateapi.Worker, error) {
+	return nil, nil, s.err
 }
 
 // TestAssignWorkerAttempt_BindNotFound covers a bind that finds the picked
@@ -604,7 +604,7 @@ func (c *conflictInjectingStore) UpdateActor(ctx context.Context, actorRef resou
 	return c.Interface.UpdateActor(ctx, actorRef, precondition, mutate)
 }
 
-func (c *conflictInjectingStore) BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, actorRef resources.ActorRef, precondition store.Precondition, mutate func(*ateapi.Actor) error) (*ateapi.Actor, error) {
+func (c *conflictInjectingStore) BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, actorRef resources.ActorRef, precondition store.Precondition, mutate func(*ateapi.Actor) error) (*ateapi.Actor, *ateapi.Worker, error) {
 	c.once.Do(c.inject)
 	return c.Interface.BindActorToWorker(ctx, workerName, assignment, admit, actorRef, precondition, mutate)
 }
@@ -1018,7 +1018,7 @@ func TestValidateAssignedWorker(t *testing.T) {
 				}
 			}
 
-			w := &ActorWorkflow{store: persistence, scheduler: scheduling.New(nil)}
+			w := &ActorWorkflow{store: persistence, workerCache: workercache.New(persistence, time.Minute), scheduler: scheduling.New(nil)}
 			resumingActor := &ateapi.Actor{
 				Metadata: &ateapi.ResourceMetadata{Atespace: "team-a", Name: "shared", Uid: uid},
 				Status: &ateapi.ActorStatus{
@@ -2178,22 +2178,22 @@ type contentionStore struct {
 
 // BindActorToWorker runs admit as the real store does under the Worker's row
 // lock, and returns its refusal unchanged.
-func (s *contentionStore) BindActorToWorker(_ context.Context, workerName string, _ *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, _ resources.ActorRef, _ store.Precondition, mutate func(*ateapi.Actor) error) (*ateapi.Actor, error) {
+func (s *contentionStore) BindActorToWorker(_ context.Context, workerName string, _ *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, _ resources.ActorRef, _ store.Precondition, mutate func(*ateapi.Actor) error) (*ateapi.Actor, *ateapi.Worker, error) {
 	worker, ok := s.workers[workerName]
 	if !ok {
-		return nil, store.ErrNotFound
+		return nil, nil, store.ErrNotFound
 	}
 	if admit != nil {
 		if err := admit(worker); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	updated := proto.Clone(s.actor).(*ateapi.Actor)
 	if err := mutate(updated); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	s.actor = updated
-	return updated, nil
+	return updated, worker, nil
 }
 
 // newAssignmentReader gives a workflow its own ManualReader-backed
@@ -2812,7 +2812,7 @@ func TestAssignWorkerAttempt_PrefersRuntimeMatchingWorkerAndFallsBack(t *testing
 		worker := seedRuntimeWorker(t, ctx, st, "amd-pod", "node-amd", newDefaultRT, oldRestorableRT)
 		actor := seedActorWithSnapshot(t, ctx, st, suspended, "", durableMemorySnapshot(t, oldRestorableRT))
 
-		w := &ActorWorkflow{store: st, scheduler: &relaxingTestScheduler{Scheduler: scheduling.New(nil), relaxedWorker: worker}}
+		w := &ActorWorkflow{store: st, workerCache: workercache.New(st, time.Minute), scheduler: &relaxingTestScheduler{Scheduler: scheduling.New(nil), relaxedWorker: worker}}
 		stored, _, err := w.assignWorkerAttempt(ctx, actorRef, actor, &ateapi.ActorTemplate{})
 		if err != nil {
 			t.Fatalf("assignWorkerAttempt: %v", err)
@@ -2832,7 +2832,7 @@ func TestAssignWorkerAttempt_PrefersRuntimeMatchingWorkerAndFallsBack(t *testing
 		stale.Status.SandboxClasses = workerSandboxClasses(newDefaultRT, oldRestorableRT)
 		actor := seedActorWithSnapshot(t, ctx, st, suspended, "", durableMemorySnapshot(t, oldRestorableRT))
 
-		w := &ActorWorkflow{store: st, scheduler: &relaxingTestScheduler{Scheduler: scheduling.New(nil), relaxedWorker: stale}}
+		w := &ActorWorkflow{store: st, workerCache: workercache.New(st, time.Minute), scheduler: &relaxingTestScheduler{Scheduler: scheduling.New(nil), relaxedWorker: stale}}
 		stored, bound, err := w.assignWorkerAttempt(ctx, actorRef, actor, &ateapi.ActorTemplate{})
 		if err != nil {
 			t.Fatalf("assignWorkerAttempt: %v", err)
@@ -2876,7 +2876,7 @@ func TestValidateAssignedWorker_RuntimeFallback(t *testing.T) {
 			},
 		}
 
-		w := &ActorWorkflow{store: st, scheduler: scheduling.New(nil)}
+		w := &ActorWorkflow{store: st, workerCache: workercache.New(st, time.Minute), scheduler: scheduling.New(nil)}
 		worker, err := w.validateAssignedWorker(ctx, resources.ActorRef{Atespace: "team-a", Name: "id1"}, resumingActor, &ateapi.ActorTemplate{})
 		if err != nil {
 			t.Fatalf("validateAssignedWorker: %v", err)
@@ -2919,7 +2919,7 @@ func TestValidateAssignedWorker_RuntimeFallback(t *testing.T) {
 			},
 		}
 
-		w := &ActorWorkflow{store: st, scheduler: scheduling.New(nil)}
+		w := &ActorWorkflow{store: st, workerCache: workercache.New(st, time.Minute), scheduler: scheduling.New(nil)}
 		worker, err := w.validateAssignedWorker(ctx, resources.ActorRef{Atespace: "team-a", Name: "id1"}, resumingActor, &ateapi.ActorTemplate{})
 		if err != nil {
 			t.Fatalf("validateAssignedWorker: %v", err)

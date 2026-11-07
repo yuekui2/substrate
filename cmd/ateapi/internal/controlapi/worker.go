@@ -209,7 +209,7 @@ func (s *ServiceImpl) UpdateWorker(ctx context.Context, name string, preconditio
 // BindActorToWorker and UpdateActorAndRelease validate the Actor they write as
 // UpdateActor does. They return the store's errors unmapped, so callers can
 // tell a missing Worker from a missing Actor and retry a version conflict.
-func (s *ServiceImpl) BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, actorRef resources.ActorRef, precondition store.Precondition, mutate func(*ateapi.Actor) error) (*ateapi.Actor, error) {
+func (s *ServiceImpl) BindActorToWorker(ctx context.Context, workerName string, assignment *ateapi.ActorAssignment, admit func(*ateapi.Worker) error, actorRef resources.ActorRef, precondition store.Precondition, mutate func(*ateapi.Actor) error) (*ateapi.Actor, *ateapi.Worker, error) {
 	return s.store.BindActorToWorker(ctx, workerName, assignment, admit, actorRef, precondition, s.validatedActorMutation(ctx, mutate))
 }
 

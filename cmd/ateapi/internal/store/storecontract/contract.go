@@ -2441,7 +2441,7 @@ func runWorkerAssignmentContractTests(t *testing.T, setup func(t *testing.T) sto
 		if err != nil {
 			return err
 		}
-		_, err = s.BindActorToWorker(ctx, workerName, assignment, admit, ref, store.PreconditionFrom(actor), nil)
+		_, _, err = s.BindActorToWorker(ctx, workerName, assignment, admit, ref, store.PreconditionFrom(actor), nil)
 		return err
 	}
 
@@ -2713,7 +2713,7 @@ func runWorkerAssignmentContractTests(t *testing.T, setup func(t *testing.T) sto
 				defer wg.Done()
 				start.Wait()
 				// Both claims read the same Actor, as two replicas would.
-				_, err := s.BindActorToWorker(ctx, name, proto.CloneOf(assignment), nil, resources.ActorRefFromActor(actor), store.PreconditionFrom(actor), nil)
+				_, _, err := s.BindActorToWorker(ctx, name, proto.CloneOf(assignment), nil, resources.ActorRefFromActor(actor), store.PreconditionFrom(actor), nil)
 				won[i] = err == nil
 			}()
 		}
@@ -2771,7 +2771,7 @@ func runWorkerAssignmentContractTests(t *testing.T, setup func(t *testing.T) sto
 			t.Fatalf("DeleteActor failed: %v", err)
 		}
 
-		_, err = s.BindActorToWorker(ctx, testWorkerName, assignment, nil, ref, store.PreconditionFrom(actor), nil)
+		_, _, err = s.BindActorToWorker(ctx, testWorkerName, assignment, nil, ref, store.PreconditionFrom(actor), nil)
 		if !errors.Is(err, store.ErrNotFound) {
 			t.Fatalf("BindActorToWorker of a deleted actor = %v, want ErrNotFound", err)
 		}
@@ -2832,7 +2832,7 @@ func runWorkerAssignmentContractTests(t *testing.T, setup func(t *testing.T) sto
 			t.Fatalf("UpdateActor failed: %v", err)
 		}
 
-		_, err = s.BindActorToWorker(ctx, testWorkerName, assignment, nil, ref, store.PreconditionFrom(stale), func(a *ateapi.Actor) error {
+		_, _, err = s.BindActorToWorker(ctx, testWorkerName, assignment, nil, ref, store.PreconditionFrom(stale), func(a *ateapi.Actor) error {
 			a.Status.State = ateapi.ActorState_ACTOR_STATE_RESUMING
 			return nil
 		})
@@ -2871,7 +2871,7 @@ func runWorkerAssignmentContractTests(t *testing.T, setup func(t *testing.T) sto
 		if err != nil {
 			t.Fatalf("GetActor failed: %v", err)
 		}
-		updated, err := s.BindActorToWorker(ctx, testWorkerName, assignment, nil, ref, store.PreconditionFrom(actor), func(a *ateapi.Actor) error {
+		updated, boundWorker, err := s.BindActorToWorker(ctx, testWorkerName, assignment, nil, ref, store.PreconditionFrom(actor), func(a *ateapi.Actor) error {
 			a.Status.State = ateapi.ActorState_ACTOR_STATE_RESUMING
 			return nil
 		})
@@ -2887,6 +2887,13 @@ func runWorkerAssignmentContractTests(t *testing.T, setup func(t *testing.T) sto
 		}
 		if got := stored.GetStatus().GetState(); got != ateapi.ActorState_ACTOR_STATE_RESUMING {
 			t.Errorf("actor state = %v, want RESUMING", got)
+		}
+		storedWorker, err := s.GetWorker(ctx, testWorkerName)
+		if err != nil {
+			t.Fatalf("GetWorker failed: %v", err)
+		}
+		if diff := cmp.Diff(storedWorker, boundWorker, protocmp.Transform()); diff != "" {
+			t.Errorf("returned worker differs from the stored one (-stored +returned):\n%s", diff)
 		}
 	})
 
@@ -3129,7 +3136,7 @@ func runWorkerAssignmentContractTests(t *testing.T, setup func(t *testing.T) sto
 			t.Fatalf("GetActor failed: %v", err)
 		}
 		// DeleteActor reads the Actor's status, so the bind has to set it.
-		bound, err := s.BindActorToWorker(ctx, testWorkerName, assignment, nil, ref, store.PreconditionFrom(actor), func(toUpdate *ateapi.Actor) error {
+		bound, _, err := s.BindActorToWorker(ctx, testWorkerName, assignment, nil, ref, store.PreconditionFrom(actor), func(toUpdate *ateapi.Actor) error {
 			toUpdate.Status.WorkerAssignment = &ateapi.WorkerAssignment{Worker: &ateapi.ObjectRef{Name: testWorkerName}}
 			return nil
 		})
