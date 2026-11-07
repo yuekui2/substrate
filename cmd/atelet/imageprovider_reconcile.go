@@ -23,16 +23,28 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"time"
 
+	imageprovider "github.com/ai-on-gke/image-provider-plugin/api/imageprovider/v1alpha1"
 	providerclient "github.com/ai-on-gke/image-provider-plugin/client"
 
+	"go.ate.dev/substrate/api/ateapi/v1"
 	"go.ate.dev/substrate/internal/imagecache"
+	"go.ate.dev/substrate/internal/proto/ateworkerpb"
 )
 
-// imageProviderMonitorPeriod is how often atelet checks the image provider
-// plugin's socket.
-const imageProviderMonitorPeriod = 2 * time.Second
+const (
+	// imageProviderMonitorPeriod is how often atelet checks the image
+	// provider plugin's socket and state.
+	imageProviderMonitorPeriod = 2 * time.Second
+	// imageProviderStateTimeout bounds one State call to the plugin.
+	imageProviderStateTimeout = 2 * time.Second
+	// drainSuspendTimeout bounds one suspend of an actor off a draining image
+	// provider plugin, checkpoint included.
+	drainSuspendTimeout = 10 * time.Minute
+)
 
 // forEachOverlaySpec calls fn with each actor UID under actorsDir and the
 // overlay spec of each of its bundles. Unreadable bundles are logged and
@@ -115,10 +127,115 @@ func (s *Atelet) reconcileProviderLeases(ctx context.Context, actorsDir string) 
 	return nil
 }
 
-// monitorImageProvider reconciles the plugin's leases each time the plugin's
-// socket appears, at startup or after the plugin restarts, until ctx ends. A
-// failed reconcile is retried on the next check.
-func (s *Atelet) monitorImageProvider(ctx context.Context, socket, actorsDir string) {
+// streamedActorUIDs returns the actors under actorsDir whose overlay specs
+// record a provider lease.
+func streamedActorUIDs(actorsDir string) (map[string]bool, error) {
+	uids := map[string]bool{}
+	err := forEachOverlaySpec(actorsDir, func(actorUID string, spec *imagecache.OverlaySpec) {
+		if spec.LeaseID != "" || slices.ContainsFunc(spec.ImageVolumes, func(v imagecache.ImageVolumeOverlay) bool { return v.LeaseID != "" }) {
+			uids[actorUID] = true
+		}
+	})
+	return uids, err
+}
+
+// suspendStreamedActors asks the control plane to suspend each actor running
+// on the node that holds a provider lease. The suspend checkpoints the actor
+// and releases its leases, so a draining plugin can exit, and the actor
+// resumes later from its snapshot. An actor is asked for once while it holds
+// a lease; a failed request is retried on the next call. It returns how many
+// suspends succeeded.
+func (s *Atelet) suspendStreamedActors(ctx context.Context, actorsDir, workersDir string) int {
+	streamed, err := streamedActorUIDs(actorsDir)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to find the actors that hold image provider leases", slog.Any("err", err))
+		return 0
+	}
+	s.drainMu.Lock()
+	for uid := range s.drainSuspended {
+		if !streamed[uid] {
+			delete(s.drainSuspended, uid)
+		}
+	}
+	s.drainMu.Unlock()
+	if len(streamed) == 0 {
+		return 0
+	}
+
+	workers, err := os.ReadDir(workersDir)
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to list workers to suspend actors off the image provider plugin", slog.Any("err", err))
+		return 0
+	}
+	var (
+		wg        sync.WaitGroup
+		suspended atomic.Int32
+	)
+	for _, w := range workers {
+		podUID := w.Name()
+		if !w.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(workerSocketPath(podUID)); err != nil {
+			continue
+		}
+		worker, err := s.dialWorker(ctx, podUID)
+		if err != nil {
+			continue
+		}
+		rpcCtx, cancel := context.WithTimeout(ctx, statsRPCTimeout)
+		resp, err := worker.GetActiveWorkloadStats(rpcCtx, &ateworkerpb.GetActiveWorkloadStatsRequest{})
+		cancel()
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to list a worker's actors", slog.String("pod_uid", podUID), slog.Any("err", err))
+			continue
+		}
+		for _, sample := range resp.GetSamples() {
+			actorUID := sample.GetActorUid()
+			if !streamed[actorUID] {
+				continue
+			}
+			s.drainMu.Lock()
+			asked := s.drainSuspended[actorUID]
+			s.drainSuspended[actorUID] = true
+			s.drainMu.Unlock()
+			if asked {
+				continue
+			}
+			wg.Go(func() {
+				suspendCtx, cancel := context.WithTimeout(ctx, drainSuspendTimeout)
+				defer cancel()
+				// The control plane runs the suspend back through atelet, so
+				// no actor lock may be held here.
+				_, err := s.workers.RequestActorSuspend(suspendCtx, &ateapi.RequestActorSuspendRequest{
+					Worker:   &ateapi.ObjectRef{Name: podUID},
+					Actor:    &ateapi.ObjectRef{Atespace: sample.GetAtespace(), Name: sample.GetActorName()},
+					ActorUid: actorUID,
+				})
+				if err != nil {
+					s.drainMu.Lock()
+					delete(s.drainSuspended, actorUID)
+					s.drainMu.Unlock()
+					slog.WarnContext(ctx, "Failed to suspend an actor off the draining image provider plugin",
+						slog.String("actor_uid", actorUID), slog.String("pod_uid", podUID), slog.Any("err", err))
+					return
+				}
+				suspended.Add(1)
+				slog.InfoContext(ctx, "Suspended an actor off the draining image provider plugin",
+					slog.String("actor_uid", actorUID), slog.String("pod_uid", podUID))
+			})
+		}
+	}
+	wg.Wait()
+	return int(suspended.Load())
+}
+
+// monitorImageProvider watches the image provider plugin until ctx ends. Each
+// time the plugin's socket appears, at startup or after the plugin restarts,
+// it reconciles the plugin's leases, and retries a failed reconcile on the
+// next check. While the plugin reports PLUGIN_STATE_DRAINING, it suspends the
+// actors that hold its leases.
+func (s *Atelet) monitorImageProvider(ctx context.Context, socket, actorsDir, workersDir string) {
 	available := false
 	ticker := time.NewTicker(imageProviderMonitorPeriod)
 	defer ticker.Stop()
@@ -131,10 +248,22 @@ func (s *Atelet) monitorImageProvider(ctx context.Context, socket, actorsDir str
 			}
 		}
 		available = now
+		if available && s.imageProviderDraining(ctx) {
+			s.suspendStreamedActors(ctx, actorsDir, workersDir)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}
 	}
+}
+
+// imageProviderDraining reports whether the plugin says it is draining. Any
+// other state, or a failed call, is not draining.
+func (s *Atelet) imageProviderDraining(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, imageProviderStateTimeout)
+	defer cancel()
+	state, err := s.imageProvider.State(ctx)
+	return err == nil && state == imageprovider.PluginState_PLUGIN_STATE_DRAINING
 }
