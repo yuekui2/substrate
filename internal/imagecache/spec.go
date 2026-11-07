@@ -51,6 +51,14 @@ type OverlaySpec struct {
 	// protect the image while the bundle exists; consumers ignore it.
 	// Optional: older specs lack it.
 	ImageDigest string `json:"imageDigest,omitempty"`
+	// ImageRef is the image reference the bundle was built from, so atelet
+	// can find the image provider plugin's lease for it after a restart.
+	// Optional: older specs lack it.
+	ImageRef string `json:"imageRef,omitempty"`
+	// Streamed reports whether the image provider plugin prepared Layers, in
+	// which case atelet releases them on checkpoint and terminate. Otherwise
+	// they are unpacked layers in the local Store.
+	Streamed bool `json:"streamed,omitempty"`
 	// Layers are the cached layer directories (each holding its tree under
 	// fs/), bottom-most layer first — the order the image manifest lists
 	// them. Consumers reverse this into overlayfs's top-first lowerdir.
@@ -75,6 +83,10 @@ type ImageVolumeOverlay struct {
 	// same form and for the same reason as OverlaySpec.ImageDigest: the GC's
 	// root-set scan protects an image by digest.
 	ImageDigest string `json:"imageDigest,omitempty"`
+	// ImageRef and Streamed mean what they do in OverlaySpec, for the
+	// volume's image.
+	ImageRef string `json:"imageRef,omitempty"`
+	Streamed bool   `json:"streamed,omitempty"`
 	// Layers are the cached layer directories, bottom-most first.
 	Layers []string `json:"layers"`
 }
