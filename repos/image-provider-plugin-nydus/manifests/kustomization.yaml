@@ -25,8 +25,18 @@ labels:
 
 resources:
 - dragonfly.yaml
+- node
 
 configMapGenerator:
+- name: image-provider-nydus-config
+  literals:
+  # The registry that nydusd and dfdaemon mirror. Set it to the registry
+  # of your Nydus images.
+  - REGISTRY_URL=https://us-central1-docker.pkg.dev
 - name: image-provider-nydus-scripts
   files:
+  - scripts/build-erofs-modules.sh
+  - scripts/dfdaemon.sh
+  - scripts/nydus-snapshotter.sh
+  - scripts/wait-drain.sh
   - scripts/wait-for.sh
