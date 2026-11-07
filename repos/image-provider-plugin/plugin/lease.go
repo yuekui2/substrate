@@ -115,8 +115,11 @@ func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (
 	res, err := d.prepareImageCold(ctx, req)
 
 	d.mu.Lock()
-	if err != nil && !held && d.leaseRefs[req.LeaseID] == ref {
-		delete(d.leaseRefs, req.LeaseID)
+	if err != nil {
+		if !held && d.leaseRefs[req.LeaseID] == ref {
+			delete(d.leaseRefs, req.LeaseID)
+		}
+		d.dropImagelessLeasesLocked(ref)
 	}
 	if errors.Is(err, client.ErrNotSupported) && d.declineTTL > 0 {
 		d.declined[ref] = time.Now().Add(d.declineTTL)
@@ -199,7 +202,7 @@ func (d *Driver) prepareImageCold(ctx context.Context, req *client.PrepareReques
 	}
 
 	canonicalRef := CanonicalImageRef(ref, meta.digest)
-	imageWorkDir := filepath.Join(d.workDir, SanitizePathKey(ref))
+	imageWorkDir := d.imageWorkDir(ref)
 	env := &MountEnv{
 		Driver:       d,
 		Client:       snapClient,
@@ -229,6 +232,18 @@ func (d *Driver) prepareImageCold(ctx context.Context, req *client.PrepareReques
 	if err != nil {
 		rollback()
 		return nil, err
+	}
+	if err := writeLeaseMetadata(imageWorkDir, &persistedLease{
+		ImageRef:     ref,
+		Digest:       meta.digest,
+		Config:       meta.config,
+		DiffIDs:      meta.diffIDs,
+		LayerDigests: meta.layerDigests,
+		SnapshotKeys: mounted.SnapshotKeys,
+		LayerDirs:    layerDirs,
+	}); err != nil {
+		rollback()
+		return nil, fmt.Errorf("writing lease metadata: %w", err)
 	}
 
 	d.mu.Lock()
@@ -425,6 +440,7 @@ func (d *Driver) finishLeaseTeardown(ctx context.Context, lease *imageLease, fli
 	if d.inflight[lease.imageRef] == flight {
 		delete(d.inflight, lease.imageRef)
 	}
+	d.dropImagelessLeasesLocked(lease.imageRef)
 	close(flight.done)
 }
 
