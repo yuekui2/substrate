@@ -5,6 +5,7 @@ go 1.27.0
 toolchain go1.27.3
 
 require (
+	github.com/containerd/containerd/api v1.11.1
 	github.com/google/go-containerregistry v0.21.7
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
@@ -12,6 +13,8 @@ require (
 
 require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
+	github.com/containerd/log v0.1.0 // indirect
+	github.com/containerd/ttrpc v1.2.8 // indirect
 	github.com/docker/cli v29.5.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
