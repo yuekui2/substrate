@@ -1,0 +1,124 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# nydus-blob-seed serves the Nydus blobs and manifests that
+# hack/seed-preload.sh saves on each seed node, with Range support. nydusd
+# tries it before dfdaemon, and the plugin reads manifests and bootstrap
+# layers from it. A missing blob returns 503 because nydusd moves to the
+# next mirror only on 5xx.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nydus-blob-seed
+data:
+  nginx.conf: |
+    worker_processes auto;
+    events {
+      worker_connections 8192;
+    }
+    http {
+      access_log off;
+      sendfile on;
+      tcp_nopush on;
+      tcp_nodelay on;
+      keepalive_timeout 300s;
+      keepalive_requests 1000000;
+      open_file_cache max=20000 inactive=10m;
+      default_type application/octet-stream;
+      server {
+        listen 4010 reuseport;
+        location = /v2 {
+          return 200;
+        }
+        location = /v2/ {
+          return 200;
+        }
+        location ~ "^/v2/.+/blobs/sha256:([0-9a-f]{64})$" {
+          root /blobs;
+          try_files /$1 =503;
+        }
+        location ~ "^/v2/.+/manifests/sha256:([0-9a-f]{64})$" {
+          root /blobs/manifests;
+          default_type application/vnd.oci.image.manifest.v1+json;
+          try_files /$1 =503;
+        }
+        location / {
+          return 503;
+        }
+      }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nydus-blob-seed
+  labels:
+    app: nydus-blob-seed
+spec:
+  selector:
+    app: nydus-blob-seed
+  ports:
+  - name: http
+    port: 4010
+    targetPort: 4010
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nydus-blob-seed
+  labels:
+    app: nydus-blob-seed
+spec:
+  selector:
+    matchLabels:
+      app: nydus-blob-seed
+  template:
+    metadata:
+      labels:
+        app: nydus-blob-seed
+    spec:
+      hostNetwork: true
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: ate.dev/dragonfly-seed
+                operator: In
+                values:
+                - "true"
+      tolerations:
+      - key: ate.dev/sandboxClass
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: nginx
+        image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+        ports:
+        - containerPort: 4010
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: blobs
+          mountPath: /blobs
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: nydus-blob-seed
+      - name: blobs
+        hostPath:
+          path: /var/lib/ate/nydus-seed-blobs
+          type: DirectoryOrCreate
