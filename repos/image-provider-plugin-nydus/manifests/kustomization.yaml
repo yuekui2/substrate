@@ -26,6 +26,8 @@ labels:
 resources:
 - dragonfly.yaml
 - node
+- seed.yaml
+- seed-node
 
 configMapGenerator:
 - name: image-provider-nydus-config

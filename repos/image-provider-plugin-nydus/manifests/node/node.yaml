@@ -162,6 +162,8 @@ spec:
           mountPropagation: Bidirectional
       - name: image-provider
         image: ko://github.com/ai-on-gke/image-provider-plugin-nydus/cmd/image-provider-nydus
+        args:
+        - --blob-seed-url=http://nydus-blob-seed.ate-system.svc.cluster.local:4010
         readinessProbe:
           exec:
             command:
