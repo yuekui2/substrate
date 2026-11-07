@@ -33,7 +33,7 @@ const listableMaxInterval = 50 * time.Millisecond
 
 // stoppingLocked reports whether the driver takes no new leases.
 func (d *Driver) stoppingLocked() bool {
-	return d.closed
+	return d.closed || d.draining
 }
 
 // PrepareImage mounts the image's layers and takes a lease on them.
@@ -404,6 +404,7 @@ func (d *Driver) finishLeaseTeardown(ctx context.Context, lease *imageLease, fli
 		delete(d.inflight, lease.imageRef)
 	}
 	close(flight.done)
+	d.notifyDrainedLocked()
 }
 
 // teardownWorkDir runs the teardown hook, removes the snapshots in mounted,
