@@ -88,6 +88,9 @@ github.com/Yiling-J/theine-go/internal/bf
 github.com/Yiling-J/theine-go/internal/clock
 github.com/Yiling-J/theine-go/internal/hasher
 github.com/Yiling-J/theine-go/internal/xruntime
+# github.com/ai-on-gke/image-provider-plugin v0.0.0-00010101000000-000000000000 => ./repos/image-provider-plugin
+## explicit; go 1.27.0
+github.com/ai-on-gke/image-provider-plugin/api/imageprovider/v1alpha1
 # github.com/antlr4-go/antlr/v4 v4.13.1
 ## explicit; go 1.22
 github.com/antlr4-go/antlr/v4
@@ -2327,4 +2330,5 @@ sigs.k8s.io/structured-merge-diff/v6/value
 # sigs.k8s.io/yaml v1.6.0
 ## explicit; go 1.22
 sigs.k8s.io/yaml
+# github.com/ai-on-gke/image-provider-plugin => ./repos/image-provider-plugin
 # k8s.io/apimachinery => k8s.io/apimachinery v0.36.0-alpha.2.0.20260904094813-f8600edbddc8
