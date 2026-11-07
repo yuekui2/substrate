@@ -50,11 +50,26 @@ const (
 	// DefaultLeaseIdleTTL is how long the driver keeps an image's layer views
 	// mounted after its last lease is released.
 	DefaultLeaseIdleTTL = 10 * time.Minute
+
+	// DefaultDeclineTTL is how long the driver remembers that the
+	// snapshotter declined an image.
+	DefaultDeclineTTL = 10 * time.Minute
+
+	// DefaultProbeTimeout bounds one health check of the snapshotter, so a
+	// hung snapshotter makes callers fall back quickly.
+	DefaultProbeTimeout = 500 * time.Millisecond
+
+	// DefaultStartupTimeout is how long the plugin waits at startup for the
+	// provider to pass its health check.
+	DefaultStartupTimeout = 2 * time.Minute
 )
 
 // containerdNamespaceHeader is the gRPC metadata key for the containerd
 // namespace.
 const containerdNamespaceHeader = "containerd-namespace"
+
+// startupPollInterval is the time between health checks at startup.
+const startupPollInterval = 200 * time.Millisecond
 
 // MountEnv is what a LayerMounterFunc gets to prepare an image.
 type MountEnv struct {
@@ -174,6 +189,27 @@ func WithWorkDirTeardownHook(fn WorkDirTeardownHookFunc) Option {
 	return func(d *Driver) { d.workDirTeardownHook = fn }
 }
 
+// ProbeHookFunc is an extra health check for the provider, for example of a
+// local P2P proxy.
+type ProbeHookFunc func(ctx context.Context) error
+
+// WithProbeHook adds a health check to the snapshotter check.
+func WithProbeHook(fn ProbeHookFunc) Option {
+	return func(d *Driver) { d.probeHook = fn }
+}
+
+// WithDeclineTTL sets how long the driver remembers that the snapshotter
+// declined an image. Zero turns this off.
+func WithDeclineTTL(ttl time.Duration) Option {
+	return func(d *Driver) { d.declineTTL = ttl }
+}
+
+// WithStartupTimeout sets how long the plugin waits at startup for the
+// provider to pass its health check. Zero skips the wait.
+func WithStartupTimeout(timeout time.Duration) Option {
+	return func(d *Driver) { d.startupTimeout = timeout }
+}
+
 type imageLease struct {
 	imageRef     string
 	digest       string
@@ -217,6 +253,9 @@ type Driver struct {
 	layerMounter        LayerMounterFunc
 	warmHitHook         WarmHitHookFunc
 	workDirTeardownHook WorkDirTeardownHookFunc
+	probeHook           ProbeHookFunc
+	declineTTL          time.Duration
+	startupTimeout      time.Duration
 	clientInjected      bool
 
 	mu              sync.Mutex
@@ -230,8 +269,11 @@ type Driver struct {
 	// again after its lease ended skips the registry. A tag resolves once
 	// per driver.
 	resolvedMeta map[string]*resolvedImageMeta
-	inflight     map[string]*inflightPrep
-	chainLocks   map[string]*sync.Mutex
+	// declined maps images the snapshotter declined to when the driver
+	// tries them again.
+	declined   map[string]time.Time
+	inflight   map[string]*inflightPrep
+	chainLocks map[string]*sync.Mutex
 }
 
 // NewDriver returns a Driver for the provider name, whose snapshotter
@@ -246,9 +288,12 @@ func NewDriver(name, defaultSocket, snapshotterName string, opts ...Option) (*Dr
 		snapshotterName: snapshotterName,
 		listableTimeout: DefaultListableTimeout,
 		leaseIdleTTL:    DefaultLeaseIdleTTL,
+		declineTTL:      DefaultDeclineTTL,
+		startupTimeout:  DefaultStartupTimeout,
 		leases:          make(map[string]*imageLease),
 		leaseRefs:       make(map[string]string),
 		resolvedMeta:    make(map[string]*resolvedImageMeta),
+		declined:        make(map[string]time.Time),
 		inflight:        make(map[string]*inflightPrep),
 		chainLocks:      make(map[string]*sync.Mutex),
 	}
