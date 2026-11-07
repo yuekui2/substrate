@@ -50,8 +50,8 @@ func (d *Driver) stoppingLocked() bool {
 // without taking another. Concurrent calls for one image share a single
 // preparation. A mounted image is reused. It returns errLeaseConflict when
 // the lease is held for another image, and an error wrapping
-// client.ErrNotSupported when the snapshotter declines the image or the
-// driver is shutting down.
+// client.ErrNotSupported when the snapshotter declines the image, declined it
+// within the decline TTL, or the driver is shutting down.
 func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (*client.PrepareResult, error) {
 	if req == nil || req.ImageRef == "" {
 		return nil, errors.New("image reference is required")
@@ -99,6 +99,10 @@ func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (
 				slog.String("provider", d.name),
 				slog.String("image", ref))
 		}
+		if d.isDeclinedLocked(ref, time.Now()) {
+			d.mu.Unlock()
+			return nil, fmt.Errorf("recently declined by the snapshotter: %w", client.ErrNotSupported)
+		}
 		break
 	}
 	// Hold the lease while the image is prepared, so a reconcile keeps it.
@@ -113,6 +117,9 @@ func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (
 	d.mu.Lock()
 	if err != nil && !held && d.leaseRefs[req.LeaseID] == ref {
 		delete(d.leaseRefs, req.LeaseID)
+	}
+	if errors.Is(err, client.ErrNotSupported) && d.declineTTL > 0 {
+		d.declined[ref] = time.Now().Add(d.declineTTL)
 	}
 	flight.err = err
 	delete(d.inflight, ref)
