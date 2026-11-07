@@ -42,7 +42,7 @@ var (
 
 // stoppingLocked reports whether the driver takes no new leases.
 func (d *Driver) stoppingLocked() bool {
-	return d.closed
+	return d.closed || d.draining
 }
 
 // PrepareImage mounts the image's layers and takes the lease req.LeaseID on
@@ -127,6 +127,7 @@ func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (
 	flight.err = err
 	delete(d.inflight, ref)
 	close(flight.done)
+	d.notifyDrainedLocked()
 	d.mu.Unlock()
 	return res, err
 }
@@ -442,6 +443,7 @@ func (d *Driver) finishLeaseTeardown(ctx context.Context, lease *imageLease, fli
 	}
 	d.dropImagelessLeasesLocked(lease.imageRef)
 	close(flight.done)
+	d.notifyDrainedLocked()
 }
 
 // teardownWorkDir runs the teardown hook, removes the snapshots in mounted,

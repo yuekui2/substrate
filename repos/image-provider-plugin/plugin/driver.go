@@ -62,6 +62,10 @@ const (
 	// DefaultStartupTimeout is how long the plugin waits at startup for the
 	// provider to pass its health check.
 	DefaultStartupTimeout = 2 * time.Minute
+
+	// DefaultDrainTimeout is how long Drain waits for the leases in use to be
+	// released.
+	DefaultDrainTimeout = 30 * time.Minute
 )
 
 // containerdNamespaceHeader is the gRPC metadata key for the containerd
@@ -210,6 +214,12 @@ func WithStartupTimeout(timeout time.Duration) Option {
 	return func(d *Driver) { d.startupTimeout = timeout }
 }
 
+// WithDrainTimeout sets how long Drain waits for the leases in use to be
+// released.
+func WithDrainTimeout(timeout time.Duration) Option {
+	return func(d *Driver) { d.drainTimeout = timeout }
+}
+
 type imageLease struct {
 	imageRef     string
 	digest       string
@@ -256,10 +266,15 @@ type Driver struct {
 	probeHook           ProbeHookFunc
 	declineTTL          time.Duration
 	startupTimeout      time.Duration
+	drainTimeout        time.Duration
 	clientInjected      bool
 
-	mu              sync.Mutex
-	closed          bool
+	mu       sync.Mutex
+	closed   bool
+	draining bool
+	// drained is closed once the driver is draining and no lease is in use.
+	drained         chan struct{}
+	drainedClosed   bool
 	conn            *grpc.ClientConn
 	snapshotsClient snapshotsapi.SnapshotsClient
 	leases          map[string]*imageLease
@@ -290,6 +305,8 @@ func NewDriver(name, defaultSocket, snapshotterName string, opts ...Option) (*Dr
 		leaseIdleTTL:    DefaultLeaseIdleTTL,
 		declineTTL:      DefaultDeclineTTL,
 		startupTimeout:  DefaultStartupTimeout,
+		drainTimeout:    DefaultDrainTimeout,
+		drained:         make(chan struct{}),
 		leases:          make(map[string]*imageLease),
 		leaseRefs:       make(map[string]string),
 		resolvedMeta:    make(map[string]*resolvedImageMeta),
