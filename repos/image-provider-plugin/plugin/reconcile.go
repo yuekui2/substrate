@@ -140,6 +140,7 @@ func (d *Driver) ReconcileImages(ctx context.Context, active []*client.ActiveLea
 		stopIdleTimer(lease)
 	}
 	d.leaseRefs = leaseRefs
+	d.notifyDrainedLocked()
 	for ref := range restored {
 		slog.InfoContext(ctx, "Reconciled image leases",
 			slog.String("provider", d.name),
