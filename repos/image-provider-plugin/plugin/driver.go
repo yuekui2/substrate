@@ -272,8 +272,11 @@ type Driver struct {
 	resolvedMeta map[string]*resolvedImageMeta
 	// declined maps images the snapshotter declined to when the driver
 	// tries them again.
-	declined   map[string]time.Time
-	inflight   map[string]*inflightPrep
+	declined map[string]time.Time
+	inflight map[string]*inflightPrep
+	// sweeping maps the work dirs ReconcileImages is removing to a channel
+	// closed when the removal ends.
+	sweeping   map[string]chan struct{}
 	chainLocks map[string]*sync.Mutex
 }
 
@@ -296,6 +299,7 @@ func NewDriver(name, defaultSocket, snapshotterName string, opts ...Option) (*Dr
 		resolvedMeta:    make(map[string]*resolvedImageMeta),
 		declined:        make(map[string]time.Time),
 		inflight:        make(map[string]*inflightPrep),
+		sweeping:        make(map[string]chan struct{}),
 		chainLocks:      make(map[string]*sync.Mutex),
 	}
 	for _, opt := range opts {

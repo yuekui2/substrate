@@ -84,6 +84,16 @@ func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (
 			d.mu.Lock()
 			continue
 		}
+		if swept, ok := d.sweeping[d.imageWorkDir(ref)]; ok {
+			d.mu.Unlock()
+			select {
+			case <-swept:
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+			d.mu.Lock()
+			continue
+		}
 		if lease, ok := d.leases[ref]; ok && !lease.evicted && lease.config != nil {
 			if layersExist(lease.layers) {
 				res := d.acquireLeaseLocked(lease, req.LeaseID)
@@ -115,8 +125,11 @@ func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (
 	res, err := d.prepareImageCold(ctx, req)
 
 	d.mu.Lock()
-	if err != nil && !held && d.leaseRefs[req.LeaseID] == ref {
-		delete(d.leaseRefs, req.LeaseID)
+	if err != nil {
+		if !held && d.leaseRefs[req.LeaseID] == ref {
+			delete(d.leaseRefs, req.LeaseID)
+		}
+		d.dropImagelessLeasesLocked(ref)
 	}
 	if errors.Is(err, client.ErrNotSupported) && d.declineTTL > 0 {
 		d.declined[ref] = time.Now().Add(d.declineTTL)
@@ -237,6 +250,18 @@ func (d *Driver) prepareImageCold(ctx context.Context, req *client.PrepareReques
 	if err := os.MkdirAll(imageWorkDir, 0o755); err != nil {
 		rollback()
 		return nil, fmt.Errorf("creating image work directory: %w", err)
+	}
+	if err := writeLeaseMetadata(imageWorkDir, &persistedLease{
+		ImageRef:     ref,
+		Digest:       meta.digest,
+		Config:       meta.config,
+		DiffIDs:      meta.diffIDs,
+		LayerDigests: meta.layerDigests,
+		SnapshotKeys: mounted.SnapshotKeys,
+		LayerDirs:    layerDirs,
+	}); err != nil {
+		rollback()
+		return nil, fmt.Errorf("writing lease metadata: %w", err)
 	}
 
 	d.mu.Lock()
@@ -408,6 +433,7 @@ func (d *Driver) finishLeaseTeardown(ctx context.Context, lease *imageLease, fli
 	if d.inflight[lease.imageRef] == flight {
 		delete(d.inflight, lease.imageRef)
 	}
+	d.dropImagelessLeasesLocked(lease.imageRef)
 	close(flight.done)
 }
 
