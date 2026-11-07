@@ -38,6 +38,7 @@ func main() {
 		verifyDragonflyPing = flag.Bool("verify-dragonfly-ping", true, "Require a healthy dfdaemon to serve images")
 		procFilesystems     = flag.String("proc-filesystems", "/proc/filesystems", "File listing the kernel's filesystems, checked for EROFS")
 		cachefilesDev       = flag.String("cachefiles-dev", "/dev/cachefiles", "fscache device that EROFS over fscache needs")
+		blobSeedURL         = flag.String("blob-seed-url", "", "Base URL of the blob seed servers to read manifests and bootstrap layers from before the registry; empty disables")
 		workDir             = flag.String("work-dir", "", "Work directory for image layer links (default "+plugin.DefaultBaseWorkDir+"/"+providerName+")")
 		namespace           = flag.String("namespace", plugin.DefaultNamespace, "containerd namespace sent to containerd-nydus-grpc")
 		snapshotterName     = flag.String("snapshotter-name", "nydus", "Snapshotter name sent in snapshot requests")
@@ -82,6 +83,7 @@ func main() {
 		VerifyDragonflyPing: *verifyDragonflyPing,
 		ProcFilesystemsPath: *procFilesystems,
 		CachefilesDevPath:   *cachefilesDev,
+		BlobSeedURL:         *blobSeedURL,
 		DriverOpts:          opts,
 	})
 	if err != nil {
