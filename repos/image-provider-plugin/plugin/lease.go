@@ -39,7 +39,8 @@ func (d *Driver) stoppingLocked() bool {
 // PrepareImage mounts the image's layers and takes a lease on them.
 // Concurrent calls for one image share a single preparation. A mounted image
 // is reused. It returns an error wrapping client.ErrNotSupported when the
-// snapshotter declines the image or the driver is shutting down.
+// snapshotter declines the image, declined it within the decline TTL, or
+// the driver is shutting down.
 func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (*client.PrepareResult, error) {
 	if req == nil || req.ImageRef == "" {
 		return nil, errors.New("image reference is required")
@@ -80,6 +81,10 @@ func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (
 				slog.String("provider", d.name),
 				slog.String("image", ref))
 		}
+		if d.isDeclinedLocked(ref, time.Now()) {
+			d.mu.Unlock()
+			return nil, fmt.Errorf("recently declined by the snapshotter: %w", client.ErrNotSupported)
+		}
 		break
 	}
 	flight := &inflightPrep{done: make(chan struct{})}
@@ -89,6 +94,9 @@ func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (
 	res, err := d.prepareImageCold(ctx, req)
 
 	d.mu.Lock()
+	if errors.Is(err, client.ErrNotSupported) && d.declineTTL > 0 {
+		d.declined[ref] = time.Now().Add(d.declineTTL)
+	}
 	flight.err = err
 	delete(d.inflight, ref)
 	close(flight.done)
