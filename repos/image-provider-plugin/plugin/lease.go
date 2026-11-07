@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	imageprovider "github.com/ai-on-gke/image-provider-plugin/api/imageprovider/v1alpha1"
 	"github.com/ai-on-gke/image-provider-plugin/client"
 )
 
@@ -38,6 +39,9 @@ var (
 	// errLeaseMismatch reports a release whose image digest is not the
 	// lease's.
 	errLeaseMismatch = errors.New("release does not match the lease")
+
+	// errLeaseNotHeld reports a lease ID the driver does not hold.
+	errLeaseNotHeld = errors.New("lease is not held")
 )
 
 // stoppingLocked reports whether the driver takes no new leases.
@@ -58,6 +62,12 @@ func (d *Driver) PrepareImage(ctx context.Context, req *client.PrepareRequest) (
 	}
 	if req.LeaseID == "" {
 		return nil, errors.New("lease ID is required")
+	}
+	if d.selfRenewal > 0 && req.AuthConfig != nil {
+		// The driver reads the registry with its own keychain only.
+		r := *req
+		r.AuthConfig = nil
+		req = &r
 	}
 	ref := req.ImageRef
 
@@ -190,6 +200,11 @@ func (d *Driver) prepareImageCold(ctx context.Context, req *client.PrepareReques
 	d.mu.Unlock()
 	if meta == nil {
 		digest, cfg, diffIDs, layerDigests, err := d.imageResolver(ctx, ref, req.AuthConfig)
+		if err != nil && d.selfRenewal > 0 {
+			// The plugin's own credentials cannot read the image, so
+			// it could not keep reading it either.
+			return nil, fmt.Errorf("resolving image %s with the plugin's credentials: %v: %w", ref, err, client.ErrNotSupported)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("resolving image %s: %w", ref, err)
 		}
@@ -417,6 +432,53 @@ func (d *Driver) ReleaseImage(ctx context.Context, req *client.ReleaseRequest) e
 	return nil
 }
 
+// RefreshAuth gives the credentials in req to the auth refresh hook, with
+// req.ImageRef set to the image of the lease req.LeaseID. A self-renewing
+// driver ignores them. It waits for a preparation of the image in flight. It
+// returns an error wrapping errLeaseNotHeld when the driver does not hold the
+// lease, and never takes one.
+func (d *Driver) RefreshAuth(ctx context.Context, req *client.RefreshRequest) (imageprovider.AuthRefresh, error) {
+	if req == nil || req.LeaseID == "" {
+		return d.authRefresh, errors.New("lease ID is required")
+	}
+
+	d.mu.Lock()
+	var ref, digest string
+	for {
+		var ok bool
+		ref, ok = d.leaseRefs[req.LeaseID]
+		if !ok {
+			d.mu.Unlock()
+			return d.authRefresh, fmt.Errorf("lease %q: %w", req.LeaseID, errLeaseNotHeld)
+		}
+		if flight, ok := d.inflight[ref]; ok {
+			d.mu.Unlock()
+			select {
+			case <-flight.done:
+			case <-ctx.Done():
+				return d.authRefresh, ctx.Err()
+			}
+			d.mu.Lock()
+			continue
+		}
+		digest = d.leases[ref].digest
+		break
+	}
+	hook := d.authRefreshHook
+	d.mu.Unlock()
+
+	if hook == nil || d.selfRenewal > 0 {
+		// A self-renewing driver reads the registry with its own keychain.
+		return d.authRefresh, nil
+	}
+	hookReq := *req
+	hookReq.ImageRef = ref
+	if err := hook(ctx, CanonicalImageRef(ref, digest), &hookReq); err != nil {
+		return d.authRefresh, fmt.Errorf("refreshing credentials of lease %q: %w", req.LeaseID, err)
+	}
+	return d.authRefresh, nil
+}
+
 // beginLeaseTeardownLocked removes lease from the driver and marks its image
 // in flight, so PrepareImage and ReleaseImage wait for the teardown.
 func (d *Driver) beginLeaseTeardownLocked(lease *imageLease) *inflightPrep {
@@ -498,9 +560,14 @@ func (d *Driver) evictIdleLease(lease *imageLease) {
 	d.finishLeaseTeardown(context.Background(), lease, flight)
 }
 
-// Close stops the idle timers and closes the snapshotter connection. It
-// leaves images mounted, so a restarted plugin can reconcile them.
+// Close stops the idle timers and the self renewal loop, and closes the
+// snapshotter connection. It leaves images mounted, so a restarted plugin
+// can reconcile them.
 func (d *Driver) Close() error {
+	if d.stopRenewal != nil {
+		d.stopRenewal()
+		<-d.renewalDone
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.closed = true

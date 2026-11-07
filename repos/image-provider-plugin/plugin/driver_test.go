@@ -27,6 +27,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	imageprovider "github.com/ai-on-gke/image-provider-plugin/api/imageprovider/v1alpha1"
 	"github.com/ai-on-gke/image-provider-plugin/client"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
@@ -53,6 +54,7 @@ func newTestDriver(t *testing.T, opts ...Option) (*Driver, *fakeSnapshotsClient)
 		WithWorkDir(filepath.Join(t.TempDir(), "work")),
 		WithSnapshotsClient(snap),
 		WithImageResolver(staticResolver(testDiffIDs)),
+		WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_NOT_NEEDED),
 	}, opts...)
 	d, err := NewDriver("test-provider", "", "test-snap", opts...)
 	if err != nil {
@@ -149,6 +151,80 @@ func TestDriverLeaseErrors(t *testing.T) {
 	}
 	if got := leaseCount(d, ref); got != 1 {
 		t.Errorf("leases = %d after the failed calls, want 1", got)
+	}
+}
+
+func TestNewDriverAuthRefresh(t *testing.T) {
+	hook := WithAuthRefreshHook(func(context.Context, string, *client.RefreshRequest) error { return nil })
+	for _, tc := range []struct {
+		name    string
+		opts    []Option
+		wantErr bool
+	}{
+		{name: "unset", wantErr: true},
+		{name: "not needed", opts: []Option{WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_NOT_NEEDED)}},
+		{name: "required with a hook", opts: []Option{WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_REQUIRED), hook}},
+		{name: "required without a hook", opts: []Option{WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_REQUIRED)}, wantErr: true},
+		{name: "self renewal", opts: []Option{WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_NOT_NEEDED), hook, WithSelfRenewal(time.Minute)}},
+		{name: "self renewal with required", opts: []Option{WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_REQUIRED), hook, WithSelfRenewal(time.Minute)}, wantErr: true},
+		{name: "self renewal without a hook", opts: []Option{WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_NOT_NEEDED), WithSelfRenewal(time.Minute)}, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d, err := NewDriver("test-provider", "snap.sock", "", append([]Option{WithWorkDir(t.TempDir())}, tc.opts...)...)
+			if err == nil {
+				_ = d.Close()
+			}
+			if gotErr := err != nil; gotErr != tc.wantErr {
+				t.Errorf("NewDriver error = %v, want error %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestDriverRefreshAuth(t *testing.T) {
+	var (
+		hookErr error
+		gotRef  string
+		gotReq  *client.RefreshRequest
+	)
+	d, _ := newTestDriver(t,
+		WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_REQUIRED),
+		WithAuthRefreshHook(func(_ context.Context, canonicalRef string, req *client.RefreshRequest) error {
+			gotRef, gotReq = canonicalRef, req
+			return hookErr
+		}))
+	const ref = "example.com/app:v1"
+	prepare(t, d, ref, "a")
+	ctx := t.Context()
+
+	auth := &client.AuthConfig{Username: "u", Password: "fresh"}
+	got, err := d.RefreshAuth(ctx, &client.RefreshRequest{LeaseID: "a", AuthConfig: auth})
+	if err != nil || got != imageprovider.AuthRefresh_AUTH_REFRESH_REQUIRED {
+		t.Fatalf("RefreshAuth = %v, %v; want AUTH_REFRESH_REQUIRED", got, err)
+	}
+	if gotReq.ImageRef != ref || gotReq.AuthConfig != auth || gotRef != CanonicalImageRef(ref, testDigest) {
+		t.Errorf("hook got %q, %+v; want the lease's image and the new credentials", gotRef, gotReq)
+	}
+
+	hookErr = errors.New("writing credentials failed")
+	if _, err := d.RefreshAuth(ctx, &client.RefreshRequest{LeaseID: "a"}); !errors.Is(err, hookErr) {
+		t.Errorf("RefreshAuth with a failing hook = %v, want %v", err, hookErr)
+	}
+
+	// RefreshAuth never takes a lease, also not after a release.
+	if _, err := d.RefreshAuth(ctx, &client.RefreshRequest{LeaseID: "b"}); !errors.Is(err, errLeaseNotHeld) {
+		t.Errorf("RefreshAuth of an unknown lease = %v, want errLeaseNotHeld", err)
+	}
+	release(t, d, "a")
+	if _, err := d.RefreshAuth(ctx, &client.RefreshRequest{LeaseID: "a"}); !errors.Is(err, errLeaseNotHeld) {
+		t.Errorf("RefreshAuth of a released lease = %v, want errLeaseNotHeld", err)
+	}
+	d.mu.Lock()
+	_, heldA := d.leaseRefs["a"]
+	_, heldB := d.leaseRefs["b"]
+	d.mu.Unlock()
+	if heldA || heldB {
+		t.Error("RefreshAuth took a lease")
 	}
 }
 

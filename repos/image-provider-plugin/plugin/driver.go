@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	imageprovider "github.com/ai-on-gke/image-provider-plugin/api/imageprovider/v1alpha1"
 	"github.com/ai-on-gke/image-provider-plugin/client"
 	snapshotsapi "github.com/containerd/containerd/api/services/snapshots/v1"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -187,6 +188,34 @@ func WithWarmHitHook(fn WarmHitHookFunc) Option {
 	return func(d *Driver) { d.warmHitHook = fn }
 }
 
+// AuthRefreshHookFunc gives a provider fresh credentials for a leased image.
+// req.ImageRef is the image. RefreshAuth passes the caller's credentials. In
+// self renewal, req.AuthConfig is nil and the provider resolves credentials
+// with its keychain.
+type AuthRefreshHookFunc func(ctx context.Context, canonicalRef string, req *client.RefreshRequest) error
+
+// WithAuthRefresh sets what PrepareImage and RefreshAuth report in
+// auth_refresh. Every driver must set it.
+func WithAuthRefresh(r imageprovider.AuthRefresh) Option {
+	return func(d *Driver) { d.authRefresh = r }
+}
+
+// WithAuthRefreshHook sets the hook that applies fresh credentials. A driver
+// that reports AUTH_REFRESH_REQUIRED or renews credentials itself must set
+// it.
+func WithAuthRefreshHook(fn AuthRefreshHookFunc) Option {
+	return func(d *Driver) { d.authRefreshHook = fn }
+}
+
+// WithSelfRenewal makes the driver keep registry credentials fresh with its
+// own keychain instead of the caller's. It drops the credentials callers
+// send, resolves images with the keychain, and calls the auth refresh hook
+// with no credentials for each leased image every interval. It requires
+// AUTH_REFRESH_NOT_NEEDED and an auth refresh hook.
+func WithSelfRenewal(interval time.Duration) Option {
+	return func(d *Driver) { d.selfRenewal = interval }
+}
+
 // WithWorkDirTeardownHook sets a hook that runs before an image's work dir is
 // removed.
 func WithWorkDirTeardownHook(fn WorkDirTeardownHookFunc) Option {
@@ -262,6 +291,9 @@ type Driver struct {
 	keychain            authn.Keychain
 	layerMounter        LayerMounterFunc
 	warmHitHook         WarmHitHookFunc
+	authRefresh         imageprovider.AuthRefresh
+	authRefreshHook     AuthRefreshHookFunc
+	selfRenewal         time.Duration
 	workDirTeardownHook WorkDirTeardownHookFunc
 	probeHook           ProbeHookFunc
 	declineTTL          time.Duration
@@ -289,6 +321,11 @@ type Driver struct {
 	declined   map[string]time.Time
 	inflight   map[string]*inflightPrep
 	chainLocks map[string]*sync.Mutex
+
+	// stopRenewal stops the self renewal loop, and renewalDone is closed
+	// when it returns. Both are nil without self renewal.
+	stopRenewal context.CancelFunc
+	renewalDone chan struct{}
 }
 
 // NewDriver returns a Driver for the provider name, whose snapshotter
@@ -326,6 +363,26 @@ func NewDriver(name, defaultSocket, snapshotterName string, opts ...Option) (*Dr
 	if d.workDir == "" {
 		return nil, errors.New("work dir is required")
 	}
+	switch d.authRefresh {
+	case imageprovider.AuthRefresh_AUTH_REFRESH_NOT_NEEDED:
+	case imageprovider.AuthRefresh_AUTH_REFRESH_REQUIRED:
+		if d.authRefreshHook == nil {
+			return nil, errors.New("an auth refresh hook is required with AUTH_REFRESH_REQUIRED")
+		}
+	default:
+		return nil, fmt.Errorf("auth refresh must be NOT_NEEDED or REQUIRED, got %v", d.authRefresh)
+	}
+	if d.selfRenewal < 0 {
+		return nil, fmt.Errorf("self renewal interval must not be negative, got %v", d.selfRenewal)
+	}
+	if d.selfRenewal > 0 {
+		if d.authRefresh != imageprovider.AuthRefresh_AUTH_REFRESH_NOT_NEEDED {
+			return nil, errors.New("self renewal requires AUTH_REFRESH_NOT_NEEDED")
+		}
+		if d.authRefreshHook == nil {
+			return nil, errors.New("self renewal requires an auth refresh hook")
+		}
+	}
 	if d.snapshotterName == "" {
 		d.snapshotterName = d.name
 	}
@@ -337,6 +394,9 @@ func NewDriver(name, defaultSocket, snapshotterName string, opts ...Option) (*Dr
 	}
 	if d.layerMounter == nil {
 		d.layerMounter = StandardMountLayers
+	}
+	if d.selfRenewal > 0 {
+		d.startSelfRenewal()
 	}
 	return d, nil
 }
