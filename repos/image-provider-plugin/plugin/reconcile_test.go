@@ -23,6 +23,7 @@ import (
 	"testing"
 	"testing/synctest"
 
+	imageprovider "github.com/ai-on-gke/image-provider-plugin/api/imageprovider/v1alpha1"
 	"github.com/ai-on-gke/image-provider-plugin/client"
 )
 
@@ -34,6 +35,7 @@ func restartDriver(t *testing.T, d *Driver, snap *fakeSnapshotsClient, opts ...O
 		WithWorkDir(d.workDir),
 		WithSnapshotsClient(snap),
 		WithImageResolver(staticResolver(testDiffIDs)),
+		WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_NOT_NEEDED),
 	}, opts...)
 	nd, err := NewDriver(d.name, "", d.snapshotterName, opts...)
 	if err != nil {

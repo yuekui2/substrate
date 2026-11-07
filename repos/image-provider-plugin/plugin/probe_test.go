@@ -23,6 +23,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	imageprovider "github.com/ai-on-gke/image-provider-plugin/api/imageprovider/v1alpha1"
 	"github.com/ai-on-gke/image-provider-plugin/client"
 )
 
@@ -100,7 +101,7 @@ func TestDriverCanProvideChecksHealth(t *testing.T) {
 
 func TestDriverProbeNeedsSocket(t *testing.T) {
 	d, err := NewDriver("test-provider", filepath.Join(t.TempDir(), "missing.sock"), "",
-		WithWorkDir(t.TempDir()))
+		WithWorkDir(t.TempDir()), WithAuthRefresh(imageprovider.AuthRefresh_AUTH_REFRESH_NOT_NEEDED))
 	if err != nil {
 		t.Fatalf("NewDriver: %v", err)
 	}
