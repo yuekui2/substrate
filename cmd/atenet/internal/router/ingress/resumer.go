@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"k8s.io/apimachinery/pkg/util/cache"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -124,6 +125,63 @@ type ActorResumer struct {
 	// Used as a unique ID to identify requests (reqID) and disambiguate the
 	// leader vs joiners for flight outcome classification.
 	nextID uint64
+
+	// routes, when not nil, caches where running actors are placed, keyed by
+	// actor ref, so requests for them skip the ateapi ResumeActor call. An
+	// entry lives for routeTTL unless invalidateRoute drops it first.
+	routes   *cache.LRUExpireCache
+	routeTTL time.Duration
+}
+
+// warmRouteCacheSize bounds ActorResumer.routes. Past it the least recently
+// used route is dropped, which only costs that actor one ResumeActor call.
+const warmRouteCacheSize = 65536
+
+// withWarmRouteCache caches running actors' placements for ttl. A ttl of 0
+// leaves the cache off.
+func withWarmRouteCache(ttl time.Duration) resumerOption {
+	return func(r *ActorResumer) {
+		if ttl > 0 {
+			r.routes = cache.NewLRUExpireCache(warmRouteCacheSize)
+			r.routeTTL = ttl
+		}
+	}
+}
+
+// warmRoute returns the part of actor that routing a request needs, or nil if
+// actor cannot be cached: it is not running on a known worker, or it has no
+// UID for the worker to tell it from a later actor of the same name.
+func warmRoute(actor *ateapi.Actor) *ateapi.Actor {
+	assignment := actor.GetStatus().GetWorkerAssignment()
+	uid := actor.GetMetadata().GetUid()
+	if actor.GetStatus().GetState() != ateapi.ActorState_ACTOR_STATE_RUNNING ||
+		len(assignment.GetWorkerPodIps()) == 0 || assignment.GetWorkerSpiffeId() == "" || uid == "" {
+		return nil
+	}
+	return &ateapi.Actor{
+		Metadata:      &ateapi.ResourceMetadata{Uid: uid},
+		ActorTemplate: actor.GetActorTemplate(),
+		Status: &ateapi.ActorStatus{
+			State: ateapi.ActorState_ACTOR_STATE_RUNNING,
+			WorkerAssignment: &ateapi.WorkerAssignment{
+				WorkerPodIps:   assignment.GetWorkerPodIps(),
+				WorkerSpiffeId: assignment.GetWorkerSpiffeId(),
+			},
+		},
+	}
+}
+
+// invalidateRoute drops key's cached route. A resume still in flight for key
+// resolved the actor before the worker turned a request away, so its result is
+// kept out of the cache and later requests start a new resume.
+func (r *ActorResumer) invalidateRoute(key string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if f, ok := r.flights[key]; ok {
+		f.invalidated = true
+		delete(r.flights, key)
+	}
+	r.routes.Remove(key)
 }
 
 // resumerOption configures an ActorResumer.
@@ -205,6 +263,12 @@ func (r *ActorResumer) ResumeActor(ctx context.Context, actorRef resources.Actor
 	callerSpanCtx := trace.SpanContextFromContext(ctx)
 
 	key := actorRef.String()
+	if r.routes != nil {
+		if route, ok := r.routes.Get(key); ok {
+			return route.(*ateapi.Actor), ResumeOutcomeNone, nil
+		}
+	}
+
 	r.mu.Lock()
 	f, ok := r.flights[key]
 	if !ok {

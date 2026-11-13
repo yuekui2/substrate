@@ -938,3 +938,78 @@ func TestHandleRequestHeaders_FullLotShedsParkedRequest(t *testing.T) {
 		})
 	}
 }
+
+// TestHandleRequestHeaders_ResponseHeadersDropWarmRoute routes a request, feeds
+// the handler a response for it, and routes again to see whether the cached
+// route survived.
+func TestHandleRequestHeaders_ResponseHeadersDropWarmRoute(t *testing.T) {
+	const localReply = "upstream_reset_before_response_started{connection_failure}"
+	tests := []struct {
+		name            string
+		upstreamConnect bool
+		status          string
+		staleMarker     bool
+		codeDetails     string
+		wantDropped     bool
+		// wantStatus is the status the handler answers with in the response's
+		// place; 0 means the response goes through.
+		wantStatus envoy_type.StatusCode
+	}{
+		{name: "actor response", status: "200", codeDetails: "via_upstream"},
+		{name: "actor error", status: "503", codeDetails: "via_upstream"},
+		{name: "actor's own 421", status: "421", codeDetails: "via_upstream"},
+		{name: "worker refused the request", status: "421", staleMarker: true, codeDetails: "via_upstream", wantDropped: true, wantStatus: envoy_type.StatusCode_ServiceUnavailable},
+		{name: "worker refused the request, no attributes", status: "421", staleMarker: true, wantDropped: true, wantStatus: envoy_type.StatusCode_ServiceUnavailable},
+		{name: "marked 421 from inside a tunnel is the actor's", upstreamConnect: true, status: "421", staleMarker: true, codeDetails: "via_upstream"},
+		{name: "Envoy could not reach the worker", upstreamConnect: true, status: "503", codeDetails: localReply, wantDropped: true},
+		{name: "Envoy could not reach the worker, direct", status: "503", codeDetails: localReply, wantDropped: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			mock := &mockClient{
+				resumeFn: func(context.Context, *ateapi.ResumeActorRequest, ...grpc.CallOption) (*ateapi.ResumeActorResponse, error) {
+					calls.Add(1)
+					return &ateapi.ResumeActorResponse{Actor: warmRouteTestActor()}, nil
+				},
+			}
+			h := New(mock, DefaultParkedRequestConfig(), nil, WithUpstreamConnect(tc.upstreamConnect), WithWarmRouteCacheTTL(30*time.Second))
+			route := func() extproc.Result {
+				t.Helper()
+				res, err := h.HandleRequestHeaders(t.Context(), extproc.NewRequestMetadata([]*corev3.HeaderValue{
+					{Key: atenet.TargetActorHeader, RawValue: []byte("team-a/actor")},
+				}, nil))
+				if err != nil {
+					t.Fatalf("HandleRequestHeaders: %v", err)
+				}
+				return res
+			}
+
+			res := route()
+			uid := res.DynamicMetadata.GetFields()[OriginalDstMetadataKey].GetStructValue().GetFields()[ActorUIDMetadataKey].GetStringValue()
+			if uid != "uid-1" {
+				t.Errorf("dynamic metadata actor UID = %q, want %q", uid, "uid-1")
+			}
+
+			headers := []*corev3.HeaderValue{{Key: ":status", RawValue: []byte(tc.status)}}
+			if tc.staleMarker {
+				headers = append(headers, &corev3.HeaderValue{Key: atenet.StaleAssignmentHeader, RawValue: []byte("true")})
+			}
+			var attrs map[string]*structpb.Struct
+			if tc.codeDetails != "" {
+				attrs = map[string]*structpb.Struct{"envoy.filters.http.ext_proc": {Fields: map[string]*structpb.Value{
+					ResponseCodeDetailsAttribute: structpb.NewStringValue(tc.codeDetails),
+				}}}
+			}
+			answer := res.OnResponseHeaders(extproc.NewRequestMetadata(headers, attrs))
+			if got := answer.GetImmediateResponse().GetStatus().GetCode(); got != tc.wantStatus {
+				t.Errorf("answered with status %v, want %v", got, tc.wantStatus)
+			}
+
+			route()
+			if got, want := calls.Load() == 2, tc.wantDropped; got != want {
+				t.Errorf("route dropped = %t, want %t (ateapi ResumeActor calls = %d)", got, want, calls.Load())
+			}
+		})
+	}
+}

@@ -32,6 +32,10 @@ import (
 //     enter the parking lot in this state.
 //   - done: closed when the flight is finished and result is set.
 type resumeActorFlight struct {
+	// invalidated is set by invalidateRoute, under ActorResumer.mu, and keeps
+	// the flight's result out of the warm route cache.
+	invalidated bool
+
 	retrying chan struct{}
 	// retryingSignaled guards the single close of retrying; only the flight
 	// goroutine touches it.
@@ -107,7 +111,14 @@ func (f *resumeActorFlight) callerResult(reqID uint64) (*ateapi.Actor, ResumeOut
 func (r *ActorResumer) publish(f *resumeActorFlight, key string, result *resumeCallResult) {
 	f.result = result
 	r.mu.Lock()
-	delete(r.flights, key)
+	if route := warmRoute(result.actor); r.routes != nil && route != nil && result.err == nil && !f.invalidated {
+		r.routes.Add(key, route, r.routeTTL)
+	}
+	// invalidateRoute may have dropped f already, and another flight taken
+	// its place.
+	if r.flights[key] == f {
+		delete(r.flights, key)
+	}
 	r.mu.Unlock()
 	close(f.done)
 }

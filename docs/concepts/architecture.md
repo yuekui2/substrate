@@ -355,7 +355,12 @@ Handles actor-aware ingress routing, on-demand resumption, and policy-enforced e
     Actor target in `ate-target-actor` as `<atespace>/<actor>`.
     The ext_proc calls the Control Plane to resume the Actor and resolve its
     current worker assignment. `Host` remains application authority and does
-    not select the Actor.
+    not select the Actor. With `--warm-route-cache-ttl` set, the router reuses
+    a running Actor's assignment for that long instead of calling the Control
+    Plane on every request. It drops the cached assignment as soon as the
+    worker refuses a request for the Actor or cannot be reached; that one
+    request fails with a retryable `503`, and the next one resumes the Actor
+    as usual.
 
   * **Worker Tunnel**: After resolving the assignment, `atenet-router` opens an
     mTLS `CONNECT` tunnel to the worker's `atunnel` listener on port 8443.

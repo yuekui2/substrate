@@ -42,6 +42,7 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	streamaccesslogv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/access_loggers/stream/v3"
 	setfilterstatecommonv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/common/set_filter_state/v3"
+	extprocv3filter "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_proc/v3"
 	setfilterstatev3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/set_filter_state/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
@@ -53,6 +54,7 @@ import (
 
 	"go.ate.dev/substrate/cmd/atenet/internal/router/extproc"
 	"go.ate.dev/substrate/cmd/atenet/internal/router/ingress"
+	"go.ate.dev/substrate/internal/atenet"
 	atunnelingress "go.ate.dev/substrate/internal/atunnel/ingress"
 )
 
@@ -1352,24 +1354,75 @@ func TestXdsServer_ActorClusterProtocolOptions(t *testing.T) {
 }
 
 // TestXdsServer_BuildRoutesWritesTargetPortHeader ensures the route overwrites
-// the target-port header with the value from ext_proc's trusted metadata.
+// the target-port and actor-UID headers with values from trusted dynamic metadata.
 func TestXdsServer_BuildRoutesWritesTargetPortHeader(t *testing.T) {
 	x := NewXdsServer(18000)
 	route := x.buildRoutes().GetVirtualHosts()[0].GetRoutes()[0]
 
 	headers := route.GetRequestHeadersToAdd()
-	if len(headers) != 1 {
-		t.Fatalf("route adds request headers %v, want exactly one", headers)
+	if len(headers) != 2 {
+		t.Fatalf("route adds request headers %v, want 2", headers)
 	}
-	header := headers[0]
-	if got, want := header.GetHeader().GetKey(), atunnelingress.TargetPortHeader; got != want {
-		t.Errorf("header key = %q, want %q", got, want)
+	portHeader := headers[0]
+	if got, want := portHeader.GetHeader().GetKey(), atunnelingress.TargetPortHeader; got != want {
+		t.Errorf("header[0] key = %q, want %q", got, want)
 	}
-	if got, want := header.GetHeader().GetValue(), "%DYNAMIC_METADATA(envoy.filters.listener.original_dst:port)%"; got != want {
-		t.Errorf("header value = %q, want %q", got, want)
+	if got, want := portHeader.GetHeader().GetValue(), "%DYNAMIC_METADATA(envoy.filters.listener.original_dst:port)%"; got != want {
+		t.Errorf("header[0] value = %q, want %q", got, want)
 	}
-	if got, want := header.GetAppendAction(), corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD; got != want {
-		t.Errorf("append action = %v, want %v", got, want)
+	if got, want := portHeader.GetAppendAction(), corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD; got != want {
+		t.Errorf("header[0] append action = %v, want %v", got, want)
+	}
+
+	uidHeader := headers[1]
+	if got, want := uidHeader.GetHeader().GetKey(), atenet.ActorUIDHeader; got != want {
+		t.Errorf("header[1] key = %q, want %q", got, want)
+	}
+	if got, want := uidHeader.GetHeader().GetValue(), "%DYNAMIC_METADATA(envoy.filters.listener.original_dst:actor_uid)%"; got != want {
+		t.Errorf("header[1] value = %q, want %q", got, want)
+	}
+	if got, want := uidHeader.GetAppendAction(), corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD; got != want {
+		t.Errorf("header[1] append action = %v, want %v", got, want)
+	}
+	if !uidHeader.GetKeepEmptyValue() {
+		t.Error("header[1] keep_empty_value = false, want true so a client-sent header is overwritten when the metadata is absent")
+	}
+}
+
+// TestXdsServer_WarmRouteCacheSendsResponseHeaders ensures ext_proc is sent
+// response headers, and where the response came from, only with the warm
+// route cache on: that is the handler's one way to learn a route went stale.
+func TestXdsServer_WarmRouteCacheSendsResponseHeaders(t *testing.T) {
+	for name, enabled := range map[string]bool{"cache off": false, "cache on": true} {
+		t.Run(name, func(t *testing.T) {
+			x := NewXdsServer(18000)
+			x.SetWarmRouteCacheEnabled(enabled)
+
+			hcm := &hcmv3.HttpConnectionManager{}
+			if err := x.buildHcm("ingress_http", false).UnmarshalTo(hcm); err != nil {
+				t.Fatalf("unmarshal HCM: %v", err)
+			}
+			extProc := &extprocv3filter.ExternalProcessor{}
+			for _, f := range hcm.GetHttpFilters() {
+				if f.GetName() != httpExtProcFilterName {
+					continue
+				}
+				if err := f.GetTypedConfig().UnmarshalTo(extProc); err != nil {
+					t.Fatalf("unmarshal ext_proc filter: %v", err)
+				}
+			}
+
+			wantMode, wantAttrs := extprocv3filter.ProcessingMode_SKIP, []string(nil)
+			if enabled {
+				wantMode, wantAttrs = extprocv3filter.ProcessingMode_SEND, []string{ingress.ResponseCodeDetailsAttribute}
+			}
+			if got := extProc.GetProcessingMode().GetResponseHeaderMode(); got != wantMode {
+				t.Errorf("response header mode = %v, want %v", got, wantMode)
+			}
+			if got := extProc.GetResponseAttributes(); !slices.Equal(got, wantAttrs) {
+				t.Errorf("response attributes = %v, want %v", got, wantAttrs)
+			}
+		})
 	}
 }
 
