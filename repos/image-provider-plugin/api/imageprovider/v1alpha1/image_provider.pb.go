@@ -42,8 +42,11 @@ type LayerForm int32
 const (
 	// LAYER_FORM_UNSPECIFIED is treated as LAYER_FORM_DIRS.
 	LayerForm_LAYER_FORM_UNSPECIFIED LayerForm = 0
-	// LAYER_FORM_DIRS returns mounted read-only host directories, stacked on
-	// the host as overlayfs lowerdirs.
+	// LAYER_FORM_DIRS returns mounted read-only host directories that the
+	// caller stacks as overlayfs lowerdirs, with its own writable upper layer
+	// on top. Each directory is used as it is, so it marks whiteouts as
+	// overlayfs does: 0:0 character devices for whiteouts and
+	// trusted.overlay.opaque=y on opaque directories.
 	LayerForm_LAYER_FORM_DIRS LayerForm = 1
 	// LAYER_FORM_EROFS returns EROFS image files that a microVM maps over
 	// virtio-pmem with DAX and stacks inside the guest. Each file is

@@ -80,8 +80,11 @@ enum LayerForm {
   // LAYER_FORM_UNSPECIFIED is treated as LAYER_FORM_DIRS.
   LAYER_FORM_UNSPECIFIED = 0;
 
-  // LAYER_FORM_DIRS returns mounted read-only host directories, stacked on
-  // the host as overlayfs lowerdirs.
+  // LAYER_FORM_DIRS returns mounted read-only host directories that the
+  // caller stacks as overlayfs lowerdirs, with its own writable upper layer
+  // on top. Each directory is used as it is, so it marks whiteouts as
+  // overlayfs does: 0:0 character devices for whiteouts and
+  // trusted.overlay.opaque=y on opaque directories.
   LAYER_FORM_DIRS = 1;
 
   // LAYER_FORM_EROFS returns EROFS image files that a microVM maps over
