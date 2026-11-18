@@ -17,7 +17,6 @@ package plugin
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -29,8 +28,8 @@ func TestDriverDrain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		d, _ := newTestDriver(t, WithDrainTimeout(time.Hour))
 		const inUse, idle = "example.com/in-use:v1", "example.com/idle:v1"
-		inUseRes := prepare(t, d, inUse, "in-use")
-		idleRes := prepare(t, d, idle, "idle")
+		prepare(t, d, inUse, "in-use")
+		prepare(t, d, idle, "idle")
 		release(t, d, "idle")
 
 		drained := make(chan bool)
@@ -40,7 +39,7 @@ func TestDriverDrain(t *testing.T) {
 		if !d.Draining() {
 			t.Error("Draining = false after Drain started")
 		}
-		if exists(filepath.Dir(idleRes.LayerDirs[0])) {
+		if exists(d.imageWorkDir(idle)) {
 			t.Error("an idle image is still mounted while draining")
 		}
 		if canProvide(t, d, inUse) {
@@ -59,7 +58,7 @@ func TestDriverDrain(t *testing.T) {
 		if !<-drained {
 			t.Error("Drain = false after the last lease was released")
 		}
-		if exists(filepath.Dir(inUseRes.LayerDirs[0])) {
+		if exists(d.imageWorkDir(inUse)) {
 			t.Error("an image is still mounted after its last lease was released while draining")
 		}
 	})

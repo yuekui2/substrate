@@ -37,14 +37,10 @@ import (
 
 const testStreamedDigest = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 
-// streamedLayerDir makes a layer directory as a plugin lays it out.
+// streamedLayerDir makes a lowerdir as a plugin returns it.
 func streamedLayerDir(t *testing.T) string {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), "layer-0")
-	if err := os.MkdirAll(filepath.Join(dir, "fs"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	return dir
+	return t.TempDir()
 }
 
 func streamedResult(layerDir string) *providerclient.PrepareResult {
@@ -195,7 +191,7 @@ func TestImageSourceEnsure(t *testing.T) {
 				}
 			}
 			if tc.wantStreamed {
-				if !slices.Equal(img.LayerDirs, []string{layerDir}) || img.Digest.String() != testStreamedDigest {
+				if !slices.Equal(img.ProviderDirs, []string{layerDir}) || len(img.LayerDirs) != 0 || img.Digest.String() != testStreamedDigest {
 					t.Errorf("image = %+v, want the provider's layers and digest", img)
 				}
 			} else if _, err := os.Stat(filepath.Join(img.LayerDirs[0], "fs", "app-bin")); err != nil {

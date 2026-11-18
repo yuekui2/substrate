@@ -126,7 +126,7 @@ func TestServerLeaseLifecycle(t *testing.T) {
 	if err := c.ReleaseImage(ctx, &client.ReleaseRequest{LeaseID: "a", ImageDigest: res.ImageDigest}); err != nil {
 		t.Fatalf("ReleaseImage: %v", err)
 	}
-	if exists(filepath.Dir(res.LayerDirs[0])) {
+	if exists(d.imageWorkDir(ref)) {
 		t.Error("image still mounted after its last lease was released")
 	}
 	if _, err := c.RefreshAuth(ctx, refresh); !errors.Is(err, client.ErrLeaseNotHeld) {
@@ -139,12 +139,12 @@ func TestServerReconcileImages(t *testing.T) {
 	c, _, _, _ := startServer(t, d)
 	const used, unused = "example.com/used:v1", "example.com/unused:v1"
 	usedRes := prepare(t, d, used, "u")
-	unusedRes := prepare(t, d, unused, "x")
+	prepare(t, d, unused, "x")
 
 	if err := c.ReconcileImages(t.Context(), []*client.ActiveLease{{LeaseID: "u", ImageRef: used, ImageDigest: testDigest}}); err != nil {
 		t.Fatalf("ReconcileImages: %v", err)
 	}
-	if exists(filepath.Dir(unusedRes.LayerDirs[0])) {
+	if exists(d.imageWorkDir(unused)) {
 		t.Error("an image no workload uses is still mounted after ReconcileImages")
 	}
 	if !exists(usedRes.LayerDirs[0]) || !d.holdsLease("u") {

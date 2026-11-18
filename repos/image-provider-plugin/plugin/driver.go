@@ -93,7 +93,8 @@ type MountEnv struct {
 // MountedLayers is what a LayerMounterFunc returns.
 type MountedLayers struct {
 	// MountDirs are the read-only host directories of the layers, bottom
-	// first. The driver links them as layer-0/fs .. layer-(K-1)/fs.
+	// first. Each must be an overlayfs lowerdir as it is: PrepareImage
+	// returns them unchanged.
 	MountDirs []string
 
 	// SnapshotKeys are the snapshotter views to remove when the lease ends
@@ -277,7 +278,7 @@ type inflightPrep struct {
 // Driver implements the image lease lifecycle on top of a containerd remote
 // snapshotter. It coalesces concurrent PrepareImage calls, tracks the leases
 // on each image by lease ID, keeps idle images mounted for an idle TTL, and
-// links each image's layers under <workDir>/<image key>/layer-<i>/fs. A
+// returns each image's layer mounts as overlayfs lowerdirs. A
 // LayerMounterFunc does the provider-specific snapshotter work.
 type Driver struct {
 	name                string

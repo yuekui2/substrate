@@ -49,8 +49,8 @@ func restartDriver(t *testing.T, d *Driver, snap *fakeSnapshotsClient, opts ...O
 func TestDriverReconcileAfterRestart(t *testing.T) {
 	d, snap := newTestDriver(t, WithLeaseIdleTTL(0))
 	const used, unused, never = "example.com/used:v1", "example.com/unused:v1", "example.com/never-prepared:v1"
-	usedRes := prepare(t, d, used, "u1")
-	unusedRes := prepare(t, d, unused, "x")
+	prepare(t, d, used, "u1")
+	prepare(t, d, unused, "x")
 	_ = d.Close()
 
 	nd := restartDriver(t, d, snap, WithLeaseIdleTTL(0))
@@ -64,7 +64,7 @@ func TestDriverReconcileAfterRestart(t *testing.T) {
 	if got := leaseCount(nd, never); got != 0 {
 		t.Errorf("leases on an image without a work dir = %d, want 0", got)
 	}
-	if exists(filepath.Dir(unusedRes.LayerDirs[0])) {
+	if exists(nd.imageWorkDir(unused)) {
 		t.Error("work dir of an image no workload uses still exists")
 	}
 	if got := len(snap.removed()); got != 2 {
@@ -89,7 +89,7 @@ func TestDriverReconcileAfterRestart(t *testing.T) {
 	for _, id := range []string{"u1", "u2", "u3"} {
 		release(t, nd, id)
 	}
-	if exists(filepath.Dir(usedRes.LayerDirs[0])) {
+	if exists(nd.imageWorkDir(used)) {
 		t.Error("work dir still exists after the last lease was released")
 	}
 }

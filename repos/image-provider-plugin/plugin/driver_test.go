@@ -103,8 +103,8 @@ func TestDriverLeaseLifecycle(t *testing.T) {
 		t.Fatalf("LayerDirs = %v, want 2 layers", res.LayerDirs)
 	}
 	for i, dir := range res.LayerDirs {
-		if !exists(filepath.Join(dir, "fs", "hello.txt")) || !exists(filepath.Join(dir, "finalized")) {
-			t.Errorf("layer %d at %s is not linked and finalized", i, dir)
+		if !exists(filepath.Join(dir, "hello.txt")) {
+			t.Errorf("layer %d at %s is not the mounted view", i, dir)
 		}
 	}
 
@@ -130,7 +130,7 @@ func TestDriverLeaseLifecycle(t *testing.T) {
 	if got := snap.removed(); len(got) != 2 {
 		t.Errorf("removed %v after the last release, want both views", got)
 	}
-	if exists(filepath.Dir(res.LayerDirs[0])) {
+	if exists(d.imageWorkDir(ref)) {
 		t.Errorf("image work dir still exists after the last release")
 	}
 
@@ -243,14 +243,14 @@ func TestDriverIdleTTL(t *testing.T) {
 		// A new lease within the TTL reuses the image and stops the timer.
 		prepare(t, d, ref, "b")
 		time.Sleep(2 * time.Minute)
-		if !exists(res.LayerDirs[0]) {
+		if !exists(d.imageWorkDir(ref)) {
 			t.Fatal("leased image unmounted")
 		}
 
 		release(t, d, "b")
 		time.Sleep(2 * time.Minute)
 		synctest.Wait()
-		if exists(res.LayerDirs[0]) {
+		if exists(d.imageWorkDir(ref)) {
 			t.Error("image still mounted after the idle TTL")
 		}
 		if got := snap.removed(); len(got) != 2 {
@@ -353,8 +353,8 @@ func TestDriverRepreparesMissingLayers(t *testing.T) {
 	const ref = "example.com/app:v1"
 
 	res := prepare(t, d, ref, "a")
-	// The layer link is gone, for example after a node cleanup.
-	if err := os.Remove(filepath.Join(res.LayerDirs[0], "fs")); err != nil {
+	// The layer mount is gone, for example after a node cleanup.
+	if err := os.RemoveAll(res.LayerDirs[0]); err != nil {
 		t.Fatal(err)
 	}
 	res2 := prepare(t, d, ref, "b")
@@ -364,8 +364,8 @@ func TestDriverRepreparesMissingLayers(t *testing.T) {
 	if views != 4 {
 		t.Errorf("View calls = %d, want 4 after preparing again", views)
 	}
-	if res2.LayerDirs[0] != res.LayerDirs[0] {
-		t.Errorf("layer dirs changed from %v to %v", res.LayerDirs, res2.LayerDirs)
+	if !layersExist(res2.LayerDirs) {
+		t.Errorf("layer dirs %v missing after preparing again", res2.LayerDirs)
 	}
 	if got := leaseCount(d, ref); got != 2 {
 		t.Errorf("leases = %d, want 2", got)

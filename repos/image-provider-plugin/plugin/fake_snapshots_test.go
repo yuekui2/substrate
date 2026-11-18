@@ -81,8 +81,12 @@ func (f *fakeSnapshotsClient) View(_ context.Context, in *snapshotsapi.ViewSnaps
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.viewReqs = append(f.viewReqs, in)
+	dir := f.mountDirs[in.GetParent()]
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, err
+	}
 	return &snapshotsapi.ViewSnapshotResponse{
-		Mounts: []*types.Mount{{Type: "bind", Source: f.mountDirs[in.GetParent()]}},
+		Mounts: []*types.Mount{{Type: "bind", Source: dir}},
 	}, nil
 }
 

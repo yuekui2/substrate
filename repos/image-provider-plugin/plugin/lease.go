@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -173,14 +172,13 @@ func stopIdleTimer(lease *imageLease) {
 	}
 }
 
-// layersExist reports whether every layer directory, and the view its fs
-// link points to, still exists.
+// layersExist reports whether every layer's mount directory still exists.
 func layersExist(layers []string) bool {
 	if len(layers) == 0 {
 		return false
 	}
 	for _, l := range layers {
-		if _, err := os.Stat(filepath.Join(l, "fs")); err != nil {
+		if _, err := os.Stat(l); err != nil {
 			return false
 		}
 	}
@@ -244,10 +242,14 @@ func (d *Driver) prepareImageCold(ctx context.Context, req *client.PrepareReques
 		rollback()
 		return nil, fmt.Errorf("provider %s mounted no layers for %s", d.name, ref)
 	}
-	layerDirs, err := d.linkLayers(ctx, imageWorkDir, mounted.MountDirs)
+	layerDirs, err := d.waitListable(ctx, mounted.MountDirs)
 	if err != nil {
 		rollback()
 		return nil, err
+	}
+	if err := os.MkdirAll(imageWorkDir, 0o755); err != nil {
+		rollback()
+		return nil, fmt.Errorf("creating image work directory: %w", err)
 	}
 	if err := writeLeaseMetadata(imageWorkDir, &persistedLease{
 		ImageRef:     ref,
@@ -303,23 +305,18 @@ func (d *Driver) prepareImageCold(ctx context.Context, req *client.PrepareReques
 	}, nil
 }
 
-// linkLayers waits for each mount dir to become listable, then links it as
-// <imageWorkDir>/layer-<i>/fs and marks the layer finalized. It returns the
-// layer directories.
-func (d *Driver) linkLayers(ctx context.Context, imageWorkDir string, mountDirs []string) ([]string, error) {
-	layerDirs := make([]string, len(mountDirs))
+// waitListable waits for each mount dir to become listable and returns them
+// as the image's lowerdirs, bottom-most first.
+func (d *Driver) waitListable(ctx context.Context, mountDirs []string) ([]string, error) {
 	errs := make([]error, len(mountDirs))
 	if i := slices.Index(mountDirs, ""); i >= 0 {
 		return nil, fmt.Errorf("empty mount directory for layer %d", i)
 	}
 	var wg sync.WaitGroup
 	for i, mountDir := range mountDirs {
-		layerDir := filepath.Join(imageWorkDir, fmt.Sprintf("layer-%d", i))
-		layerDirs[i] = layerDir
 		wg.Go(func() {
-			errs[i] = d.linkLayer(ctx, mountDir, layerDir)
-			if errs[i] != nil {
-				errs[i] = fmt.Errorf("layer %d: %w", i, errs[i])
+			if err := d.probeListable(ctx, mountDir); err != nil {
+				errs[i] = fmt.Errorf("layer %d: %w", i, err)
 			}
 		})
 	}
@@ -327,27 +324,7 @@ func (d *Driver) linkLayers(ctx context.Context, imageWorkDir string, mountDirs 
 	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
-	return layerDirs, nil
-}
-
-func (d *Driver) linkLayer(ctx context.Context, mountDir, layerDir string) error {
-	if err := d.probeListable(ctx, mountDir); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(layerDir, 0o755); err != nil {
-		return fmt.Errorf("creating layer directory: %w", err)
-	}
-	fsLink := filepath.Join(layerDir, "fs")
-	if err := os.Remove(fsLink); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("removing old layer link: %w", err)
-	}
-	if err := os.Symlink(mountDir, fsLink); err != nil {
-		return fmt.Errorf("linking layer view: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(layerDir, "finalized"), nil, 0o600); err != nil {
-		return fmt.Errorf("writing finalized marker: %w", err)
-	}
-	return nil
+	return slices.Clone(mountDirs), nil
 }
 
 // probeListable waits until mountDir can be listed. A new FUSE or kernel

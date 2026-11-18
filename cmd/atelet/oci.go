@@ -145,7 +145,7 @@ func streamedImage(res *providerclient.PrepareResult, leaseID string) (*imagecac
 	if err != nil {
 		return nil, fmt.Errorf("the image provider plugin returned image digest %q: %w", res.ImageDigest, err)
 	}
-	return &imagecache.Image{Digest: digest, Config: *res.Config, LayerDirs: res.LayerDirs, LeaseID: leaseID}, nil
+	return &imagecache.Image{Digest: digest, Config: *res.Config, ProviderDirs: res.LayerDirs, LeaseID: leaseID}, nil
 }
 
 // release drops the provider lease leaseID on the image with digest. A failed
