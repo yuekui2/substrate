@@ -293,7 +293,8 @@ func prepareOCIDirectory(ctx context.Context, images imageSource, actorUID, cont
 		ImageDigest:  img.Digest.String(),
 		ImageRef:     ref,
 		LeaseID:      img.LeaseID,
-		Layers:       img.LayerDirs,
+		LowerDirs:    img.LowerDirs(),
+		StoreLayers:  img.LayerDirs,
 		ExtraDirs:    extraDirs,
 		ImageVolumes: imageVolumes,
 	}); err != nil {
@@ -348,7 +349,8 @@ func resolveImageVolumes(ctx context.Context, images imageSource, actorUID, cont
 				ImageDigest: img.Digest.String(),
 				ImageRef:    volRef,
 				LeaseID:     img.LeaseID,
-				Layers:      img.LayerDirs,
+				LowerDirs:   img.LowerDirs(),
+				StoreLayers: img.LayerDirs,
 			}
 			return nil
 		})

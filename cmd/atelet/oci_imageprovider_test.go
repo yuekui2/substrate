@@ -284,13 +284,13 @@ func TestReleaseProviderLeases(t *testing.T) {
 			ImageRef:    "registry.example/app:1",
 			ImageDigest: "sha256:aaa",
 			LeaseID:     "actor-1/app",
-			Layers:      []string{"/plugin/layer-0"},
+			LowerDirs:   []string{"/plugin/layer-0"},
 			ImageVolumes: []imagecache.ImageVolumeOverlay{
-				{Name: "models", ImageRef: "registry.example/models:1", ImageDigest: "sha256:bbb", LeaseID: "actor-1/app/models", Layers: []string{"/plugin/layer-1"}},
-				{Name: "tools", ImageRef: "registry.example/tools:1", Layers: []string{"/cache/layer-2"}},
+				{Name: "models", ImageRef: "registry.example/models:1", ImageDigest: "sha256:bbb", LeaseID: "actor-1/app/models", LowerDirs: []string{"/plugin/layer-1"}},
+				{Name: "tools", ImageRef: "registry.example/tools:1", StoreLayers: []string{"/cache/layer-2"}},
 			},
 		},
-		"sidecar": {ImageRef: "registry.example/sidecar:1", Layers: []string{"/cache/layer-3"}},
+		"sidecar": {ImageRef: "registry.example/sidecar:1", StoreLayers: []string{"/cache/layer-3"}},
 	} {
 		bundle := ateletpath.OCIBundlePath(actorUID, name)
 		if err := os.MkdirAll(bundle, 0o700); err != nil {

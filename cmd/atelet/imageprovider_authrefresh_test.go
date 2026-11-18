@@ -44,12 +44,12 @@ func TestRefreshProviderAuth(t *testing.T) {
 	const app = "registry.example/app:1"
 	for _, actor := range []string{"lazy", "eager", "unknown", "gone", "failing"} {
 		writeTestBundle(t, actorsDir, actor, "main", &imagecache.OverlaySpec{
-			ImageRef: app, ImageDigest: "sha256:aaa", LeaseID: actor + "/main", Layers: []string{"/plugin/app/0"},
+			ImageRef: app, ImageDigest: "sha256:aaa", LeaseID: actor + "/main", LowerDirs: []string{"/plugin/app/0"},
 		})
 	}
 	// An image from the cache holds no lease and is never refreshed.
 	writeTestBundle(t, actorsDir, "cached", "main", &imagecache.OverlaySpec{
-		ImageRef: app, ImageDigest: "sha256:aaa", Layers: []string{"/cache/aaa"},
+		ImageRef: app, ImageDigest: "sha256:aaa", StoreLayers: []string{"/cache/aaa"},
 	})
 
 	provider := providermock.New("nydus")

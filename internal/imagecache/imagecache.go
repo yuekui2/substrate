@@ -307,6 +307,11 @@ type Image struct {
 	LeaseID string
 }
 
+// LowerDirs returns the image's overlayfs lowerdirs, bottom-most first.
+func (img *Image) LowerDirs() []string {
+	return storeLowerDirs(img.LayerDirs)
+}
+
 // imageRecord is the persisted form of a cached image, stored under
 // manifests/<algorithm>/<hex>.json.
 type imageRecord struct {

@@ -54,16 +54,16 @@ func TestReconcileProviderLeases(t *testing.T) {
 	actorsDir := t.TempDir()
 	const app, tools, local = "registry.example/app:1", "registry.example/tools:1", "registry.example/local:1"
 	writeTestBundle(t, actorsDir, "actor-1", "main", &imagecache.OverlaySpec{
-		ImageRef: app, ImageDigest: "sha256:aaa", LeaseID: "actor-1/main", Layers: []string{"/plugin/app/0"},
+		ImageRef: app, ImageDigest: "sha256:aaa", LeaseID: "actor-1/main", LowerDirs: []string{"/plugin/app/0"},
 		ImageVolumes: []imagecache.ImageVolumeOverlay{{
-			Name: "tools", ImageRef: tools, ImageDigest: "sha256:bbb", LeaseID: "actor-1/main/tools", Layers: []string{"/plugin/tools/0"},
+			Name: "tools", ImageRef: tools, ImageDigest: "sha256:bbb", LeaseID: "actor-1/main/tools", LowerDirs: []string{"/plugin/tools/0"},
 		}},
 	})
 	writeTestBundle(t, actorsDir, "actor-2", "main", &imagecache.OverlaySpec{
-		ImageRef: app, ImageDigest: "sha256:aaa", LeaseID: "actor-2/main", Layers: []string{"/plugin/app/0"},
+		ImageRef: app, ImageDigest: "sha256:aaa", LeaseID: "actor-2/main", LowerDirs: []string{"/plugin/app/0"},
 	})
 	writeTestBundle(t, actorsDir, "actor-3", "main", &imagecache.OverlaySpec{
-		ImageRef: local, ImageDigest: "sha256:ccc", Layers: []string{"/cache/ccc"},
+		ImageRef: local, ImageDigest: "sha256:ccc", StoreLayers: []string{"/cache/ccc"},
 	})
 
 	provider := providermock.New("nydus")
@@ -114,11 +114,11 @@ func (f *fakeSuspendWorkers) RequestActorSuspend(_ context.Context, req *ateapi.
 func TestSuspendStreamedActors(t *testing.T) {
 	actorsDir, workersDir := t.TempDir(), t.TempDir()
 	writeTestBundle(t, actorsDir, "actor-streamed", "main", &imagecache.OverlaySpec{
-		ImageRef: "registry.example/app:1", Layers: []string{"/cache/aaa"},
-		ImageVolumes: []imagecache.ImageVolumeOverlay{{Name: "tools", ImageRef: "registry.example/tools:1", LeaseID: "actor-streamed/main/tools", Layers: []string{"/plugin/0"}}},
+		ImageRef: "registry.example/app:1", StoreLayers: []string{"/cache/aaa"},
+		ImageVolumes: []imagecache.ImageVolumeOverlay{{Name: "tools", ImageRef: "registry.example/tools:1", LeaseID: "actor-streamed/main/tools", LowerDirs: []string{"/plugin/0"}}},
 	})
 	writeTestBundle(t, actorsDir, "actor-local", "main", &imagecache.OverlaySpec{
-		ImageRef: "registry.example/local:1", Layers: []string{"/cache/ccc"},
+		ImageRef: "registry.example/local:1", StoreLayers: []string{"/cache/ccc"},
 	})
 
 	const podUID = "worker-pod-1"
