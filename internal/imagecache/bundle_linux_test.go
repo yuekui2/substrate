@@ -126,7 +126,7 @@ func TestSetupBundleRootfs_NoSpecIsNoop(t *testing.T) {
 // Needs no privileges (the stale-unmount attempt's failure is ignored).
 func TestSetupBundleRootfs_ZeroLayers(t *testing.T) {
 	bundle := t.TempDir()
-	if err := WriteSpec(bundle, &OverlaySpec{Layers: nil, ExtraDirs: []string{"/run/ate"}}); err != nil {
+	if err := WriteSpec(bundle, &OverlaySpec{StoreLayers: nil, ExtraDirs: []string{"/run/ate"}}); err != nil {
 		t.Fatalf("WriteSpec: %v", err)
 	}
 	if err := SetupBundleRootfs(bundle); err != nil {
@@ -158,7 +158,7 @@ func TestSetupBundleRootfs_ImplicitDirMetadataRepair(t *testing.T) {
 	writeLayer(t, top, map[string]string{"secret/new.txt": "n"}, &whiteoutSet{ImplicitDirs: []string{"secret"}})
 
 	bundle := t.TempDir()
-	if err := WriteSpec(bundle, &OverlaySpec{Layers: []string{base, top}}); err != nil {
+	if err := WriteSpec(bundle, &OverlaySpec{StoreLayers: []string{base, top}}); err != nil {
 		t.Fatalf("WriteSpec: %v", err)
 	}
 	if err := SetupBundleRootfs(bundle); err != nil {
@@ -198,7 +198,7 @@ func TestSetupBundleRootfs_RootIsSearchableByNonRoot(t *testing.T) {
 
 	t.Run("zero layers", func(t *testing.T) {
 		bundle := t.TempDir()
-		if err := WriteSpec(bundle, &OverlaySpec{Layers: nil}); err != nil {
+		if err := WriteSpec(bundle, &OverlaySpec{StoreLayers: nil}); err != nil {
 			t.Fatalf("WriteSpec: %v", err)
 		}
 		if err := SetupBundleRootfs(bundle); err != nil {
@@ -213,7 +213,7 @@ func TestSetupBundleRootfs_RootIsSearchableByNonRoot(t *testing.T) {
 		writeLayer(t, layer, map[string]string{"bin/app": "x"}, nil)
 
 		bundle := t.TempDir()
-		if err := WriteSpec(bundle, &OverlaySpec{Layers: []string{layer}}); err != nil {
+		if err := WriteSpec(bundle, &OverlaySpec{StoreLayers: []string{layer}}); err != nil {
 			t.Fatalf("WriteSpec: %v", err)
 		}
 		if err := SetupBundleRootfs(bundle); err != nil {
@@ -231,7 +231,7 @@ func TestSetupBundleRootfs_MountAndUnmount(t *testing.T) {
 	writeLayer(t, layer, map[string]string{"from-layer.txt": "hello"}, nil)
 
 	bundle := t.TempDir()
-	if err := WriteSpec(bundle, &OverlaySpec{Layers: []string{layer}, ExtraDirs: []string{"/run/ate"}}); err != nil {
+	if err := WriteSpec(bundle, &OverlaySpec{StoreLayers: []string{layer}, ExtraDirs: []string{"/run/ate"}}); err != nil {
 		t.Fatalf("WriteSpec: %v", err)
 	}
 	if err := SetupBundleRootfs(bundle); err != nil {
@@ -295,7 +295,7 @@ func TestSetupBundleRootfs_ManyLayers(t *testing.T) {
 	}
 
 	bundle := t.TempDir()
-	if err := WriteSpec(bundle, &OverlaySpec{Layers: layers}); err != nil {
+	if err := WriteSpec(bundle, &OverlaySpec{StoreLayers: layers}); err != nil {
 		t.Fatalf("WriteSpec: %v", err)
 	}
 	if err := SetupBundleRootfs(bundle); err != nil {
@@ -359,8 +359,8 @@ func TestSetupBundleRootfs_ImageVolumes(t *testing.T) {
 
 			bundle := t.TempDir()
 			if err := WriteSpec(bundle, &OverlaySpec{
-				Layers:       []string{layers[0]},
-				ImageVolumes: []ImageVolumeOverlay{{Name: "agent", Layers: layers}},
+				StoreLayers:  []string{layers[0]},
+				ImageVolumes: []ImageVolumeOverlay{{Name: "agent", StoreLayers: layers}},
 			}); err != nil {
 				t.Fatalf("WriteSpec: %v", err)
 			}
@@ -451,7 +451,7 @@ func testSetupBundleRootfsPresentsLayerOwnership(t *testing.T) {
 	})
 
 	bundle := t.TempDir()
-	if err := WriteSpec(bundle, &OverlaySpec{Layers: []string{base, top}}); err != nil {
+	if err := WriteSpec(bundle, &OverlaySpec{StoreLayers: []string{base, top}}); err != nil {
 		t.Fatalf("WriteSpec: %v", err)
 	}
 	if err := SetupBundleRootfs(bundle); err != nil {
@@ -495,7 +495,7 @@ func testSetupBundleRootfsRepairsWhiteoutParentUnderSetgidDir(t *testing.T) {
 	})
 
 	bundle := t.TempDir()
-	if err := WriteSpec(bundle, &OverlaySpec{Layers: []string{base, top}}); err != nil {
+	if err := WriteSpec(bundle, &OverlaySpec{StoreLayers: []string{base, top}}); err != nil {
 		t.Fatalf("WriteSpec: %v", err)
 	}
 	if err := SetupBundleRootfs(bundle); err != nil {
@@ -680,16 +680,16 @@ func TestSetupBundleRootfs_MultiBundleUnmount(t *testing.T) {
 	}
 
 	for _, b := range []string{pauseBundle, upperBundle, workBundle, rootfsBundle, volumesBundle} {
-		if err := WriteSpec(b, &OverlaySpec{Layers: []string{pauseLayer}}); err != nil {
+		if err := WriteSpec(b, &OverlaySpec{StoreLayers: []string{pauseLayer}}); err != nil {
 			t.Fatalf("WriteSpec(%q): %v", b, err)
 		}
 	}
 	if err := WriteSpec(mainBundle, &OverlaySpec{
-		Layers: []string{mainLayer},
+		StoreLayers: []string{mainLayer},
 		ImageVolumes: []ImageVolumeOverlay{
-			{Name: "agent", Layers: []string{volLayer1, volLayer2}},
-			{Name: "upper", Layers: []string{volLayer1, volLayer2}},
-			{Name: "work", Layers: []string{volLayer1, volLayer2}},
+			{Name: "agent", StoreLayers: []string{volLayer1, volLayer2}},
+			{Name: "upper", StoreLayers: []string{volLayer1, volLayer2}},
+			{Name: "work", StoreLayers: []string{volLayer1, volLayer2}},
 		},
 	}); err != nil {
 		t.Fatalf("WriteSpec(main): %v", err)
